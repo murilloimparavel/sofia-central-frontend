@@ -26,6 +26,13 @@ const statusFilter = (value: string): BaseFilter => ({
   values: value,
 });
 
+const statusValuesFilter = (values: string[]): BaseFilter => ({
+  ...DEFAULT_BASE_FILTER,
+  attributeKey: 'status',
+  filterOperator: 'equal_to',
+  values,
+});
+
 // unread / unanswered / is_group: eixos de navegação (não-status) mapeados pra params
 // GET em convertFiltersToUrlParams. status ausente é injetado como 'all' lá, então
 // estas views abrangem todos os status (ex.: "Não lidas" = não lidas em qualquer status).
@@ -45,7 +52,9 @@ const assigneeFilter = (value: 'me' | 'unassigned' | 'all'): BaseFilter => ({
 
 export const CONVERSATION_SCOPE_PRESETS: Record<ConversationScopeId, BaseFilter[]> = {
   mine: [assigneeFilter('me')],
-  unassigned: [assigneeFilter('unassigned')],
+  // A fila mostra somente atendimentos ainda em andamento. Resolvidas não
+  // devem reaparecer apenas porque continuam sem responsável.
+  unassigned: [assigneeFilter('unassigned'), statusValuesFilter(['open', 'pending'])],
   all: [assigneeFilter('all')],
 };
 
