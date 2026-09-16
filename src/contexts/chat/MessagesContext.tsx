@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { createContext, useContext, useReducer, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
 import { chatService } from '@/services/chat/chatService';
 import { useAuthStore } from '@/store/authStore';
@@ -44,8 +44,11 @@ type MessagesAction =
       type: 'ADD_PREVIOUS_MESSAGES';
       payload: { conversationId: string; messages: Message[]; hasMore: boolean };
     }
+  | { type: 'MERGE_NEW_MESSAGES'; payload: { conversationId: string; messages: Message[] } }
   | { type: 'SET_REPLY_TO_MESSAGE'; payload: Message | null }
   | { type: 'CLEAR_CONVERSATION_MESSAGES'; payload: string };
+
+const EMPTY_MESSAGES: Message[] = [];
 
 const initialState: MessagesState = {
   messages: {},
@@ -180,6 +183,41 @@ function messagesReducer(state: MessagesState, action: MessagesAction): Messages
             oldestMessageId: newMessages.length > 0 ? newMessages[0].id : null,
             isLoadingMore: false,
           },
+        },
+      };
+    }
+
+    case 'MERGE_NEW_MESSAGES': {
+      const { conversationId, messages: incomingMessages } = action.payload;
+      const currentMessages = state.messages[conversationId] || [];
+      if (incomingMessages.length === 0) {
+        return state;
+      }
+
+      const byId = new Map<string, Message>();
+      currentMessages.forEach(m => byId.set(String(m.id), m));
+
+      incomingMessages.forEach(incoming => {
+        // Se uma mensagem pendente local tiver echo_id correspondente, removemos a temporária
+        if (incoming.echo_id) {
+          for (const [id, current] of byId.entries()) {
+            if (
+              current.status === 'progress' &&
+              (String(current.id) === String(incoming.echo_id) ||
+                String(current.echo_id) === String(incoming.echo_id))
+            ) {
+              byId.delete(id);
+            }
+          }
+        }
+        byId.set(String(incoming.id), incoming);
+      });
+
+      return {
+        ...state,
+        messages: {
+          ...state.messages,
+          [conversationId]: [...byId.values()].sort(compareMessagesByTimestamp),
         },
       };
     }
@@ -369,6 +407,8 @@ interface MessagesContextValue {
 
   // Message actions
   loadMessages: (conversationId: string) => Promise<void>;
+  syncConversationMessages: (conversationId: string) => Promise<void>;
+  prefetchMessages: (conversationId: string) => Promise<void>;
   loadMoreMessages: (conversationId: string) => Promise<void>;
   sendMessage: (
     conversationId: string,
@@ -427,42 +467,68 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage('chat');
   const [state, dispatch] = useReducer(messagesReducer, initialState);
 
-  /**
-   * TODO:
-   * - Se a ideia é evitar duplicação por conversa/ação, teria que ser algo tipo: const key = `${action.type}-${conversationId}`;
-   * Ou então remover totalmente isso pois o problema de "duplicação" tem que ser resolvido na origem (websocket, effect, etc), não
-   * em um "debouncer" fake no reducer.
-   */
+  // 🔒 Cache & Sincronização: registro de timestamps de sincronização
+  const lastSyncedAtRef = useRef<Map<string, number>>(new Map());
 
-  // 🔒 PROTEÇÃO: Refs para evitar renders duplos e chamadas simultâneas
-  const dispatchThrottleRef = useRef<Set<string>>(new Set());
+  // Busca somente as mensagens posteriores à última mensagem conhecida.
+  // Requisições idênticas são compartilhadas para evitar duplicação em voo.
+  const syncRequestsRef = useRef<Map<string, Promise<void>>>(new Map());
+  const syncConversationMessages = useCallback(
+    async (conversationId: string) => {
+      const currentMessages = state.messages[conversationId] || [];
+      // Encontrar a última mensagem com ID persistido (ignora mensagens locais em progresso de envio)
+      const lastPersistedMessage = [...currentMessages]
+        .reverse()
+        .find(m => m.status !== 'progress' && m.id && !/^\d{13,}$/.test(m.id));
 
-  // 🔧 DISPATCH PROTEGIDO: Evitar dispatches duplos
-  const protectedDispatch = useCallback((action: MessagesAction) => {
-    // Criar chave única simples baseada no tipo de ação e timestamp
-    const actionKey = `${action.type}-${Date.now()}-${Math.random()}`;
+      if (!lastPersistedMessage) return;
 
-    if (dispatchThrottleRef.current.has(actionKey)) {
-      return;
-    }
+      const requestKey = `${conversationId}:${lastPersistedMessage.id}`;
+      const existingRequest = syncRequestsRef.current.get(requestKey);
+      if (existingRequest) return existingRequest;
 
-    dispatchThrottleRef.current.add(actionKey);
-    dispatch(action);
+      const request = (async () => {
+        try {
+          const response = await chatService.getMessages(conversationId, {
+            after: lastPersistedMessage.id,
+          });
+          if (!response) return;
 
-    // Limpar após um tempo para permitir futuras operações
-    setTimeout(() => {
-      dispatchThrottleRef.current.delete(actionKey);
-    }, 1000);
-  }, []);
+          const newMessages = extractMessagesData(response);
+          if (newMessages.length > 0) {
+            dispatch({
+              type: 'MERGE_NEW_MESSAGES',
+              payload: { conversationId, messages: newMessages },
+            });
+          }
+          lastSyncedAtRef.current.set(conversationId, Date.now());
+        } catch (error) {
+          console.warn('Falha ao sincronizar mensagens da conversa:', error);
+        } finally {
+          syncRequestsRef.current.delete(requestKey);
+        }
+      })();
+
+      syncRequestsRef.current.set(requestKey, request);
+      return request;
+    },
+    [state.messages],
+  );
 
   // Message actions
   const loadMessages = useCallback(
     async (conversationId: string) => {
-      // Reutilizar o cache local ao voltar para uma conversa já aberta.
-      // Mensagens novas continuam entrando pelo WebSocket; uma sincronização
-      // explícita pode limpar esse cache quando necessário.
+      // ⚡ CACHE INSTANTÂNEO (0ms): Reutilizar cache local ao abrir uma conversa.
+      // A UI renderiza imediatamente sem spinner. Se o cache for mais antigo que 10s,
+      // reconcilia silenciosamente em segundo plano via `syncConversationMessages`.
       const cachedMessages = state.messages[conversationId];
       if (cachedMessages && cachedMessages.length > 0) {
+        const lastSynced = lastSyncedAtRef.current.get(conversationId) || 0;
+        const now = Date.now();
+        if (now - lastSynced > 10_000) {
+          lastSyncedAtRef.current.set(conversationId, now);
+          void syncConversationMessages(conversationId);
+        }
         return;
       }
 
@@ -498,6 +564,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
             messages,
           },
         });
+        lastSyncedAtRef.current.set(conversationId, Date.now());
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : t('contexts.messages.errors.loadMessages');
@@ -517,7 +584,32 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         });
       }
     },
-    [state.messagesLoading, t],
+    [state.messages, state.messagesLoading, syncConversationMessages, t],
+  );
+
+  // ⚡ PREFETCH: Carregar mensagens silenciosamente em background para que o clique seguinte seja 0ms
+  const prefetchMessages = useCallback(
+    async (conversationId: string) => {
+      const cached = state.messages[conversationId];
+      if ((cached && cached.length > 0) || state.messagesLoading[conversationId]) {
+        return;
+      }
+
+      try {
+        const response = await chatService.getMessages(conversationId);
+        if (response) {
+          const messages = extractMessagesData(response);
+          dispatch({
+            type: 'SET_MESSAGES',
+            payload: { conversationId, messages },
+          });
+          lastSyncedAtRef.current.set(conversationId, Date.now());
+        }
+      } catch (err) {
+        console.debug('[prefetchMessages] Silently caught:', err);
+      }
+    },
+    [state.messages, state.messagesLoading],
   );
 
   const loadMoreMessages = useCallback(
@@ -660,7 +752,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
 
       try {
         // 3. Adicionar mensagem PENDING ao store IMEDIATAMENTE
-        protectedDispatch({
+        dispatch({
           type: 'ADD_MESSAGE',
           payload: { conversationId, message: pendingMessage },
         });
@@ -709,7 +801,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           }
         });
 
-        protectedDispatch({
+        dispatch({
           type: 'REPLACE_MESSAGE',
           payload: {
             conversationId,
@@ -738,16 +830,14 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           type: 'UPDATE_MESSAGE',
           payload: {
             conversationId,
-            message: { ...pendingMessage, status: 'failed' },
+            message: {
+              ...pendingMessage,
+              status: 'failed',
+            },
           },
         });
 
-        const fallbackMessage =
-          files.length > 0
-            ? t('contexts.messages.errors.sendMessageWithAttachments')
-            : t('contexts.messages.errors.sendMessage');
-
-        toast.error(fallbackMessage, {
+        toast.error(t('contexts.messages.errors.sendMessage'), {
           description: error instanceof Error ? error.message : t('contexts.messages.tryAgain'),
           action: {
             label: t('contexts.messages.tryAgain'),
@@ -759,7 +849,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
     },
-    [protectedDispatch, state.replyToMessage, t],
+    [state.replyToMessage, t],
   );
 
   // Funções públicas (exporta via Context)
@@ -861,12 +951,12 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
 
   const addMessage = useCallback(
     (conversationId: string, message: Message) => {
-      protectedDispatch({
+      dispatch({
         type: 'ADD_MESSAGE',
         payload: { conversationId, message },
       });
     },
-    [protectedDispatch],
+    [],
   );
 
   const updateMessage = useCallback((conversationId: string, message: Message) => {
@@ -901,25 +991,13 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Computed values
+  // ⚡ PERFORMANCE O(1) & REFERÊNCIA ESTÁVEL:
+  // As mensagens já são ordenadas pelo reducer ao serem inseridas/atualizadas.
+  // Retornar a mesma referência estável evita re-renderizações desnecessárias em cascata.
   const getMessages = useCallback(
-    (conversationId: string) => {
-      const messages = state.messages[conversationId] || [];
-
-      // 🔒 CRITICAL: Verificar se todas as mensagens pertencem à conversa atual
-      // 🔧 CORREÇÃO: Comparar como strings (UUIDs são strings)
-      const validMessages = messages.filter(
-        msg => String(msg.conversation_id) === String(conversationId),
-      );
-
-      // Se nem todas as mensagens são válidas, logar warning mas retornar válidas
-      if (messages.length > 0 && validMessages.length !== messages.length) {
-        return [];
-      }
-
-      // 🔧 GARANTIR ORDENAÇÃO: por timestamp (mensagens em envio sempre por último)
-      const sortedMessages = [...validMessages].sort(compareMessagesByTimestamp);
-
-      return sortedMessages;
+    (conversationId: string | number) => {
+      const key = String(conversationId);
+      return state.messages[key] || EMPTY_MESSAGES;
     },
     [state.messages],
   );
@@ -952,29 +1030,58 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     [state.messageHistory],
   );
 
-  const contextValue: MessagesContextValue = {
-    state,
-    loadMessages,
-    loadMoreMessages,
-    sendMessage,
-    sendMessageWithFiles,
-    _sendMessageBase,
-    onReplyToMessage,
-    onCancelReply,
-    onCopyMessage,
-    onDeleteMessage,
-    setMessages,
-    addMessage,
-    updateMessage,
-    replaceMessage,
-    addPreviousMessages,
-    clearConversationMessages,
-    getMessages,
-    isMessagesLoading,
-    getMessagesError,
-    canLoadMore,
-    isLoadingMore,
-  };
+  const contextValue: MessagesContextValue = useMemo(
+    () => ({
+      state,
+      loadMessages,
+      syncConversationMessages,
+      prefetchMessages,
+      loadMoreMessages,
+      sendMessage,
+      sendMessageWithFiles,
+      _sendMessageBase,
+      onReplyToMessage,
+      onCancelReply,
+      onCopyMessage,
+      onDeleteMessage,
+      setMessages,
+      addMessage,
+      updateMessage,
+      replaceMessage,
+      addPreviousMessages,
+      clearConversationMessages,
+      getMessages,
+      isMessagesLoading,
+      getMessagesError,
+      canLoadMore,
+      isLoadingMore,
+    }),
+    [
+      state,
+      loadMessages,
+      syncConversationMessages,
+      prefetchMessages,
+      loadMoreMessages,
+      sendMessage,
+      sendMessageWithFiles,
+      _sendMessageBase,
+      onReplyToMessage,
+      onCancelReply,
+      onCopyMessage,
+      onDeleteMessage,
+      setMessages,
+      addMessage,
+      updateMessage,
+      replaceMessage,
+      addPreviousMessages,
+      clearConversationMessages,
+      getMessages,
+      isMessagesLoading,
+      getMessagesError,
+      canLoadMore,
+      isLoadingMore,
+    ],
+  );
 
   return <MessagesContext.Provider value={contextValue}>{children}</MessagesContext.Provider>;
 }

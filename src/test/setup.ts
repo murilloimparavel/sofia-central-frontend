@@ -1,6 +1,52 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
+class MockStorage implements Storage {
+  private store = new Map<string, string>();
+
+  getItem(key: string): string | null {
+    return this.store.get(String(key)) ?? null;
+  }
+
+  setItem(key: string, value: string): void {
+    this.store.set(String(key), String(value));
+  }
+
+  removeItem(key: string): void {
+    this.store.delete(String(key));
+  }
+
+  clear(): void {
+    this.store.clear();
+  }
+
+  key(index: number): string | null {
+    return Array.from(this.store.keys())[index] ?? null;
+  }
+
+  get length(): number {
+    return this.store.size;
+  }
+}
+
+if (typeof globalThis.localStorage === 'undefined' || !globalThis.localStorage?.clear) {
+  const mockStorage = new MockStorage();
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: mockStorage,
+    writable: true,
+    configurable: true,
+  });
+}
+
+if (typeof globalThis.sessionStorage === 'undefined' || !globalThis.sessionStorage?.clear) {
+  const mockSessionStorage = new MockStorage();
+  Object.defineProperty(globalThis, 'sessionStorage', {
+    value: mockSessionStorage,
+    writable: true,
+    configurable: true,
+  });
+}
+
 // @tanstack/react-virtual measures the scroll element via ResizeObserver +
 // getBoundingClientRect, both of which JSDOM stubs as 0×0. The virtualizer
 // then renders zero items, which breaks any test that asserts on the

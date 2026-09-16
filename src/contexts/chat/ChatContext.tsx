@@ -25,6 +25,7 @@ import { isAdminRole } from '@/constants/roles';
 import { playNotificationSound, getAudioSettings } from '@/utils/audioNotificationUtils';
 import { normalizeToUnixSeconds } from '@/utils/time/timeHelpers';
 import { doesConversationMatchFilters } from '@/utils/chat/conversationMatch';
+const EMPTY_MESSAGES: Message[] = [];
 
 interface ChatContextValue {
   // All sub-contexts
@@ -58,6 +59,7 @@ function useChatIntegration() {
   const { saveState, loadState } = usePersistence();
   const { user: currentUser } = useAuth();
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
+  const previousWebSocketConnectedRef = useRef(false);
   const activeFiltersRef = useRef<ConversationFilter[]>(filters.state.activeFilters);
   const attachmentReloadTimersRef = useRef<Record<string, number>>({});
   const account = useAppDataStore(state => state.account);
@@ -74,6 +76,24 @@ function useChatIntegration() {
   useEffect(() => {
     activeFiltersRef.current = filters.state.activeFilters;
   }, [filters.state.activeFilters]);
+
+  // Recuperar mensagens que chegaram durante uma queda do WebSocket sem
+  // recarregar o histórico inteiro da conversa aberta.
+  useEffect(() => {
+    const isConnected = websocket.state.isWebSocketConnected;
+    const wasDisconnected = !previousWebSocketConnectedRef.current;
+    const conversationId = conversations.state.selectedConversationId;
+
+    if (isConnected && wasDisconnected && conversationId) {
+      void messages.syncConversationMessages(String(conversationId));
+    }
+
+    previousWebSocketConnectedRef.current = isConnected;
+  }, [
+    websocket.state.isWebSocketConnected,
+    conversations.state.selectedConversationId,
+    messages,
+  ]);
   useEffect(() => {
     return () => {
       Object.values(attachmentReloadTimersRef.current).forEach(timerId => {
@@ -115,9 +135,21 @@ function useChatIntegration() {
 
   // Computed values
   const selectedConversation = conversations.selectedConversation;
-  const selectedMessages = selectedConversation
-    ? messages.getMessages(selectedConversation.id)
-    : [];
+  const canonicalSelectedId = useMemo(() => {
+    if (!selectedConversation) return null;
+    return String(selectedConversation.uuid || selectedConversation.id);
+  }, [selectedConversation]);
+
+  const selectedMessages = useMemo(() => {
+    if (!canonicalSelectedId) return EMPTY_MESSAGES;
+    const msgs = messages.getMessages(canonicalSelectedId);
+    if (msgs.length > 0) return msgs;
+    if (selectedConversation && String(selectedConversation.id) !== canonicalSelectedId) {
+      const fallbackMsgs = messages.getMessages(String(selectedConversation.id));
+      if (fallbackMsgs.length > 0) return fallbackMsgs;
+    }
+    return EMPTY_MESSAGES;
+  }, [canonicalSelectedId, selectedConversation, messages]);
   // 🔧 FIX: Ordenar conversas por last_activity_at para garantir ordem correta em tempo real
   const filteredConversations = useMemo(() => {
     return [...conversations.state.conversations].sort((a, b) => {

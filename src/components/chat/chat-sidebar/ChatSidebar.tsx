@@ -88,6 +88,7 @@ interface ChatSidebarProps {
   onArchiveConversation: (conversation: Conversation) => void;
   onUnarchiveConversation: (conversation: Conversation) => void;
   onDeleteConversation: (conversation: Conversation) => void;
+  onMarkAsResolved?: (conversation: Conversation) => Promise<void>;
   selectedConversationIds: Set<string>;
   onToggleSelect: (displayId: string) => void;
   onClearSelection: () => void;

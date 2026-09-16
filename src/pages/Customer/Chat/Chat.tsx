@@ -383,6 +383,31 @@ const Chat = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations.state.selectedConversationId]); // Removido 'messages' para evitar loop
 
+  // ⚡ PREFETCH INTELIGENTE (Princípio 80/20):
+  // Quando uma conversa é selecionada e o operador está interagindo com ela,
+  // pré-carrega em segundo plano a próxima conversa da lista.
+  // Se o atendente clicar nela em seguida, o carregamento é instantâneo (0ms).
+  useEffect(() => {
+    const selectedId = conversations.state.selectedConversationId;
+    if (!selectedId) return;
+
+    const timer = setTimeout(() => {
+      const list = conversations.state.conversations;
+      const currentIndex = list.findIndex(
+        c => String(c.uuid || c.id) === String(selectedId) || String(c.id) === String(selectedId),
+      );
+      if (currentIndex !== -1 && currentIndex + 1 < list.length) {
+        const nextConv = list[currentIndex + 1];
+        const nextId = String(nextConv.uuid || nextConv.id);
+        if (nextId) {
+          void messages.prefetchMessages(nextId);
+        }
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [conversations.state.selectedConversationId, conversations.state.conversations, messages]);
+
   // Sincronizar conversa selecionada com URL com debounce
   useEffect(() => {
     // 🔒 PROTEÇÃO: Ignorar URL sync durante navegação manual
@@ -886,6 +911,7 @@ const Chat = () => {
           onArchiveConversation={handleArchiveConversation}
           onUnarchiveConversation={handleUnarchiveConversation}
           onDeleteConversation={handleDeleteConversation}
+          onMarkAsResolved={handleMarkAsResolved}
           selectedConversationIds={selectedConversationIds}
           onToggleSelect={handleToggleConversationSelection}
           onClearSelection={handleClearSelection}
