@@ -66,6 +66,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ attachment, messageType, onTo
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -146,9 +147,17 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ attachment, messageType, onTo
       audio.pause();
       setIsPlaying(false);
     } else {
+      audio.playbackRate = playbackRate;
       audio.play();
       setIsPlaying(true);
     }
+  };
+
+  const cyclePlaybackRate = () => {
+    const rates = [1, 1.5, 2, 2.5];
+    const nextRate = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
+    setPlaybackRate(nextRate);
+    if (audioRef.current) audioRef.current.playbackRate = nextRate;
   };
 
   // Controlar posição do áudio
@@ -241,6 +250,19 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ attachment, messageType, onTo
               </span>
             </div>
             <button
+              type="button"
+              onClick={cyclePlaybackRate}
+              aria-label={`Velocidade de reprodução: ${playbackRate}x`}
+              className={`flex-shrink-0 min-w-9 px-2 py-1 rounded-full text-[11px] font-semibold tabular-nums transition-colors ${
+                messageType === 'out'
+                  ? 'text-white/80 hover:bg-white/15 hover:text-white'
+                  : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+              }`}
+            >
+              {playbackRate.toString().replace('.', ',')}x
+            </button>
+            <button
+              type="button"
               onClick={downloadAudio}
               className={`
                 flex-shrink-0 p-1 rounded transition-colors

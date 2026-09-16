@@ -43,6 +43,7 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [durations, setDurations] = useState<Record<string, number>>({});
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -351,6 +352,8 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
         setCurrentPlaying(attachment.data_url);
       }
 
+      audio.playbackRate = playbackRate;
+
       audio.play().catch(error => {
         console.error('Erro ao reproduzir áudio:', error);
         toast.error(t('messages.messageAudio.playbackError'), {
@@ -360,6 +363,13 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
       });
       setIsPlaying(true);
     }
+  };
+
+  const cyclePlaybackRate = () => {
+    const rates = [1, 1.5, 2, 2.5];
+    const nextRate = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
+    setPlaybackRate(nextRate);
+    if (audioRef.current) audioRef.current.playbackRate = nextRate;
   };
 
   useEffect(() => {
@@ -503,14 +513,26 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
                   </div>
 
                   {/* Menu/Download */}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => downloadFile(attachment)}
-                    className="h-7 w-7 rounded-full hover:bg-muted-foreground/20 text-muted-foreground flex-shrink-0 p-0"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={cyclePlaybackRate}
+                      aria-label={`Velocidade de reprodução: ${playbackRate}x`}
+                      className="h-7 min-w-9 rounded-full px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                    >
+                      {playbackRate.toString().replace('.', ',')}x
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => downloadFile(attachment)}
+                      className="h-7 w-7 rounded-full hover:bg-muted-foreground/20 text-muted-foreground p-0"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Transcription Text */}
