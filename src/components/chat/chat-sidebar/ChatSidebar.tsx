@@ -115,9 +115,13 @@ const MIN_PREFETCH_DISTANCE_PX = 1000;
 // (dropdowns em branco) ao abrir com um desses ativos.
 const CHIP_ONLY_FILTER_KEYS = ['unread', 'is_group'];
 
+// Chats/Fila/Todas são escopos de navegação e não filtros avançados.
+const SCOPE_FILTER_KEYS = ['assignee_type', 'assignee_id'];
+const NAVIGATION_FILTER_KEYS = [...CHIP_ONLY_FILTER_KEYS, ...SCOPE_FILTER_KEYS];
+
 // Eixos que são navegação por chip (status + unread + is_group) — não contam
 // como "filtro avançado aplicado" no badge "N filtros".
-const CHIP_NAV_KEYS = ['status', ...CHIP_ONLY_FILTER_KEYS];
+const CHIP_NAV_KEYS = ['status', ...NAVIGATION_FILTER_KEYS];
 
 // Snapshot mínimo p/ o undo das ações SEM efeito colateral no backend (ler/
 // não-ler). Capturado ANTES de aplicar — o store muta a conversa em seguida,
@@ -211,7 +215,7 @@ const ChatSidebar = ({
   // próprio popover não vinha com o checkbox pré-marcado.
   useEffect(() => {
     const modalFilters = filters.state.activeFilters
-      .filter((f: ConversationFilter) => !CHIP_ONLY_FILTER_KEYS.includes(f.attribute_key))
+      .filter((f: ConversationFilter) => !NAVIGATION_FILTER_KEYS.includes(f.attribute_key))
       .map(conversationFilterToBaseFilter);
 
     if (JSON.stringify(conversationFilters) !== JSON.stringify(modalFilters)) {
@@ -294,7 +298,7 @@ const ChatSidebar = ({
       return;
     }
 
-    const isChipOnly = segmentPreset.some(f => CHIP_ONLY_FILTER_KEYS.includes(f.attributeKey));
+    const isChipOnly = segmentPreset.some(f => NAVIGATION_FILTER_KEYS.includes(f.attributeKey));
     if (isChipOnly) {
       toast.info(t('chatSidebar.advancedFiltersCleared'));
       setConversationFilters([]);
@@ -322,7 +326,7 @@ const ChatSidebar = ({
     const chipNav = filters.state.activeFilters
       .filter(
         (f: ConversationFilter) =>
-          CHIP_ONLY_FILTER_KEYS.includes(f.attribute_key) &&
+          NAVIGATION_FILTER_KEYS.includes(f.attribute_key) &&
           !advancedKeys.has(f.attribute_key),
       )
       .map(conversationFilterToBaseFilter);
