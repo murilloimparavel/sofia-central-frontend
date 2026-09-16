@@ -2,13 +2,15 @@ name: Build & Publish Docker Image
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, deploy/ghcr-frontend]
     tags: ["v*.*.*"]
+  workflow_dispatch:
   pull_request:
     branches: [main, develop]
 
 permissions:
   contents: read
+  packages: write
 
 # PR builds move the mutable :pr-<N> tag on every push — cancel superseded
 # runs so a retest always reflects the latest commit. Never cancel a
@@ -18,7 +20,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  IMAGE_NAME: evoapicloud/evo-ai-frontend-community
+  IMAGE_NAME: ghcr.io/murilloimparavel/evo-ai-frontend-community
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -42,8 +44,9 @@ jobs:
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve PR tags
         id: tags
@@ -97,8 +100,9 @@ jobs:
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push by digest
         id: build
@@ -148,8 +152,9 @@ jobs:
 
       - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve tags
         id: tags
@@ -169,6 +174,8 @@ jobs:
             TAGS="${IMAGE}:latest,${IMAGE}:main-${SHA_SHORT}"
           elif [[ "${GH_REF}" == refs/heads/develop ]]; then
             TAGS="${IMAGE}:develop,${IMAGE}:develop-${SHA_SHORT}"
+          elif [[ "${GH_REF}" == refs/heads/deploy/ghcr-frontend ]]; then
+            TAGS="${IMAGE}:deploy-${SHA_SHORT}"
           fi
 
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
