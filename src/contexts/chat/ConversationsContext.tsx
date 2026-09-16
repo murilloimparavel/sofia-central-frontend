@@ -258,9 +258,10 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           }
         }
 
-        // 🎯 PERSISTIR: Marcar conversa como lida no backend
-        try {
-          await chatService.markConversationAsRead(canonicalConversationId);
+        // 🎯 PERSISTIR: Marcar conversa como lida sem bloquear a abertura.
+        // A conversa e suas mensagens devem aparecer imediatamente; a leitura
+        // é uma atualização secundária e pode ser concluída em segundo plano.
+        void chatService.markConversationAsRead(canonicalConversationId).then(() => {
 
           // Atualizar estado local para garantir persistência
           dispatch({
@@ -293,10 +294,10 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           } catch (error) {
             console.warn('Failed to save read conversation to localStorage:', error);
           }
-        } catch (error) {
+        }).catch(error => {
           console.error('❌ Erro ao marcar conversa como lida:', error);
           // Não bloquear a seleção da conversa por erro de persistência
-        }
+        });
       }
 
       // Liberar lock após um delay mínimo

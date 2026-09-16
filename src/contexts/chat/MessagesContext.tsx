@@ -458,6 +458,14 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   // Message actions
   const loadMessages = useCallback(
     async (conversationId: string) => {
+      // Reutilizar o cache local ao voltar para uma conversa já aberta.
+      // Mensagens novas continuam entrando pelo WebSocket; uma sincronização
+      // explícita pode limpar esse cache quando necessário.
+      const cachedMessages = state.messages[conversationId];
+      if (cachedMessages && cachedMessages.length > 0) {
+        return;
+      }
+
       // 🔒 PROTEÇÃO: Verificar se já está carregando para esta conversa
       if (state.messagesLoading[conversationId]) {
         return;
