@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@evoapi/design-system/button';
-import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Attachment } from '@/types/chat/api';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -49,21 +48,6 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
 
   // Cache global de durações por attachment (persiste entre re-renders)
   const globalDurationsRef = useRef<Record<string, number>>({});
-
-  const downloadFile = (attachment: Attachment) => {
-    if (attachment.data_url) {
-      const link = document.createElement('a');
-      link.href = attachment.data_url;
-      link.download = attachment.fallback_title || t('messages.messageAudio.audioFallback');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast.success(t('messages.messageAudio.downloadStarted'), {
-        description: attachment.fallback_title || t('messages.messageAudio.audioFallback'),
-      });
-    }
-  };
 
   // const formatFileSize = (bytes: number) => {
   //   if (bytes === 0) return '0 Bytes';
@@ -512,8 +496,8 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
                     </div>
                   </div>
 
-                  {/* Menu/Download */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  {/* Velocidade de reprodução */}
+                  <div className="flex items-center flex-shrink-0">
                     <Button
                       type="button"
                       size="sm"
@@ -523,14 +507,6 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
                       className="h-7 min-w-9 rounded-full px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground hover:bg-primary/10 hover:text-primary"
                     >
                       {playbackRate.toString().replace('.', ',')}x
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => downloadFile(attachment)}
-                      className="h-7 w-7 rounded-full hover:bg-muted-foreground/20 text-muted-foreground p-0"
-                    >
-                      <Download className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>

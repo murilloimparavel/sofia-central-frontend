@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Download, Volume2 } from 'lucide-react';
+import { Volume2 } from 'lucide-react';
 import type { SharedAttachment } from './SharedImageBubble';
 
 // Ícones preenchidos customizados
@@ -175,21 +175,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ attachment, messageType, onTo
     setCurrentTime(newTime);
   };
 
-  // Download do áudio
-  const downloadAudio = () => {
-    if (audioUrl) {
-      const link = document.createElement('a');
-      link.href = audioUrl;
-      link.download = filename;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      onToast?.(t('attachments.audio.downloadStarted', { filename }), 'success');
-    }
-  };
-
   if (!audioUrl) {
     return (
       <div className={`rounded-lg p-3 max-w-xs ${
@@ -260,20 +245,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ attachment, messageType, onTo
               }`}
             >
               {playbackRate.toString().replace('.', ',')}x
-            </button>
-            <button
-              type="button"
-              onClick={downloadAudio}
-              className={`
-                flex-shrink-0 p-1 rounded transition-colors
-                ${messageType === 'out'
-                  ? 'text-white/70 hover:text-white hover:bg-white/10'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-                }
-              `}
-              title={t('attachments.audio.download')}
-            >
-              <Download className="h-3 w-3" />
             </button>
           </div>
 
