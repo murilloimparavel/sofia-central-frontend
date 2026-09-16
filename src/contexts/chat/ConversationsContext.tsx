@@ -29,6 +29,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   const loadingSpecificRef = useRef<Set<string>>(new Set());
   const selectionLockRef = useRef(false);
   const lastCleanupRef = useRef(0);
+  const lastMarkedReadRef = useRef<Set<string>>(new Set());
   // The query that produced the current list, so load-more replays the SAME
   // request for the next page instead of an unfiltered GET /conversations.
   const currentQueryRef = useRef<ConversationsQuery>({ kind: 'list', params: { status: 'open' } });
@@ -259,45 +260,49 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         }
 
         // 🎯 PERSISTIR: Marcar conversa como lida sem bloquear a abertura.
-        // A conversa e suas mensagens devem aparecer imediatamente; a leitura
-        // é uma atualização secundária e pode ser concluída em segundo plano.
-        void chatService.markConversationAsRead(canonicalConversationId).then(() => {
+        // Apenas dispara se houver mensagens não lidas e se ainda não foi marcada nesta sessão
+        const unreadCount = targetConversation?.unread_count ?? state.unreadCounts[canonicalConversationId] ?? 0;
+        const alreadyMarked = lastMarkedReadRef.current.has(canonicalConversationId);
 
-          // Atualizar estado local para garantir persistência
-          dispatch({
-            type: 'UPDATE_UNREAD_COUNT',
-            payload: { conversationId: canonicalConversationId, count: 0 },
-          });
-
-          // Também atualizar o objeto da conversa para manter sincronizado
-          const conversationInList = findConversationByAnyId(canonicalConversationId);
-          if (conversationInList) {
+        if (unreadCount > 0 && !alreadyMarked) {
+          lastMarkedReadRef.current.add(canonicalConversationId);
+          void chatService.markConversationAsRead(canonicalConversationId).then(() => {
+            // Atualizar estado local para garantir persistência
             dispatch({
-              type: 'UPDATE_CONVERSATION',
-              payload: { ...conversationInList, unread_count: 0 },
+              type: 'UPDATE_UNREAD_COUNT',
+              payload: { conversationId: canonicalConversationId, count: 0 },
             });
-          }
 
-          // Salvar no localStorage que esta conversa foi marcada como lida
-          try {
-            const saved = localStorage.getItem('crm-chat-state');
-            const currentState = saved ? JSON.parse(saved) : {};
-            const readConversations = currentState.readConversations || {};
-            readConversations[canonicalConversationId] = true;
-            localStorage.setItem(
-              'crm-chat-state',
-              JSON.stringify({
-                ...currentState,
-                readConversations,
-              }),
-            );
-          } catch (error) {
-            console.warn('Failed to save read conversation to localStorage:', error);
-          }
-        }).catch(error => {
-          console.error('❌ Erro ao marcar conversa como lida:', error);
-          // Não bloquear a seleção da conversa por erro de persistência
-        });
+            // Também atualizar o objeto da conversa para manter sincronizado
+            const conversationInList = findConversationByAnyId(canonicalConversationId);
+            if (conversationInList) {
+              dispatch({
+                type: 'UPDATE_CONVERSATION',
+                payload: { ...conversationInList, unread_count: 0 },
+              });
+            }
+
+            // Salvar no localStorage que esta conversa foi marcada como lida
+            try {
+              const saved = localStorage.getItem('crm-chat-state');
+              const currentState = saved ? JSON.parse(saved) : {};
+              const readConversations = currentState.readConversations || {};
+              readConversations[canonicalConversationId] = true;
+              localStorage.setItem(
+                'crm-chat-state',
+                JSON.stringify({
+                  ...currentState,
+                  readConversations,
+                }),
+              );
+            } catch (error) {
+              console.warn('Failed to save read conversation to localStorage:', error);
+            }
+          }).catch(error => {
+            console.error('❌ Erro ao marcar conversa como lida:', error);
+            lastMarkedReadRef.current.delete(canonicalConversationId);
+          });
+        }
       }
 
       // Liberar lock após um delay mínimo
@@ -721,6 +726,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   const markAsRead = useCallback(
     async (conversationId: string, options?: { silent?: boolean }) => {
       try {
+        lastMarkedReadRef.current.add(conversationId);
         await conversationAPI.markAsRead(conversationId);
 
         dispatch({
@@ -733,6 +739,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           toast.success(t('contexts.conversations.success.markedAsRead'));
         }
       } catch (error) {
+        lastMarkedReadRef.current.delete(conversationId);
         console.error('Error marking conversation as read:', error);
         if (!options?.silent) {
           toast.error(t('contexts.conversations.errors.markAsRead'), {
@@ -751,6 +758,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   const markAsUnread = useCallback(
     async (conversationId: string, options?: { silent?: boolean }) => {
       try {
+        lastMarkedReadRef.current.delete(conversationId);
         await conversationAPI.markAsUnread(conversationId);
 
         const currentCount = state.unreadCounts[conversationId] || 0;

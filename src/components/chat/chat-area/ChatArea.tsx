@@ -341,28 +341,14 @@ const ChatArea = ({
       )}
 
       {/* Messages Area */}
-      {messages.isMessagesLoading(selectedConversationId) ? (
-        <div className="p-4">
-          <MessageSkeleton count={6} />
-        </div>
-      ) : messages.getMessagesError(selectedConversationId) ? (
-        <div className="p-4 text-center">
-          <div className="text-destructive mb-2">{t('chatArea.errors.loadMessages')}</div>
-          <p className="text-sm text-muted-foreground mb-4">
-            {messages.getMessagesError(selectedConversationId)}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => messages.loadMessages(selectedConversationId)}
-          >
-            {t('chatArea.errors.tryAgain')}
-          </Button>
-        </div>
-      ) : selectedMessages.length === 0 ? (
-        <NoMessages />
-      ) : (
+      {selectedMessages.length > 0 ? (
         <>
+          {/* Subtle background syncing indicator (SWR) */}
+          {messages.isMessagesLoading(selectedConversationId) && (
+            <div className="h-0.5 w-full bg-primary/20 overflow-hidden">
+              <div className="h-full bg-primary animate-pulse w-full" />
+            </div>
+          )}
           {/* Pending Response Banners */}
           {pendingResponseModerations.length > 0 && (
             <div className="px-4 pt-4 space-y-2">
@@ -396,6 +382,26 @@ const ChatArea = ({
             onDeleteMessage={handleDeleteMessage}
           />
         </>
+      ) : messages.isMessagesLoading(selectedConversationId) ? (
+        <div className="p-4">
+          <MessageSkeleton count={6} />
+        </div>
+      ) : messages.getMessagesError(selectedConversationId) ? (
+        <div className="p-4 text-center">
+          <div className="text-destructive mb-2">{t('chatArea.errors.loadMessages')}</div>
+          <p className="text-sm text-muted-foreground mb-4">
+            {messages.getMessagesError(selectedConversationId)}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => messages.loadMessages(selectedConversationId)}
+          >
+            {t('chatArea.errors.tryAgain')}
+          </Button>
+        </div>
+      ) : (
+        <NoMessages />
       )}
 
       {/* Typing Indicator */}

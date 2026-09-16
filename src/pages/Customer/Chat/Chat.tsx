@@ -236,11 +236,6 @@ const Chat = () => {
     }
   }, [conversationId, isContactSidebarOpen]);
 
-  useEffect(() => {
-    const selectedId = conversations.state.selectedConversationId;
-    if (!selectedId) return;
-    conversations.markAsRead(selectedId, { silent: true }).catch(() => {});
-  }, [conversations.state.selectedConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load conversations on mount
   useEffect(() => {
@@ -446,15 +441,8 @@ const Chat = () => {
             return;
           }
 
-          // ⏳ AGUARDAR: Só sincronizar após conversas serem carregadas
-          if (conversations.state.conversationsLoading) {
-            return;
-          }
-
-          // 🔒 AGUARDAR: Aguardar carregamento inicial das conversas (pelo menos uma tentativa)
-          if (conversationsCount === 0 && !conversations.state.conversationsError) {
-            return;
-          }
+          // 🚀 PARALELO: Não bloquear o deep link aguardando a lista inteira de conversas!
+          // Se a conversa já está na lista local, usa; caso contrário, busca direto da API em paralelo.
 
           // 🔍 VERIFICAR: Se conversa UUID existe na lista carregada
           let targetConversation = conversations.getConversation(conversationIdStr);

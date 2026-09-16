@@ -23,13 +23,55 @@ import type {
 } from '@/types/analytics';
 import { Contact } from '@/types';
 
+interface PipelinesCacheEntry {
+  data: PipelinesResponse;
+  timestamp: number;
+}
+
+const PIPELINES_TTL_MS = 3 * 60 * 1000; // 3 minutos
+const pipelinesCache = new Map<string, PipelinesCacheEntry>();
+const pipelinesInFlight = new Map<string, Promise<PipelinesResponse>>();
+
 class PipelinesService {
+  clearCache(): void {
+    pipelinesCache.clear();
+    pipelinesInFlight.clear();
+  }
+
   // List all pipelines
   async getPipelines(params?: PipelinesListParams): Promise<PipelinesResponse> {
-    const response = await api.get('/pipelines', {
-      params,
-    });
-    return extractResponse<Pipeline>(response) as PipelinesResponse;
+    const cacheKey = JSON.stringify(params || {});
+    const cached = pipelinesCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < PIPELINES_TTL_MS) {
+      return cached.data;
+    }
+
+    if (pipelinesInFlight.has(cacheKey)) {
+      return pipelinesInFlight.get(cacheKey)!;
+    }
+
+    try {
+      const fetchPromise = (async () => {
+        const response = await api.get('/pipelines', {
+          params,
+        });
+        const result = extractResponse<Pipeline>(response) as PipelinesResponse;
+        pipelinesCache.set(cacheKey, {
+          data: result,
+          timestamp: Date.now(),
+        });
+        return result;
+      })();
+
+      pipelinesInFlight.set(cacheKey, fetchPromise);
+      const result = await fetchPromise;
+      return result;
+    } catch (error) {
+      console.error('Error fetching pipelines:', error);
+      throw error;
+    } finally {
+      pipelinesInFlight.delete(cacheKey);
+    }
   }
 
   // Get single pipeline
@@ -52,18 +94,21 @@ class PipelinesService {
 
   // Create pipeline
   async createPipeline(data: CreatePipelineData): Promise<Pipeline> {
+    this.clearCache();
     const response = await api.post('/pipelines', data);
     return extractData<Pipeline>(response);
   }
 
   // Update pipeline
   async updatePipeline(pipelineId: string, data: UpdatePipelineData): Promise<Pipeline> {
+    this.clearCache();
     const response = await api.patch(`/pipelines/${pipelineId}`, data);
     return extractData<Pipeline>(response);
   }
 
   // Delete pipeline
   async deletePipeline(pipelineId: string): Promise<{ success: boolean; message: string }> {
+    this.clearCache();
     const response = await api.delete(`/pipelines/${pipelineId}`);
     return extractData<{ success: boolean; message: string }>(response);
   }
@@ -73,12 +118,14 @@ class PipelinesService {
     pipelineId: string,
     data: { name: string; description?: string },
   ): Promise<Pipeline> {
+    this.clearCache();
     const response = await api.post(`/pipelines/${pipelineId}/duplicate`, data);
     return extractData<Pipeline>(response);
   }
 
   // Toggle pipeline status
   async togglePipelineStatus(pipelineId: string, isActive: boolean): Promise<Pipeline> {
+    this.clearCache();
     const response = await api.patch(`/pipelines/${pipelineId}`, {
       is_active: isActive,
     });
@@ -93,6 +140,7 @@ class PipelinesService {
 
   // Set pipeline as default
   async setAsDefault(pipelineId: string): Promise<Pipeline> {
+    this.clearCache();
     const response = await api.patch(`/pipelines/${pipelineId}/set_as_default`);
     return extractData<Pipeline>(response);
   }
@@ -105,6 +153,7 @@ class PipelinesService {
 
   // Create pipeline stage
   async createPipelineStage(pipelineId: string, data: CreateStageData): Promise<PipelineStage> {
+    this.clearCache();
     const response = await api.post(`/pipelines/${pipelineId}/pipeline_stages`, {
       pipeline_stage: data,
     });
@@ -127,6 +176,7 @@ class PipelinesService {
       custom_fields?: Record<string, unknown>;
     },
   ): Promise<PipelineStage> {
+    this.clearCache();
     const response = await api.patch(`/pipelines/${pipelineId}/pipeline_stages/${stageId}`, {
       pipeline_stage: data,
     });
@@ -138,6 +188,7 @@ class PipelinesService {
     pipelineId: string,
     stageId: string,
   ): Promise<{ success: boolean; message: string }> {
+    this.clearCache();
     const response = await api.delete(`/pipelines/${pipelineId}/pipeline_stages/${stageId}`);
     return extractData<{ success: boolean; message: string }>(response);
   }
@@ -147,6 +198,7 @@ class PipelinesService {
     pipelineId: string,
     stageOrders: string[],
   ): Promise<{ success: boolean; message: string }> {
+    this.clearCache();
     const response = await api.patch(`/pipelines/${pipelineId}/pipeline_stages/reorder`, {
       stage_orders: stageOrders,
     });

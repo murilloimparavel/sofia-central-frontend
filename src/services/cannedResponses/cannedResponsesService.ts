@@ -8,22 +8,69 @@ import {
   CannedResponsesResponse,
 } from '@/types/knowledge';
 
+interface CannedCacheEntry {
+  data: CannedResponsesResponse;
+  timestamp: number;
+}
+
+const CANNED_RESPONSES_TTL_MS = 3 * 60 * 1000; // 3 minutos
+let cannedResponsesCache: CannedCacheEntry | null = null;
+let cannedResponsesInFlight: Promise<CannedResponsesResponse> | null = null;
+
 class CannedResponsesService {
   private get baseUrl(): string {
     return '/canned_responses';
   }
 
+  clearCache(): void {
+    cannedResponsesCache = null;
+    cannedResponsesInFlight = null;
+  }
+
   async getCannedResponses(searchKey?: string, perPage?: number): Promise<CannedResponsesResponse> {
+    // Apenas usar cache para a listagem padrão (sem busca ou paginação customizada)
+    const isDefaultQuery = !searchKey && !perPage;
+
+    if (isDefaultQuery) {
+      if (cannedResponsesCache && Date.now() - cannedResponsesCache.timestamp < CANNED_RESPONSES_TTL_MS) {
+        return cannedResponsesCache.data;
+      }
+      if (cannedResponsesInFlight) {
+        return cannedResponsesInFlight;
+      }
+    }
+
     try {
       const params = {
         ...(searchKey ? { search: searchKey } : {}),
         ...(perPage ? { per_page: perPage } : {}),
       };
-      const response = await api.get(this.baseUrl, { params });
-      return extractResponse<CannedResponse>(response) as CannedResponsesResponse;
+
+      const fetchPromise = (async () => {
+        const response = await api.get(this.baseUrl, { params });
+        const result = extractResponse<CannedResponse>(response) as CannedResponsesResponse;
+        if (isDefaultQuery) {
+          cannedResponsesCache = {
+            data: result,
+            timestamp: Date.now(),
+          };
+        }
+        return result;
+      })();
+
+      if (isDefaultQuery) {
+        cannedResponsesInFlight = fetchPromise;
+      }
+
+      const result = await fetchPromise;
+      return result;
     } catch (error) {
       console.error('Error fetching canned responses:', error);
       throw error;
+    } finally {
+      if (isDefaultQuery) {
+        cannedResponsesInFlight = null;
+      }
     }
   }
 
@@ -56,6 +103,7 @@ class CannedResponsesService {
     const response = await api.post(this.baseUrl, {
       canned_response: data,
     });
+    this.clearCache();
     return extractData<any>(response);
   }
 
@@ -63,6 +111,7 @@ class CannedResponsesService {
     cannedResponseId: string,
     data: Partial<CannedResponseFormData>,
   ): Promise<CannedResponseResponse> {
+    this.clearCache();
     const hasNewFiles = !!(data.attachments && data.attachments.length > 0);
     const hasRemovals = !!(data.removeAttachmentIds && data.removeAttachmentIds.length > 0);
 
@@ -96,6 +145,7 @@ class CannedResponsesService {
   }
 
   async deleteCannedResponse(cannedResponseId: string): Promise<CannedResponseDeleteResponse> {
+    this.clearCache();
     const response = await api.delete(`${this.baseUrl}/${cannedResponseId}`);
     return extractData<CannedResponseDeleteResponse>(response);
   }
@@ -150,3 +200,4 @@ class CannedResponsesService {
 }
 
 export const cannedResponsesService = new CannedResponsesService();
+export default cannedResponsesService;
