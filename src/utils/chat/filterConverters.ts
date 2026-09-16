@@ -187,75 +187,59 @@ export const convertFiltersToUrlParams = (
   return params;
 };
 
+const GET_SUPPORTED_ATTRIBUTES = new Set([
+  'status',
+  'assignee_type',
+  'assignee_id',
+  'inbox_id',
+  'team_id',
+  'labels',
+  'unread',
+  'unanswered',
+  'is_group',
+]);
+
 /**
- * Determina se deve usar filtros avançados (POST) ou simples (GET)
+ * Determina se deve usar filtros avançados (POST /conversations/filter)
+ * ou filtros simples via query params (GET /conversations).
+ *
+ * Filtros simples que utilizam atributos nativos indexados e operador equal_to
+ * com conjunção AND são roteados para GET direto, garantindo tempo de resposta sub-200ms.
  */
 export const shouldUseAdvancedFilters = (filters: ConversationFilter[]): boolean => {
   // Sem filtros, GET simples vazio é suficiente.
   if (filters.length === 0) return false;
 
-  // Multi-filtro sempre via POST — GET expressa só AND implícito na URL,
-  // e o converter pra URL params não cobre todos os operators/attributes.
-  if (filters.length > 1) return true;
+  // Operadores OR requerem POST (GET expressa apenas AND na URL)
+  const hasOrOperator = filters.some(f => f.query_operator?.toLowerCase() === 'or');
+  if (hasOrOperator) return true;
 
-  // Operators is_present / is_not_present não têm mapeamento completo no GET
-  // path (convertFiltersToUrlParams só trata equal_to), então forçamos POST.
-  const hasPresenceOperator = filters.some(f =>
-    ['is_present', 'is_not_present'].includes(f.filter_operator),
-  );
-  if (hasPresenceOperator) return true;
+  // Evitar chaves duplicadas no GET que sobrescreveriam o parâmetro (exceto se for labels)
+  const seenKeys = new Set<string>();
+  for (const filter of filters) {
+    if (filter.attribute_key !== 'labels' && seenKeys.has(filter.attribute_key)) {
+      return true;
+    }
+    seenKeys.add(filter.attribute_key);
+  }
 
-  // Verificar cada filtro individualmente (cenários single-row restantes).
+  // Verificar se cada filtro é compatível com o endpoint GET
   return filters.some(filter => {
-    const { attribute_key, filter_operator } = filter;
+    const { attribute_key, filter_operator, values } = filter;
 
-    // Operadores complexos que requerem POST
-    const complexOperators = [
-      'contains',
-      'does_not_contain',
-      'not_equal_to',
-      'is_greater_than',
-      'is_less_than',
-      'days_before',
-    ];
-
-    // Campos complexos que sempre requerem POST
-    const complexFields = [
-      'created_at',
-      'last_activity_at',
-      'campaign_id',
-      'channel_type',
-      'contact_id',
-      'priority',
-      'pipeline_id',
-      'browser_language',
-      'conversation_language',
-      'country_code',
-      'referer',
-      'mail_subject',
-    ];
-
-    // Se usa operador complexo
-    if (complexOperators.includes(filter_operator)) {
+    // Atributos não mapeados no GET (ex: prioridade, datas, atributos customizados, contato)
+    if (!GET_SUPPORTED_ATTRIBUTES.has(attribute_key)) {
       return true;
     }
 
-    // Se usa campo complexo
-    if (complexFields.includes(attribute_key)) {
+    // Apenas equal_to é suportado no GET
+    if (filter_operator !== 'equal_to') {
       return true;
     }
 
-    // Para labels, alguns operadores requerem POST
-    if (
-      attribute_key === 'labels' &&
-      ['not_equal_to', 'is_present', 'is_not_present'].includes(filter_operator)
-    ) {
-      return true;
-    }
-
-    // Múltiplos valores no mesmo filtro simples podem usar GET se for apenas equal_to
-    // Caso contrário, usar POST para maior flexibilidade
-    if (filter.values.length > 1 && filter_operator !== 'equal_to') {
+    // Valores múltiplos: apenas 'labels' suporta array no GET.
+    // Campos como status, inbox, assignee aceitam apenas 1 valor escalar.
+    if (Array.isArray(values) && values.length > 1 && attribute_key !== 'labels') {
       return true;
     }
 
