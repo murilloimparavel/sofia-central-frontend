@@ -1,14 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from 'react';
 import { Button } from '@evoapi/design-system/button';
-import { Checkbox } from '@evoapi/design-system/checkbox';
 import { Input } from '@evoapi/design-system/input';
 import { Badge } from '@evoapi/design-system/badge';
-import {
-  ContextMenu,
-  ContextMenuTrigger,
-  ContextMenuContent,
-  ContextMenuItem,
-} from '@evoapi/design-system/context-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,30 +28,15 @@ import {
   Clock,
   Trash2,
   X,
-  FileText,
-  Pin,
   Archive,
   ArrowLeft,
-  Check,
-  User as UserIcon,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useChatContext } from '@/contexts/chat/ChatContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { Conversation, ConversationFilter } from '@/types/chat/api';
-import {
-  attachmentLabel,
-  mediaTypeFromAttributes,
-  senderNameFromAttributes,
-} from '@/utils/chat/mediaLabels';
-import { formatConversationTime, formatDetailedTime } from '@/utils/time/timeHelpers';
-import { isPhoneBearingChannel } from '@/utils/channelUtils';
-import { formatContactPhone } from '@/utils/contact/formatContactPhone';
-import { UnreadBadge } from '@/components/shared';
 import { ConversationSkeleton } from '../loading-states';
 import { NoConversations } from '../empty-states';
-import ContactAvatar from '../contact/ContactAvatar';
-import ConversationBadges from '../conversation/ConversationBadges';
 import ConversationsFilterPopover from '../filters/ConversationsFilterPopover';
 import ConversationSegments from './ConversationSegments';
 import ConversationScopeTabs from './ConversationScopeTabs';
@@ -536,32 +514,6 @@ const ChatSidebar = ({
       ? conversations.markAsUnread(item.id, { silent: true })
       : conversations.markAsRead(item.id, { silent: true });
 
-  const stripHtml = (html: string): string => {
-    if (!html) return '';
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-    return (tempDiv.textContent || tempDiv.innerText || '').trim();
-  };
-
-  const getLastMessage = (conversation: Conversation) => {
-    const msg = conversation.last_non_activity_message;
-    const rawText = stripHtml(msg?.processed_message_content || msg?.content || '');
-    // Media-only messages come with empty content; surface a typed placeholder.
-    // Prefer the attachment file_type; fall back to backend-tagged media_type.
-    const firstAttachmentType = msg?.attachments?.[0]?.file_type;
-    const fallbackMediaType = mediaTypeFromAttributes(msg?.content_attributes);
-    const cleanContent =
-      rawText ||
-      (firstAttachmentType ? attachmentLabel(firstAttachmentType) : '') ||
-      (fallbackMediaType ? attachmentLabel(fallbackMediaType) : '');
-    // Group conversations: prepend the participant who actually spoke.
-    const senderName =
-      msg && msg.message_type === 'incoming'
-        ? senderNameFromAttributes(msg.content_attributes)
-        : undefined;
-    const preview = senderName ? `${senderName}: ${cleanContent}` : cleanContent;
-    return preview.length > 60 ? preview.substring(0, 60) + '...' : preview;
-  };
 
   const handleStartSelection = useCallback(
     (displayId: string) => {
