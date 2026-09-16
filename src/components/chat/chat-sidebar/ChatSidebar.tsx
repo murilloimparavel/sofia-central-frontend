@@ -61,6 +61,7 @@ import ContactAvatar from '../contact/ContactAvatar';
 import ConversationBadges from '../conversation/ConversationBadges';
 import ConversationsFilterPopover from '../filters/ConversationsFilterPopover';
 import ConversationSegments from './ConversationSegments';
+import ConversationScopeTabs from './ConversationScopeTabs';
 import GlobalSearchPanel from '../search/GlobalSearchPanel';
 import { BaseFilter } from '@/types/core';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -665,6 +666,12 @@ const ChatSidebar = ({
             onSelectMessage={handleSelectMessage}
           />
         </div>
+
+        <ConversationScopeTabs
+          activeFilters={filters.state.activeFilters}
+          onSelectScope={handleApplyFilters}
+          disabled={filters.state.isApplyingFilters}
+        />
 
         {/* Chips de segmento (Abertas/Pendentes/Concluídas/Agente/Grupos) — SÓ
             aparecem com a busca focada (spec do protótipo: "filtros rápidos

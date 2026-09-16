@@ -9,6 +9,8 @@ import type { ConversationFilter } from '@/types/chat/api';
 
 export type ConversationSegmentId = 'open' | 'pending' | 'resolved' | 'unread' | 'unanswered' | 'groups';
 
+export type ConversationScopeId = 'mine' | 'unassigned' | 'all';
+
 export interface ConversationSegment {
   id: ConversationSegmentId;
   /** i18n key in the `chat` namespace. */
@@ -33,6 +35,30 @@ const boolFilter = (attributeKey: 'unread' | 'unanswered' | 'is_group'): BaseFil
   filterOperator: 'equal_to',
   values: 'true',
 });
+
+const assigneeFilter = (value: 'me' | 'unassigned' | 'all'): BaseFilter => ({
+  ...DEFAULT_BASE_FILTER,
+  attributeKey: 'assignee_type',
+  filterOperator: 'equal_to',
+  values: value,
+});
+
+export const CONVERSATION_SCOPE_PRESETS: Record<ConversationScopeId, BaseFilter[]> = {
+  mine: [assigneeFilter('me')],
+  unassigned: [assigneeFilter('unassigned')],
+  all: [assigneeFilter('all')],
+};
+
+export const getActiveConversationScope = (
+  active: ConversationFilter[],
+): ConversationScopeId | null => {
+  const filter = active.find(f => f.attribute_key === 'assignee_type' || f.attribute_key === 'assignee_id');
+  const value = filter && (Array.isArray(filter.values) ? filter.values[0] : filter.values);
+  if (value === 'me') return 'mine';
+  if (value === 'unassigned') return 'unassigned';
+  if (value === 'all') return 'all';
+  return null;
+};
 
 export const CONVERSATION_SEGMENTS: ConversationSegment[] = [
   { id: 'open', labelKey: 'chatSidebar.segments.open', preset: [statusFilter('open')] },

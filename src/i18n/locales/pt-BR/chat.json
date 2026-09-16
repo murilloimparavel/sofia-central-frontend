@@ -326,6 +326,11 @@
     "closeContactPanel": "Fechar detalhes do contato"
   },
   "chatSidebar": {
+    "scopeTabs": {
+      "mine": "Chats",
+      "unassigned": "Fila",
+      "all": "Todas"
+    },
     "segments": {
       "ariaLabel": "Visões de conversas",
       "open": "Abertas",
