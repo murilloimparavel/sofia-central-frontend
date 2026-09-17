@@ -96,6 +96,11 @@
 }
 
 /* Estilos para conteúdo rico renderizado nas mensagens */
+.rich-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .rich-content strong {
   font-weight: 600;
 }
@@ -111,6 +116,32 @@
   border-radius: 0.25rem;
   font-size: 0.875rem;
   font-family: monospace;
+}
+
+.rich-content del {
+  text-decoration: line-through;
+  opacity: 0.85;
+}
+
+.rich-content pre {
+  background-color: hsl(var(--muted));
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-family: monospace;
+  overflow-x: auto;
+  margin: 0.25rem 0;
+  white-space: pre-wrap;
+}
+
+.rich-content a {
+  color: #3b82f6;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.rich-content a:hover {
+  color: #60a5fa;
 }
 
 .rich-content ul {
@@ -130,6 +161,8 @@
 
 .rich-content p {
   margin: 0.25rem 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .rich-content p:first-child {
@@ -139,3 +172,4 @@
 .rich-content p:last-child {
   margin-bottom: 0;
 }
+

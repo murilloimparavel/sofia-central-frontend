@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ExternalLink } from 'lucide-react';
-
-const URL_REGEX = /https?:\/\/[^\s<>"')\]]+/gi;
+import { formatChatMessage, sanitizeChatMessageHTML } from './formatChatMessage';
+import '../rich-text-editor/RichTextEditor.css';
 
 function LinkPreview({ url }: { url: string }) {
   let hostname = '';
@@ -69,26 +69,20 @@ const MessageText: React.FC<MessageTextProps> = ({
   // 🔒 PROTEÇÃO: Garantir que content seja sempre string válida
   const safeContent = String(content || '');
 
-  // Helper function to sanitize HTML and remove potentially dangerous tags
-  const sanitizeEmailHTML = (html: string): string => {
-    if (!html) return '';
+  // Render HTML for incoming email messages or full HTML document templates
+  const isIncomingEmail = contentType === 'incoming_email' && Boolean(contentAttributes?.email?.html_content?.full);
+  const isFullEmailDoc =
+    !isPrivateNote &&
+    (safeContent.trim().startsWith('<!DOCTYPE') ||
+      safeContent.trim().startsWith('<!doctype') ||
+      safeContent.trim().startsWith('<html') ||
+      safeContent.trim().startsWith('<HTML'));
 
-    // Remove <script> tags and their content
-    let sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-
-    // Remove <style> tags and their content (to prevent CSS contamination)
-    sanitized = sanitized.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-
-    // Remove inline event handlers (onclick, onload, etc.)
-    sanitized = sanitized.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
-    sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]*/gi, '');
-
-    return sanitized;
-  };
-
-  // Render HTML for incoming email messages
-  if (contentType === 'incoming_email' && contentAttributes?.email?.html_content?.full) {
-    const sanitizedHTML = sanitizeEmailHTML(contentAttributes.email.html_content.full);
+  if (isIncomingEmail || isFullEmailDoc) {
+    const rawEmailHtml = isIncomingEmail
+      ? contentAttributes?.email?.html_content?.full || ''
+      : safeContent;
+    const sanitizedHTML = sanitizeChatMessageHTML(rawEmailHtml);
 
     return (
       <div
@@ -120,124 +114,22 @@ const MessageText: React.FC<MessageTextProps> = ({
     );
   }
 
-  // Render HTML for outgoing email template messages (content is HTML from react-email-editor)
-  // Check if content is HTML (starts with <!DOCTYPE, <html, or contains HTML tags)
-  const isHtmlContent = safeContent.trim().startsWith('<!DOCTYPE') ||
-                        safeContent.trim().startsWith('<!doctype') ||
-                        safeContent.trim().startsWith('<html') ||
-                        safeContent.trim().startsWith('<HTML') ||
-                        (safeContent.includes('<') && safeContent.includes('</') && safeContent.length > 50);
-
-  if (isHtmlContent && !isPrivateNote) {
-    const sanitizedHTML = sanitizeEmailHTML(safeContent);
-    return (
-      <div
-        className="email-html-content-wrapper"
-        style={{
-          isolation: 'isolate',
-          contain: 'layout style paint',
-          position: 'relative',
-          maxWidth: '100%',
-          overflow: 'auto',
-          wordBreak: 'break-word',
-          display: 'block',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div
-          className="email-html-content"
-          dangerouslySetInnerHTML={{
-            __html: sanitizedHTML,
-          }}
-          style={{
-            fontSize: '13px',
-            lineHeight: '1.4',
-            display: 'block',
-            boxSizing: 'border-box',
-          }}
-        />
-      </div>
-    );
-  }
-
-  // Para mensagens com conteúdo HTML (notas privadas, mensagens de agente, etc.)
-  // Renderizar HTML sanitizado para exibir corretamente tags como <p>, <b>, etc.
-  if (safeContent.includes('<') && safeContent.includes('</')) {
-    let sanitizedHTML = isPrivateNote ? safeContent : sanitizeEmailHTML(safeContent);
-    if (isPrivateNote) {
-      sanitizedHTML = sanitizedHTML.replace(/color\s*:[^;"']*;?/gi, '');
-    }
-    return (
-      <div
-        className="whitespace-pre-wrap break-words rich-content"
-        style={isPrivateNote ? { color: 'inherit' } : undefined}
-        dangerouslySetInnerHTML={{ __html: sanitizedHTML }}
-      />
-    );
-  }
-
-  const parseMessageContent = (text: string) => {
-    const safeText = String(text || '');
-    const lines = safeText.split('\n');
-    const detectedUrls: string[] = [];
-
-    const elements = lines.map((line, lineIdx) => {
-      const parts: React.ReactNode[] = [];
-      let lastIndex = 0;
-
-      URL_REGEX.lastIndex = 0;
-      let match: RegExpExecArray | null;
-
-      while ((match = URL_REGEX.exec(line)) !== null) {
-        const url = match[0];
-        const start = match.index;
-
-        if (start > lastIndex) {
-          parts.push(line.slice(lastIndex, start));
-        }
-
-        if (!detectedUrls.includes(url)) {
-          detectedUrls.push(url);
-        }
-
-        parts.push(
-          <a
-            key={`link-${lineIdx}-${start}`}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 underline break-all hover:text-blue-400"
-          >
-            {url}
-          </a>
-        );
-
-        lastIndex = start + url.length;
-      }
-
-      if (lastIndex < line.length) {
-        parts.push(line.slice(lastIndex));
-      }
-
-      return (
-        <React.Fragment key={lineIdx}>
-          {parts.length > 0 ? parts : line}
-          {lineIdx < lines.length - 1 && <br />}
-        </React.Fragment>
-      );
-    });
-
-    return { elements, detectedUrls };
-  };
-
-  const parsedContent = parseMessageContent(safeContent);
+  // Format chat message with WhatsApp Markdown, URL linking, and preserved HTML structure
+  const { html: formattedHtml, detectedUrls } = useMemo(
+    () => formatChatMessage(safeContent, { isPrivateNote }),
+    [safeContent, isPrivateNote]
+  );
 
   return (
     <div className="whitespace-pre-wrap break-words text-sm">
-      {parsedContent.elements}
-      {parsedContent.detectedUrls.length > 0 && (
+      <div
+        className="rich-content"
+        style={isPrivateNote ? { color: 'inherit' } : undefined}
+        dangerouslySetInnerHTML={{ __html: formattedHtml }}
+      />
+      {detectedUrls.length > 0 && (
         <div className="mt-1">
-          {parsedContent.detectedUrls.map((url) => (
+          {detectedUrls.map((url) => (
             <LinkPreview key={url} url={url} />
           ))}
         </div>

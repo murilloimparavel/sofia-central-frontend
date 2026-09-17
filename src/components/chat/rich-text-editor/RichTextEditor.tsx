@@ -9,6 +9,7 @@ import { toggleMark } from 'prosemirror-commands';
 import { wrapInList } from 'prosemirror-schema-list';
 import { messageSchema } from './schema';
 import FormattingBubbleMenu, { BubbleMenuRect } from './FormattingBubbleMenu';
+import { formatChatMessage } from '../messages/formatChatMessage';
 
 /**
  * baseKeymap só mapeia "Enter" (→ splitBlock); "Shift-Enter" não tem binding
@@ -96,22 +97,37 @@ export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>
       },
       setContent: (content: string) => {
         if (!viewRef.current) return;
-        const isHtml = /<[a-z][\s\S]*>/i.test(content);
-        let doc;
-        if (isHtml) {
-          const wrapper = document.createElement('div');
-          wrapper.innerHTML = content;
-          doc = ProseDOMParser.fromSchema(messageSchema).parse(wrapper);
-        } else {
-          doc = content
-            ? messageSchema.nodeFromJSON({
-                type: 'doc',
-                content: [{ type: 'paragraph', content: [{ type: 'text', text: content }] }],
-              })
-            : emptyParagraphDoc();
+        if (!content || !content.trim()) {
+          const newState = EditorState.create({
+            doc: emptyParagraphDoc(),
+            plugins: viewRef.current.state.plugins,
+          });
+          viewRef.current.updateState(newState);
+          setBubbleRect(null);
+          return;
         }
+
+        const isHtml = /<[a-z][\s\S]*>/i.test(content);
+        let htmlToParse: string;
+
+        if (isHtml) {
+          htmlToParse = formatChatMessage(content).html;
+        } else {
+          // Plain text (canned responses, pasted text):
+          // Formata WhatsApp Markdown e converte quebras em parágrafos e hard_breaks estruturados
+          const formatted = formatChatMessage(content).html;
+          const paragraphs = formatted.split(/\n\n+/);
+          htmlToParse = paragraphs
+            .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+            .join('');
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = htmlToParse;
+        const doc = ProseDOMParser.fromSchema(messageSchema).parse(wrapper);
+
         const newState = EditorState.create({
-          doc,
+          doc: doc.content.size > 0 ? doc : emptyParagraphDoc(),
           plugins: viewRef.current.state.plugins,
         });
         viewRef.current.updateState(newState);
