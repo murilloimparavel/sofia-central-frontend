@@ -4,6 +4,8 @@ import { DEFAULT_FILTER } from '@/contexts/chat/FiltersContext';
 import { BaseFilter } from '@/types/core';
 import { convertBaseFiltersToConversationFilters } from '@/utils/chat/filterAdapters';
 import { saveConversationFilters, clearConversationFilters } from '@/utils/storage/filtersStorage';
+import { getScopeCache, setScopeCache } from '@/utils/chat/conversationScopeCache';
+import { getActiveConversationScope } from '@/components/chat/chat-sidebar/conversationSegmentsHelpers';
 
 export const useFilterHandlers = () => {
   const { conversations, filters } = useChatContext();
@@ -12,6 +14,15 @@ export const useFilterHandlers = () => {
     async (newFilters: BaseFilter[]) => {
       // Converter BaseFilter para ConversationFilter e aplicar
       const apiFilters = convertBaseFiltersToConversationFilters(newFilters);
+      const scopeId = getActiveConversationScope(apiFilters);
+
+      // SWR (0ms): se já temos o escopo em cache na memória, exibe imediatamente!
+      if (scopeId) {
+        const cached = getScopeCache(scopeId);
+        if (cached && cached.conversations.length > 0) {
+          conversations.setConversations(cached.conversations, cached.pagination, cached.query);
+        }
+      }
 
       return new Promise<void>((resolve, reject) => {
         filters.applyFilters(
@@ -19,6 +30,14 @@ export const useFilterHandlers = () => {
           (conversationsResult, pagination, query) => {
             // Atualizar o estado das conversas com os resultados do filtro
             conversations.setConversations(conversationsResult, pagination, query);
+
+            if (scopeId && query) {
+              setScopeCache(scopeId, {
+                conversations: conversationsResult,
+                pagination,
+                query,
+              });
+            }
 
             // 💾 PERSISTIR: Salvar filtros aplicados no localStorage
             saveConversationFilters(newFilters);
@@ -64,12 +83,20 @@ export const useFilterHandlers = () => {
   // 🔄 FUNÇÃO PARA RECARREGAR FILTROS: Reaplicar filtros atuais após mudanças
   const reloadCurrentFilters = useCallback(async () => {
     try {
+      const scopeId = getActiveConversationScope(filters.state.activeFilters);
       // Se há filtros ativos, reaplicar
       if (filters.state.activeFilters.length > 0) {
         await filters.applyFilters(
           filters.state.activeFilters,
           (conversationsResult, pagination, query) => {
             conversations.setConversations(conversationsResult, pagination, query);
+            if (scopeId && query) {
+              setScopeCache(scopeId, {
+                conversations: conversationsResult,
+                pagination,
+                query,
+              });
+            }
           },
           error => {
             console.error('❌ Erro ao recarregar filtros:', error);

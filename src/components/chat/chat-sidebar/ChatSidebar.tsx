@@ -797,7 +797,7 @@ const ChatSidebar = ({
         {!conversations ? (
           <ConversationSkeleton count={8} />
         ) : (conversations.state.conversationsLoading && visibleConversations.length === 0) ||
-          filters.state.isApplyingFilters ? (
+          (filters.state.isApplyingFilters && visibleConversations.length === 0) ? (
           // EVO-1672: the full-list skeleton is for the EMPTY/initial load only.
           // loadMore flips the shared conversationsLoading flag too, and swapping
           // the whole list mid-scroll loses the user's position (flicker + jump);

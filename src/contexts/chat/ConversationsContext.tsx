@@ -869,6 +869,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
             ? t('contexts.conversations.success.agentAssigned')
             : t('contexts.conversations.success.agentRemoved'),
         );
+        return updatedConversation as unknown as Conversation;
       } catch (error) {
         console.error('Error assigning agent:', error);
         toast.error(t('contexts.conversations.errors.assignAgent'), {
@@ -903,6 +904,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
             ? t('contexts.conversations.success.teamAssigned')
             : t('contexts.conversations.success.teamRemoved'),
         );
+        return updatedConversation as unknown as Conversation;
       } catch (error) {
         console.error('Error assigning team:', error);
         toast.error(t('contexts.conversations.errors.assignTeam'), {

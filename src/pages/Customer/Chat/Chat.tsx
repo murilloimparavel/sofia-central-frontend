@@ -5,6 +5,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useChatContext } from '@/contexts/chat/ChatContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { useAuthStore } from '@/store/authStore';
 
 import { useLanguage } from '@/hooks/useLanguage';
 
@@ -93,7 +94,8 @@ const Chat = () => {
   const chatContext = useChatContext();
   // Explicitly type conversations to ensure TypeScript recognizes it has 'state'
   const conversations = chatContext.conversations;
-  const { messages, selectedConversation, selectedMessages } = chatContext;
+  const { messages, selectedConversation, selectedMessages, filters } = chatContext;
+  const currentUser = useAuthStore(state => state.currentUser);
 
   // 🔒 RACE CONDITION FIX: Ref para rastrear última conversa carregada
   const lastLoadedConversationRef = useRef<string | null>(null);
@@ -601,9 +603,18 @@ const Chat = () => {
 
   const handlePostpone = useCallback(
     async (conversation: Conversation) => {
-      await conversationHandlers.handlePostpone(conversation);
+      const targetId = String(conversation.uuid || conversation.id);
+      try {
+        await conversationHandlers.handlePostpone(conversation);
+        const liveSelected = selectedConvIdRef.current;
+        if (liveSelected != null && String(liveSelected) === targetId) {
+          await clearSelectionAndGoToList();
+        }
+      } catch (err) {
+        console.error('[handlePostpone] failed:', err);
+      }
     },
-    [conversationHandlers],
+    [conversationHandlers, clearSelectionAndGoToList],
   );
 
   const handleMarkAsOpen = useCallback(
@@ -615,9 +626,18 @@ const Chat = () => {
 
   const handleMarkAsSnoozed = useCallback(
     async (conversation: Conversation) => {
-      await conversationHandlers.handleMarkAsSnoozed(conversation);
+      const targetId = String(conversation.uuid || conversation.id);
+      try {
+        await conversationHandlers.handleMarkAsSnoozed(conversation);
+        const liveSelected = selectedConvIdRef.current;
+        if (liveSelected != null && String(liveSelected) === targetId) {
+          await clearSelectionAndGoToList();
+        }
+      } catch (err) {
+        console.error('[handleMarkAsSnoozed] failed:', err);
+      }
     },
-    [conversationHandlers],
+    [conversationHandlers, clearSelectionAndGoToList],
   );
 
   const handleSetPriority = useCallback(
@@ -752,6 +772,24 @@ const Chat = () => {
         assignmentType,
         selectedIds,
       );
+
+      const targetId = String(conversationToAssign.uuid || conversationToAssign.id);
+      const liveSelected = selectedConvIdRef.current;
+      if (liveSelected != null && String(liveSelected) === targetId) {
+        const assignedToMe = selectedIds[0] != null && String(selectedIds[0]) === String(currentUser?.id);
+        const isViewingMine = filters.state.activeFilters.some(
+          (f: any) => (f.attribute_key === 'assignee_type' || f.attribute_key === 'assignee_id') &&
+               (Array.isArray(f.values) ? f.values[0] === 'me' : f.values === 'me'),
+        );
+        const isViewingUnassigned = filters.state.activeFilters.some(
+          (f: any) => (f.attribute_key === 'assignee_type' || f.attribute_key === 'assignee_id') &&
+               (Array.isArray(f.values) ? f.values[0] === 'unassigned' : f.values === 'unassigned'),
+        );
+
+        if ((isViewingMine && !assignedToMe) || (isViewingUnassigned && !assignedToMe)) {
+          await clearSelectionAndGoToList();
+        }
+      }
     } catch (error) {
       console.error('Error in assignment:', error);
       throw error; // Re-throw to let modal handle it

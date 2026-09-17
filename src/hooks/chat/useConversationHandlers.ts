@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Conversation } from '@/types/chat/api';
 import { isActionNotSupported } from '@/utils/chat/actionSupport';
 import { doesConversationMatchFilters } from '@/utils/chat/conversationMatch';
+import { evictFromScopeCache, addOrUpdateInScopeCache } from '@/utils/chat/conversationScopeCache';
 
 export const useConversationHandlers = () => {
   const { can } = usePermissions();
@@ -54,6 +55,9 @@ export const useConversationHandlers = () => {
         await conversations.updateConversationStatus(conversation.id, 'resolved');
         // Eixo A: em vez de refetch da lista, reconcilia só esta conversa.
         reconcileWithActiveView({ ...conversation, status: 'resolved' });
+        evictFromScopeCache('mine', conversation.id);
+        evictFromScopeCache('unassigned', conversation.id);
+        addOrUpdateInScopeCache('all', { ...conversation, status: 'resolved' });
       } catch (error) {
         console.error('❌ Error marking as resolved:', error);
         throw error;
@@ -67,6 +71,9 @@ export const useConversationHandlers = () => {
       try {
         await conversations.updateConversationStatus(conversation.id, 'pending');
         reconcileWithActiveView({ ...conversation, status: 'pending' });
+        evictFromScopeCache('mine', conversation.id);
+        evictFromScopeCache('unassigned', conversation.id);
+        addOrUpdateInScopeCache('all', { ...conversation, status: 'pending' });
       } catch (error) {
         console.error('❌ Error marking as pending:', error);
       }
@@ -79,11 +86,21 @@ export const useConversationHandlers = () => {
       try {
         await conversations.updateConversationStatus(conversation.id, 'open');
         reconcileWithActiveView({ ...conversation, status: 'open' });
+        const isMine =
+          conversation.assignee_id != null &&
+          currentUser?.id != null &&
+          String(conversation.assignee_id) === String(currentUser.id);
+        if (isMine) {
+          addOrUpdateInScopeCache('mine', { ...conversation, status: 'open' });
+        } else if (!conversation.assignee_id) {
+          addOrUpdateInScopeCache('unassigned', { ...conversation, status: 'open' });
+        }
+        addOrUpdateInScopeCache('all', { ...conversation, status: 'open' });
       } catch (error) {
         console.error('❌ Error marking as open:', error);
       }
     },
-    [conversations, reconcileWithActiveView],
+    [conversations, currentUser?.id, reconcileWithActiveView],
   );
 
   const handleMarkAsSnoozed = useCallback(

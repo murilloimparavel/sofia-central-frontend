@@ -118,8 +118,8 @@ export interface ConversationsContextValue {
   markAsUnread: (conversationId: string, options?: { silent?: boolean }) => Promise<void>;
   markAsResolved: (conversationId: string) => Promise<void>;
   markAsPending: (conversationId: string) => Promise<void>;
-  assignAgent: (conversationId: string, assigneeId: string | null) => Promise<void>;
-  assignTeam: (conversationId: string, teamId: string | null) => Promise<void>;
+  assignAgent: (conversationId: string, assigneeId: string | null) => Promise<Conversation | void>;
+  assignTeam: (conversationId: string, teamId: string | null) => Promise<Conversation | void>;
   assignLabels: (conversationId: string, labels: string[]) => Promise<void>;
 }
 

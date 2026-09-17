@@ -367,7 +367,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               updated_at: data.updated_at,
               last_activity_at: data.last_activity_at,
               inbox_id: data.inbox_id,
-              assignee_id: data.assignee_id,
+              assignee_id: data.assignee_id ?? data.meta?.assignee?.id ?? null,
               team_id: data.team_id,
               meta: {
                 sender: {
@@ -526,7 +526,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             updated_at: data.updated_at,
             last_activity_at: data.last_activity_at,
             inbox_id: data.inbox_id,
-            assignee_id: data.assignee_id,
+            assignee_id: data.assignee_id ?? data.meta?.assignee?.id ?? null,
             team_id: data.team_id,
             unread_count: data.unread_count,
             // Grupos: mesmo gap do create — sem copiar is_group, um grupo ainda não

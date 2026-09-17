@@ -32,24 +32,29 @@ export function doesConversationMatchFilters(
         break;
       case 'assignee_id':
       case 'assignee_type': {
-        // assignee_type (do modal) e assignee_id compartilham os valores
-        // me/unassigned/assigned — mesma lógica de match no realtime.
+        // assignee_type (do modal/abas) e assignee_id compartilham os valores
+        // me/unassigned/assigned — mesma lógica de match no realtime e reconcile local.
+        // Resolve o ID do atendente a partir de assignee_id, assignee.id ou meta.assignee.id
+        const assigneeId =
+          conversation.assignee_id ?? conversation.assignee?.id ?? (conversation as any).meta?.assignee?.id;
         const val = String(values[0]);
+
         if (val === 'me') {
-          const meMatches = currentUserId
-            ? conversation.assignee_id != null && String(conversation.assignee_id) === String(currentUserId)
-            : false;
+          const meMatches =
+            currentUserId != null && assigneeId != null && String(assigneeId) !== ''
+              ? String(assigneeId) === String(currentUserId)
+              : false;
           return filter_operator === 'not_equal_to' ? !meMatches : meMatches;
         }
         if (val === 'unassigned') {
-          const isUnassigned = !conversation.assignee_id;
+          const isUnassigned = assigneeId == null || assigneeId === '' || assigneeId === 0;
           return filter_operator === 'not_equal_to' ? !isUnassigned : isUnassigned;
         }
         if (val === 'assigned') {
-          const isAssigned = !!conversation.assignee_id;
+          const isAssigned = assigneeId != null && assigneeId !== '' && assigneeId !== 0;
           return filter_operator === 'not_equal_to' ? !isAssigned : isAssigned;
         }
-        conversationValue = conversation.assignee_id ? String(conversation.assignee_id) : null;
+        conversationValue = assigneeId != null ? String(assigneeId) : null;
         break;
       }
       case 'team_id':

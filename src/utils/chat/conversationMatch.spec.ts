@@ -88,6 +88,33 @@ describe('doesConversationMatchFilters', () => {
       expect(doesConversationMatchFilters(conv({ is_group: false }), [filter('is_group', ['true'])])).toBe(false);
     });
   });
+
+  describe('assignee_type and assignee_id', () => {
+    it("unassigned: matches when no agent is assigned", () => {
+      expect(doesConversationMatchFilters(conv({ assignee_id: null }), [filter('assignee_type', ['unassigned'])])).toBe(true);
+      expect(doesConversationMatchFilters(conv({ assignee_id: undefined }), [filter('assignee_type', ['unassigned'])])).toBe(true);
+    });
+
+    it("unassigned: evicts when an agent is assigned via assignee_id, assignee.id or meta.assignee.id", () => {
+      expect(doesConversationMatchFilters(conv({ assignee_id: 10 }), [filter('assignee_type', ['unassigned'])])).toBe(false);
+      expect(doesConversationMatchFilters(conv({ assignee: { id: 10 } as any }), [filter('assignee_type', ['unassigned'])])).toBe(false);
+      expect(doesConversationMatchFilters(conv({ meta: { assignee: { id: 10 } } as any }), [filter('assignee_type', ['unassigned'])])).toBe(false);
+    });
+
+    it("me: matches only when assigned to currentUserId", () => {
+      expect(doesConversationMatchFilters(conv({ assignee_id: '10' }), [filter('assignee_type', ['me'])], '10')).toBe(true);
+      expect(doesConversationMatchFilters(conv({ assignee_id: 10 }), [filter('assignee_type', ['me'])], '10')).toBe(true);
+      expect(doesConversationMatchFilters(conv({ assignee: { id: 10 } as any }), [filter('assignee_type', ['me'])], '10')).toBe(true);
+      expect(doesConversationMatchFilters(conv({ meta: { assignee: { id: 10 } } as any }), [filter('assignee_type', ['me'])], '10')).toBe(true);
+      expect(doesConversationMatchFilters(conv({ assignee_id: 99 }), [filter('assignee_type', ['me'])], '10')).toBe(false);
+      expect(doesConversationMatchFilters(conv({ assignee_id: null }), [filter('assignee_type', ['me'])], '10')).toBe(false);
+    });
+
+    it("assigned: matches any assigned agent", () => {
+      expect(doesConversationMatchFilters(conv({ assignee_id: 10 }), [filter('assignee_type', ['assigned'])])).toBe(true);
+      expect(doesConversationMatchFilters(conv({ assignee_id: null }), [filter('assignee_type', ['assigned'])])).toBe(false);
+    });
+  });
 });
 
 // Guards the HIGH regression: the advanced-modal seed must NOT be a chip-nav
