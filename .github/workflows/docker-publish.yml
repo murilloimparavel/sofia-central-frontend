@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  IMAGE_NAME: ghcr.io/murilloimparavel/evo-ai-frontend-community
+  IMAGE_NAME: ghcr.io/murilloimparavel/sofia-central-frontend
 
 jobs:
   # ---------------------------------------------------------------------------
