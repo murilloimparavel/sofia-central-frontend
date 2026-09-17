@@ -10,6 +10,7 @@ import {
   ConversationCreatedEvent,
   ConversationUpdatedEvent,
   ConversationStatusChangedEvent,
+  AssigneeChangedEvent,
   TypingEvent,
   PresenceUpdateEvent,
   ConversationReadEvent,
@@ -186,6 +187,7 @@ interface WebSocketHandlers {
   onConversationCreated?: (conversation: Conversation) => void;
   onConversationUpdated?: (conversation: Partial<Conversation> & { id: string }) => void;
   onConversationStatusChanged?: (conversationId: string, status: Conversation['status'], updatedAt?: string) => void;
+  onAssigneeChanged?: (conversationId: string, assigneeId: string | null, assignee?: Conversation['assignee']) => void;
   onConversationRead?: (conversationId: string, unreadCount: number) => void;
   onConversationLastActivity?: (conversationId: string, lastActivityAt: string) => void;
   onContactUpdated?: (contact: Contact) => void;
@@ -610,6 +612,45 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             data.status,
             data.updated_at,
           );
+        }, []),
+
+        onAssigneeChanged: useCallback((data: AssigneeChangedEvent) => {
+          if (!data?.id) {
+            return;
+          }
+
+          const conversationId = String(data.id);
+          const assigneeId =
+            data.assignee_id != null
+              ? String(data.assignee_id)
+              : data.assignee?.id != null
+                ? String(data.assignee.id)
+                : null;
+
+          const mappedAssignee: Conversation['assignee'] = data.assignee
+            ? {
+                id: String(data.assignee.id),
+                uid: '',
+                name: data.assignee.name,
+                available_name: data.assignee.name,
+                avatar_url: data.assignee.avatar_url ?? undefined,
+                availability: 'online',
+                availability_status: 'online',
+                email: data.assignee.email || '',
+                role: undefined,
+                confirmed: false,
+                created_at: '',
+                updated_at: '',
+                permissions: [],
+              }
+            : null;
+
+          handlersRef.current.onAssigneeChanged?.(conversationId, assigneeId, mappedAssignee);
+          handlersRef.current.onConversationUpdated?.({
+            id: conversationId,
+            assignee_id: assigneeId,
+            assignee: mappedAssignee,
+          });
         }, []),
 
         // Without this handler the connector's contact.updated registration was a

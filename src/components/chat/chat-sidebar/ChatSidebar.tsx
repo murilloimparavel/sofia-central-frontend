@@ -34,7 +34,9 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useChatContext } from '@/contexts/chat/ChatContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { useOptionalAuth } from '@/contexts/AuthContext';
 import { Conversation, ConversationFilter } from '@/types/chat/api';
+import { doesConversationMatchFilters } from '@/utils/chat/conversationMatch';
 import { ConversationSkeleton } from '../loading-states';
 import { NoConversations } from '../empty-states';
 import ConversationsFilterPopover from '../filters/ConversationsFilterPopover';
@@ -143,6 +145,7 @@ const ChatSidebar = ({
   width,
 }: ChatSidebarProps) => {
   const { t } = useLanguage('chat');
+  const { user: currentUser } = useOptionalAuth() ?? {};
   const chatContext = useChatContext();
   // Explicitly type conversations to ensure TypeScript recognizes it has 'state'
   const conversations = chatContext.conversations as typeof chatContext.conversations & {
@@ -386,7 +389,14 @@ const ChatSidebar = ({
   const visibleConversations = useMemo(() => {
     const filtered = conversations.state.conversations.filter(conversation => {
       const isArchived = Boolean(conversation.custom_attributes?.archived);
-      return showArchived ? isArchived : !isArchived;
+      if (showArchived ? !isArchived : isArchived) {
+        return false;
+      }
+      return doesConversationMatchFilters(
+        conversation,
+        filters.state.activeFilters,
+        currentUser?.id,
+      );
     });
 
     // Ordena por last_activity_at (autoritativo: avança em status/atendente/label/
@@ -417,7 +427,7 @@ const ChatSidebar = ({
       // quando last_activity_at empata.
       return String(b.id).localeCompare(String(a.id));
     });
-  }, [conversations.state.conversations, showArchived]);
+  }, [conversations.state.conversations, showArchived, filters.state.activeFilters, currentUser?.id]);
 
   // Conversas selecionadas (map display_id -> conversa) para as ações em lote.
   const selectedConversations = useMemo(

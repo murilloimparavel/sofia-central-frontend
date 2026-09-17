@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
-import { doesConversationMatchFilters } from './conversationMatch';
+import { doesConversationMatchFilters, doesConversationMatchQuery } from './conversationMatch';
 import { DEFAULT_CONVERSATION_FILTER } from '@/types/core/filters';
 import type { Conversation, ConversationFilter } from '@/types/chat/api';
 
@@ -125,5 +125,40 @@ describe('DEFAULT_CONVERSATION_FILTER (advanced modal seed)', () => {
   });
   it('seeds an empty value so an untouched Apply is dropped (no-op)', () => {
     expect(DEFAULT_CONVERSATION_FILTER.values).toBe('');
+  });
+});
+
+describe('doesConversationMatchQuery', () => {
+  it('undefined query matches any conversation', () => {
+    expect(doesConversationMatchQuery(conv(), undefined)).toBe(true);
+  });
+
+  it('matches status filter in list query', () => {
+    expect(doesConversationMatchQuery(conv({ status: 'open' }), { kind: 'list', params: { status: 'open' } })).toBe(true);
+    expect(doesConversationMatchQuery(conv({ status: 'resolved' }), { kind: 'list', params: { status: 'open' } })).toBe(false);
+    expect(doesConversationMatchQuery(conv({ status: 'resolved' }), { kind: 'list', params: { status: 'all' } })).toBe(true);
+  });
+
+  it('matches unassigned in list query (Fila)', () => {
+    expect(doesConversationMatchQuery(conv({ assignee_id: null }), { kind: 'list', params: { assignee_type: 'unassigned' } })).toBe(true);
+    expect(doesConversationMatchQuery(conv({ assignee_id: '99' }), { kind: 'list', params: { assignee_type: 'unassigned' } })).toBe(false);
+    expect(doesConversationMatchQuery(conv({ assignee: { id: '99' } as any }), { kind: 'list', params: { assignee_type: 'unassigned' } })).toBe(false);
+  });
+
+  it('matches me in list query (Chats)', () => {
+    expect(doesConversationMatchQuery(conv({ assignee_id: '10' }), { kind: 'list', params: { assignee_type: 'me' } }, '10')).toBe(true);
+    expect(doesConversationMatchQuery(conv({ assignee_id: '99' }), { kind: 'list', params: { assignee_type: 'me' } }, '10')).toBe(false);
+    expect(doesConversationMatchQuery(conv({ assignee_id: null }), { kind: 'list', params: { assignee_type: 'me' } }, '10')).toBe(false);
+  });
+
+  it('delegates to doesConversationMatchFilters when query is kind filter', () => {
+    const filterQuery = {
+      kind: 'filter' as const,
+      request: {
+        filters: [filter('status', ['open'])],
+      },
+    };
+    expect(doesConversationMatchQuery(conv({ status: 'open' }), filterQuery)).toBe(true);
+    expect(doesConversationMatchQuery(conv({ status: 'resolved' }), filterQuery)).toBe(false);
   });
 });

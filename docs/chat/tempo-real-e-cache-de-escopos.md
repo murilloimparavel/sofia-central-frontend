@@ -87,8 +87,36 @@ O cache gerencia as 3 visões fundamentais do operador:
 
 ---
 
-## 4. Validação
+## 4. Remoção em Tempo Real de Conversas Atribuídas e Defesa da Fila (Sprints 7A & 7B)
 
-- **Testes Unitários:** 35/35 testes aprovados (`vitest run` em 1.05s).
+### 4.1. Problema Identificado
+- **Cenário:** Em prints/telas operacionais, conversas atribuídas a um atendente específico (ex: Nathália) apareciam listadas dentro da aba **Fila** (`assignee_type=unassigned`).
+- **Causas Raízes:**
+  1. **Evento WebSocket `assignee.changed` Omitido nos Contextos:** O Rails emite `assignee.changed` ao alterar o responsável. O connector ActionCable ouvia o evento, mas nem o `WebSocketContext` nem o `ChatContext` possuíam handlers registrados para ele. Logo, atribuições feitas por outros atendentes ou pelo backend não eram processadas em tempo real nas outras telas.
+  2. **Injeção Indiscriminada via `loadSpecificConversation`:** Ao carregar ou abrir uma conversa por URL canônica (`/conversations/:uuid`), o método `loadSpecificConversation` executava cegamente `dispatch({ type: 'ADD_CONVERSATION', payload: conversation })`, poluindo `state.conversations` mesmo que a conversa não pertencesse ao filtro da aba ativa (Fila).
+  3. **Ausência de Filtro Defensivo na Renderização da Sidebar:** O `visibleConversations` em `ChatSidebar.tsx` apenas filtrava `custom_attributes.archived`, confiando cegamente no array bruto de conversas.
+  4. **Dessincronização do Scope Cache Remoto:** O cache de escopos das abas (`conversationScopeCache`) não era evicto ao receber atribuições remotas.
+
+### 4.2. Soluções Implementadas
+1. **Sprint 7A (Sincronização em Tempo Real de Atribuição e Status):**
+   - Adicionado `onAssigneeChanged` na interface `WebSocketHandlers` e no `WebSocketContext.tsx`, mapeando o evento `AssigneeChangedEvent` do ActionCable.
+   - Implementado handler `onAssigneeChanged` em `ChatContext.tsx`, que avalia `doesConversationMatchFilters(updatedConversation, activeFilters, currentUserId)`. Se a conversa não casar mais com a visualização ativa, é imediatamente removida com `removeConversation` e salva em `addHiddenConversation`.
+   - Sincronização cruzada nos caches de escopo: chama `evictFromScopeCache('unassigned', conversationId)` e atualiza `'mine'` e `'all'`.
+   - Sincronização em `onConversationUpdated` e `onConversationStatusChanged` para evicção imediata dos caches ao resolver (`status: 'resolved'`).
+2. **Sprint 7B (Defesa na Ingestão e Filtragem Estrita na Sidebar):**
+   - Criado helper `doesConversationMatchQuery(conversation, query, currentUserId)` em `src/utils/chat/conversationMatch.ts`.
+   - No `ConversationsContext.tsx`, `loadSpecificConversation` valida se a conversa pertence ao escopo ativo (`matchesCurrentView`). Se não pertencer, ela **não** entra em `state.conversations`, sendo armazenada em `selectedConversationData` (permitindo que o painel de chat funcione sem poluir a lista da sidebar).
+   - No `ChatSidebar.tsx`, `visibleConversations` passa a aplicar a trava defensiva com `doesConversationMatchFilters(conversation, filters.state.activeFilters, currentUser?.id)`.
+   - Criado hook `useOptionalAuth()` em `AuthContext.tsx` para permitir leitura segura de autenticação sem falhas em ambientes de testes isolados.
+
+---
+
+## 5. Validação dos Testes & Build
+
+- **Testes Unitários:**
+  - `src/utils/chat/conversationMatch.spec.ts`: 22/22 aprovados (incluindo testes de `doesConversationMatchQuery` e `assignee_type`).
+  - `src/components/chat/chat-sidebar/ChatSidebar.spec.tsx`: 15/15 aprovados (incluindo teste defensivo que impede conversas atribuídas de renderizarem na Fila).
+  - Suítes de contexto e utilitários de chat: 100% aprovados.
 - **Typecheck:** `tsc -b` executado com 0 erros.
-- **Build de Produção:** `vite build` gerado com sucesso em 10.08s.
+- **Build de Produção:** `vite build` gerado com sucesso em 10.51s.
+

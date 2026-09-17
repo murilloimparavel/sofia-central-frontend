@@ -1,4 +1,4 @@
-import type { Conversation, ConversationFilter } from '@/types/chat/api';
+import type { Conversation, ConversationFilter, ConversationsQuery } from '@/types/chat/api';
 
 /**
  * Single source of truth for "does this conversation still belong to the
@@ -115,4 +115,88 @@ export function doesConversationMatchFilters(
 
     return true;
   });
+}
+
+/**
+ * Checks whether a conversation matches a ConversationsQuery (used by ConversationsContext).
+ * Supports both { kind: 'list', params: ConversationListParams } and { kind: 'filter', request: FilterRequest }.
+ */
+export function doesConversationMatchQuery(
+  conversation: Conversation,
+  query?: ConversationsQuery,
+  currentUserId?: string,
+): boolean {
+  if (!query) return true;
+
+  if (query.kind === 'filter') {
+    return doesConversationMatchFilters(
+      conversation,
+      (query.request?.filters as any) || [],
+      currentUserId,
+    );
+  }
+
+  const params = query.params;
+  if (!params) return true;
+
+  // Status check
+  if (params.status && params.status !== 'all') {
+    if (conversation.status !== params.status) {
+      return false;
+    }
+  }
+
+  // Assignee check
+  const assigneeId =
+    conversation.assignee_id ??
+    conversation.assignee?.id ??
+    (conversation as any).meta?.assignee?.id;
+
+  if (params.assignee_type === 'me') {
+    const meMatches =
+      currentUserId != null && assigneeId != null && String(assigneeId) !== ''
+        ? String(assigneeId) === String(currentUserId)
+        : false;
+    if (!meMatches) return false;
+  } else if (params.assignee_type === 'unassigned') {
+    const isUnassigned = assigneeId == null || assigneeId === '' || assigneeId === 0;
+    if (!isUnassigned) return false;
+  } else if (params.assignee_type === 'assigned') {
+    const isAssigned = assigneeId != null && assigneeId !== '' && assigneeId !== 0;
+    if (!isAssigned) return false;
+  } else if (params.assignee_id) {
+    if (String(assigneeId) !== String(params.assignee_id)) return false;
+  }
+
+  // Inbox check
+  if (params.inbox_id && String(conversation.inbox_id) !== String(params.inbox_id)) {
+    return false;
+  }
+
+  // Team check
+  if (params.team_id && String(conversation.team_id) !== String(params.team_id)) {
+    return false;
+  }
+
+  // Group check
+  if (params.is_group !== undefined && Boolean(conversation.is_group) !== Boolean(params.is_group)) {
+    return false;
+  }
+
+  // Unread check
+  if (params.unread !== undefined) {
+    const isUnread = (conversation.unread_count ?? 0) > 0;
+    if (isUnread !== Boolean(params.unread)) return false;
+  }
+
+  // Labels check
+  if (params.labels && params.labels.length > 0) {
+    const convLabels = ((conversation.labels ?? []) as Array<{ title?: string } | string>)
+      .map(l => (typeof l === 'string' ? l : l.title))
+      .filter((t): t is string => Boolean(t));
+    const hasAny = params.labels.some(l => convLabels.includes(l));
+    if (!hasAny) return false;
+  }
+
+  return true;
 }

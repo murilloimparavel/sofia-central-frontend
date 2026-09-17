@@ -19,9 +19,12 @@ import { Contact, Conversation, ConversationListParams, ConversationsQuery } fro
 import { PaginationMeta } from '@/types/core';
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
 import { matchesConversationId } from '@/utils/chat/conversationMatcher';
+import { useOptionalAuth } from '@/contexts/AuthContext';
+import { doesConversationMatchQuery } from '@/utils/chat/conversationMatch';
 
 export function ConversationsProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage('chat');
+  const { user: currentUser } = useOptionalAuth() ?? {};
   const [state, dispatch] = useReducer(conversationsReducer, initialState);
 
   // Refs para evitar chamadas múltiplas simultâneas
@@ -188,13 +191,27 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           return null;
         }
 
-        // 🔒 DUPLA VERIFICAÇÃO: Verificar novamente se não foi adicionada durante o carregamento
+        // 🔒 DUPLA VERIFICAÇÃO: Verificar se combina com o filtro/query ativo da lista
+        const matchesCurrentView = doesConversationMatchQuery(
+          conversation,
+          currentQueryRef.current,
+          currentUser?.id,
+        );
         const finalCheck = findConversationByAnyId(conversationKey);
 
         if (!finalCheck) {
-          dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
+          if (matchesCurrentView) {
+            dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
+          } else {
+            dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
+          }
         } else {
-          dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
+          if (matchesCurrentView) {
+            dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
+          } else {
+            dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationKey });
+            dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
+          }
         }
 
         return conversation;
@@ -216,7 +233,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         loadingSpecificRef.current.delete(conversationKey);
       }
     },
-    [findConversationByAnyId, t],
+    [findConversationByAnyId, t, currentUser?.id],
   );
 
   const setConversations = useCallback(

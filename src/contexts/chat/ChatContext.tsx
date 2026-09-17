@@ -25,6 +25,8 @@ import { isAdminRole } from '@/constants/roles';
 import { playNotificationSound, getAudioSettings } from '@/utils/audioNotificationUtils';
 import { normalizeToUnixSeconds } from '@/utils/time/timeHelpers';
 import { doesConversationMatchFilters } from '@/utils/chat/conversationMatch';
+import { evictFromScopeCache, addOrUpdateInScopeCache } from '@/utils/chat/conversationScopeCache';
+import { useUnansweredConversationsStore } from '@/store/unansweredConversationsStore';
 const EMPTY_MESSAGES: Message[] = [];
 
 interface ChatContextValue {
@@ -483,6 +485,23 @@ function useChatIntegration() {
           if (existsInList) {
             conversations.removeConversation(conversationId);
           }
+
+          // Sincronizar cache de escopos entre abas
+          if (mergedConversation.assignee_id != null) {
+            evictFromScopeCache('unassigned', conversationId);
+            const isAssignedToMe =
+              currentUser?.id != null && String(mergedConversation.assignee_id) === String(currentUser.id);
+            if (isAssignedToMe) {
+              addOrUpdateInScopeCache('mine', mergedConversation);
+            } else {
+              evictFromScopeCache('mine', conversationId);
+            }
+          }
+          if (mergedConversation.status === 'resolved') {
+            evictFromScopeCache('mine', conversationId);
+            evictFromScopeCache('unassigned', conversationId);
+          }
+          addOrUpdateInScopeCache('all', mergedConversation);
           return;
         }
 
@@ -580,10 +599,87 @@ function useChatIntegration() {
         if (!doesConversationMatchFilters(updatedConversation, activeFiltersRef.current, currentUser?.id)) {
           conversations.addHiddenConversation(updatedConversation);
           conversations.removeConversation(conversationId);
+          if (status === 'resolved') {
+            evictFromScopeCache('mine', conversationId);
+            evictFromScopeCache('unassigned', conversationId);
+          }
+          addOrUpdateInScopeCache('all', updatedConversation);
+          useUnansweredConversationsStore.getState().fetch();
           return;
         }
 
         conversations.updateConversation(updatedConversation);
+      },
+
+      onAssigneeChanged: (
+        conversationId: string,
+        assigneeId: string | null,
+        assignee?: Conversation['assignee'],
+      ) => {
+        const existingConversation = conversations.getConversation(conversationId);
+
+        const updatedConversation: Conversation = existingConversation
+          ? {
+              ...existingConversation,
+              assignee_id: assigneeId,
+              assignee: assignee ?? null,
+            }
+          : ({
+              id: conversationId,
+              assignee_id: assigneeId,
+              assignee: assignee ?? null,
+            } as Conversation);
+
+        const matchesFilters = doesConversationMatchFilters(
+          updatedConversation,
+          activeFiltersRef.current,
+          currentUser?.id,
+        );
+        const existsInList = !!existingConversation;
+
+        // Atualizar lista da view ativa
+        if (!matchesFilters) {
+          conversations.addHiddenConversation(updatedConversation);
+          if (existsInList) {
+            conversations.removeConversation(conversationId);
+          }
+        } else {
+          conversations.updateConversation(updatedConversation);
+        }
+
+        // Sincronizar cache de escopos entre abas (Fila, Chats, Todas)
+        if (assigneeId != null) {
+          // Atribuída a alguém: sai da Fila imediatamente
+          evictFromScopeCache('unassigned', conversationId);
+          const isAssignedToMe =
+            currentUser?.id != null && String(assigneeId) === String(currentUser.id);
+          if (isAssignedToMe) {
+            addOrUpdateInScopeCache('mine', updatedConversation);
+          } else {
+            evictFromScopeCache('mine', conversationId);
+          }
+        } else {
+          // Desatribuída: se estiver aberta, volta para a Fila
+          if (updatedConversation.status === 'open') {
+            addOrUpdateInScopeCache('unassigned', updatedConversation);
+          }
+          evictFromScopeCache('mine', conversationId);
+        }
+        addOrUpdateInScopeCache('all', updatedConversation);
+
+        // Se a conversa atualmente aberta na tela foi atribuída a outro atendente, notificar
+        const isCurrentSelected =
+          String(conversations.state.selectedConversationId) === conversationId;
+        if (
+          isCurrentSelected &&
+          assignee?.name &&
+          currentUser?.id != null &&
+          String(assigneeId) !== String(currentUser.id)
+        ) {
+          toast.info(`Conversa assumida por ${assignee.name}`);
+        }
+
+        useUnansweredConversationsStore.getState().fetch();
       },
 
       onConversationRead: (conversationId: string, unreadCount: number) => {

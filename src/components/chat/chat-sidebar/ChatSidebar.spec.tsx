@@ -368,3 +368,43 @@ describe('ChatSidebar responsive width (EVO-2234)', () => {
     expect(root.className).toContain('md:w-96');
   });
 });
+
+describe('ChatSidebar defensive scope filtering', () => {
+  it('does not render assigned conversation when Fila tab (unassigned) is active', () => {
+    const unassignedConv = { ...makeConversation('1'), contact: { id: '1', name: 'Unassigned Contact' }, assignee_id: null };
+    const assignedConv = { ...makeConversation('2'), contact: { id: '2', name: 'Assigned Contact' }, assignee_id: '99', assignee: { id: '99', name: 'Nathália' } };
+
+    overrideContext = {
+      conversations: {
+        state: {
+          conversations: [unassignedConv, assignedConv],
+          conversationsLoading: false,
+          conversationsError: null,
+          selectedConversationId: null,
+          conversationsPagination: null,
+        },
+        getUnreadCount: () => 0,
+        loadConversations: vi.fn().mockResolvedValue(undefined),
+        loadMoreConversations: vi.fn().mockResolvedValue(undefined),
+        updateConversation: mockUpdateConversation,
+      },
+      filters: {
+        state: {
+          activeFilters: [
+            { attribute_key: 'assignee_type', filter_operator: 'equal_to', values: ['unassigned'], query_operator: 'and' },
+            { attribute_key: 'status', filter_operator: 'equal_to', values: ['open'], query_operator: 'and' },
+          ] as any,
+          isApplyingFilters: false,
+        },
+        applyFilters: vi.fn(),
+        clearFilters: vi.fn(),
+      },
+    };
+
+    render(<ChatSidebar {...defaultProps} />);
+
+    expect(screen.getByText('Unassigned Contact')).toBeInTheDocument();
+    expect(screen.queryByText('Assigned Contact')).not.toBeInTheDocument();
+  });
+});
+
