@@ -26,40 +26,56 @@ const CannedResponsesList: React.FC<CannedResponsesListProps> = ({
   // Auto-scroll para o item selecionado
   useEffect(() => {
     if (selectedItemRef.current && listRef.current) {
-      const listRect = listRef.current.getBoundingClientRect();
-      const itemRect = selectedItemRef.current.getBoundingClientRect();
+      try {
+        const listRect = listRef.current.getBoundingClientRect();
+        const itemRect = selectedItemRef.current.getBoundingClientRect();
 
-      // Se o item está fora da view, rola para ele
-      if (itemRect.bottom > listRect.bottom) {
-        selectedItemRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' });
-      } else if (itemRect.top < listRect.top) {
-        selectedItemRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        // Se o item está fora da view, rola para ele
+        if (itemRect.bottom > listRect.bottom) {
+          selectedItemRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' });
+        } else if (itemRect.top < listRect.top) {
+          selectedItemRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }
+      } catch {
+        // Ignora caso scrollIntoView não seja suportado
       }
     }
   }, [selectedIndex]);
 
-  // Função para destacar o termo pesquisado
-  const highlightMatch = (text: string, query: string) => {
-    if (!query.trim()) return text;
-
-    const parts = text.split(new RegExp(`(${query})`, 'gi'));
-    return (
-      <span>
-        {parts.map((part, index) =>
-          part.toLowerCase() === query.toLowerCase() ? (
-            <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 text-foreground">
-              {part}
-            </mark>
-          ) : (
-            <span key={index}>{part}</span>
-          ),
-        )}
-      </span>
-    );
+  // Escapa caracteres especiais de RegExp para busca literal segura
+  const escapeRegExp = (string: string) => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   };
 
-  // Truncar conteúdo para preview
-  const truncateContent = (content: string, maxLength: number = 80) => {
+  // Função para destacar o termo pesquisado com segurança total
+  const highlightMatch = (text?: string, query?: string) => {
+    if (!text) return '';
+    if (!query || !query.trim()) return text;
+
+    try {
+      const escapedQuery = escapeRegExp(query.trim());
+      const parts = text.split(new RegExp(`(${escapedQuery})`, 'gi'));
+      return (
+        <span>
+          {parts.map((part, index) =>
+            part && part.toLowerCase() === query.trim().toLowerCase() ? (
+              <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 text-foreground">
+                {part}
+              </mark>
+            ) : (
+              <span key={index}>{part ?? ''}</span>
+            ),
+          )}
+        </span>
+      );
+    } catch {
+      return text;
+    }
+  };
+
+  // Truncar conteúdo para preview seguro
+  const truncateContent = (content?: string, maxLength: number = 80) => {
+    if (!content) return '';
     if (content.length <= maxLength) return content;
     return content.substring(0, maxLength) + '...';
   };

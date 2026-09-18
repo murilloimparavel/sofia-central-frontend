@@ -54,18 +54,43 @@ export const useCannedResponses = ({
     loadCannedResponses();
   }, [loadCannedResponses]);
 
-  // Função de busca/filtro otimizada
+  // Remove acentos e normaliza para busca insensível a diacríticos
+  const stripDiacritics = (str?: string | null): string => {
+    return (str || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  };
+
+  // Função de busca/filtro otimizada com suporte a acentos e segurança contra nulos
   const searchCannedResponses = useCallback(
     (query: string): CannedResponse[] => {
-      if (!query.trim()) {
+      if (!Array.isArray(cannedResponses) || cannedResponses.length === 0) {
+        return [];
+      }
+
+      if (!query || !query.trim()) {
         return cannedResponses;
       }
 
-      const normalizedQuery = query.toLowerCase().trim();
+      const rawQuery = query.toLowerCase().trim();
+      const normalizedQuery = stripDiacritics(query);
 
       return cannedResponses.filter(cannedResponse => {
-        const matchesShortCode = cannedResponse.short_code.toLowerCase().includes(normalizedQuery);
-        const matchesContent = cannedResponse.content.toLowerCase().includes(normalizedQuery);
+        if (!cannedResponse) return false;
+
+        const rawShortCode = (cannedResponse.short_code || '').toLowerCase();
+        const rawContent = (cannedResponse.content || '').toLowerCase();
+
+        // Verifica correspondência exata ou normalizada (sem acentos)
+        const normShortCode = stripDiacritics(cannedResponse.short_code);
+        const normContent = stripDiacritics(cannedResponse.content);
+
+        const matchesShortCode =
+          rawShortCode.includes(rawQuery) || (normShortCode.length > 0 && normShortCode.includes(normalizedQuery));
+        const matchesContent =
+          rawContent.includes(rawQuery) || (normContent.length > 0 && normContent.includes(normalizedQuery));
 
         return matchesShortCode || matchesContent;
       });

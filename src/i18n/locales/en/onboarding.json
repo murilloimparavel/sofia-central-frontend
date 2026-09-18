@@ -33,11 +33,11 @@
       "options": ["Never used one", "Used one, but it was difficult", "I have CRM experience", "Migrating from another system"]
     },
     "goal": {
-      "label": "What is your main goal with Sofia Central?",
+      "label": "What is your main goal with SOFIA Central?",
       "options": ["Organize customer service", "Automate with AI", "Scale the team", "Centralize channels", "Track metrics"]
     },
     "submit": {
-      "idle": "Start using Sofia Central",
+      "idle": "Start using SOFIA Central",
       "loading": "Saving..."
     },
     "footer": "Takes less than 1 minute · You can change this later in settings"

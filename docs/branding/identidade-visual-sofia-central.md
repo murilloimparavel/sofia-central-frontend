@@ -1,6 +1,6 @@
-# Identidade Visual e Repositório Privado: Sofia Central
+# Identidade Visual e Repositório Privado: SOFIA Central
 
-> Documentação oficial da transição de marca do EvoCRM para **Sofia Central** no frontend, desvinculação do fork para repositório 100% privado e pipeline de imagens no GitHub Container Registry (GHCR).
+> Documentação oficial da transição de marca do EvoCRM para **SOFIA Central** (SOFIA: *Sistema Operacional de Fluxos, Integrações e Atendimento*) no frontend, desvinculação do fork para repositório 100% privado e pipeline de imagens no GitHub Container Registry (GHCR).
 
 ---
 
@@ -36,7 +36,7 @@ Foram geradas e integradas as versões oficiais da marca:
 O componente [`AppLogo.tsx`](file:///Users/murilloalves/Projects/evo-crm-community-fork-clean/evo-ai-frontend-community/src/components/AppLogo.tsx) detecta automaticamente o tema ativo via `useDarkMode` e renderiza a variante apropriada com proteção de proporção:
 
 ```tsx
-export function AppLogo({ className, alt = 'Sofia Central', style, forceTheme }: AppLogoProps) {
+export function AppLogo({ className, alt = 'SOFIA Central', style, forceTheme }: AppLogoProps) {
   const { theme } = useDarkMode();
   const effectiveTheme = forceTheme ?? theme;
   const src = effectiveTheme === 'dark' ? logoDark : logoLight;
@@ -54,14 +54,15 @@ export function AppLogo({ className, alt = 'Sofia Central', style, forceTheme }:
 
 ---
 
-## 📝 4. Rebranding Textual ("Sofia Central")
+## 📝 4. Rebranding Textual ("SOFIA Central")
 
-- **`<title>` da Aba**: Alterado em `index.html` para `Sofia Central`.
+- **Sigla**: **SOFIA** é a sigla oficial para *Sistema Operacional de Fluxos, Integrações e Atendimento*. Portanto, a grafia canônica é **SOFIA Central** em maiúsculas na sigla.
+- **`<title>` da Aba**: Alterado em `index.html` para `SOFIA Central`.
 - **Arquivos de Localização (`src/i18n/locales/`)**:
-  - `layout.json`: `"brand": "Sofia Central"`
-  - `tours.json`: `"title": "Bem-vindo à Sofia Central!"`
-  - `setup.json`: Atualizado rodapé com referência à instância da Sofia Central.
-  - `onboarding.json`: Objetivos e botões de início direcionados para a Sofia Central.
+  - `layout.json`: `"brand": "SOFIA Central"`
+  - `tours.json`: `"title": "Bem-vindo à SOFIA Central!"`
+  - `setup.json`: Atualizado rodapé com referência à instância da SOFIA Central.
+  - `onboarding.json`: Objetivos e botões de início direcionados para a SOFIA Central.
 
 ---
 

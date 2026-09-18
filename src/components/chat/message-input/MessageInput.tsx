@@ -141,8 +141,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
   // 🎯 CANNED RESPONSES: Detectar "/" no input e filtrar
   const detectCannedResponseTrigger = useCallback(
     (text: string) => {
-      // Detectar se digitou "/" no início ou após espaço
-      const match = text.match(/(?:^|\s)\/([\w-]*)$/);
+      // Detectar se digitou "/" no início ou após espaço (com suporte a acentos latinos)
+      const match = text.match(/(?:^|\s)\/([a-zA-Z0-9_\u00C0-\u017F-]*)$/);
 
       if (match) {
         const query = match[1] || ''; // Texto após "/"
