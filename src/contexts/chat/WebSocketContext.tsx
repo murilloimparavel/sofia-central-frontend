@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useWebSocket } from '@/hooks/chat/useWebSocket';
 import { useAuth } from '@/contexts/AuthContext';
@@ -780,15 +780,26 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     handlersRef.current = { ...handlersRef.current, ...handlers };
   }, []);
 
-  const contextValue: WebSocketContextValue = {
-    state,
-    sendTypingOn,
-    sendTypingOff,
-    getTypingUsers,
-    isWebSocketConnected,
-    getPresenceStatus,
-    registerHandlers,
-  };
+  const contextValue: WebSocketContextValue = useMemo(
+    () => ({
+      state,
+      sendTypingOn,
+      sendTypingOff,
+      getTypingUsers,
+      isWebSocketConnected,
+      getPresenceStatus,
+      registerHandlers,
+    }),
+    [
+      state,
+      sendTypingOn,
+      sendTypingOff,
+      getTypingUsers,
+      isWebSocketConnected,
+      getPresenceStatus,
+      registerHandlers,
+    ],
+  );
 
   return <WebSocketContext.Provider value={contextValue}>{children}</WebSocketContext.Provider>;
 }

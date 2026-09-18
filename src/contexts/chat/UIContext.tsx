@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useMemo } from 'react';
 
 interface UIState {
   // UI State
@@ -80,13 +80,22 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_SIDEBAR_COLLAPSED', payload: collapsed });
   }, []);
 
-  const contextValue: UIContextValue = {
-    state,
-    toggleContactDrawer,
-    setContactDrawer,
-    toggleSidebar,
-    setSidebarCollapsed,
-  };
+  const contextValue: UIContextValue = useMemo(
+    () => ({
+      state,
+      toggleContactDrawer,
+      setContactDrawer,
+      toggleSidebar,
+      setSidebarCollapsed,
+    }),
+    [
+      state,
+      toggleContactDrawer,
+      setContactDrawer,
+      toggleSidebar,
+      setSidebarCollapsed,
+    ],
+  );
 
   return <UIContext.Provider value={contextValue}>{children}</UIContext.Provider>;
 }

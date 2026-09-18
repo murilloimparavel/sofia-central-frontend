@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { chatService } from '@/services/chat/chatService';
 import { extractConversationsData } from '@/utils/chat/responseHelpers';
@@ -233,16 +233,28 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
   const hasActiveFilters = state.activeFilters.length > 0;
   const hasSearch = state.searchTerm.trim().length > 0;
 
-  const contextValue: FiltersContextValue = {
-    state,
-    setFilters,
-    applyFilters,
-    applySearch,
-    setQuickFilter,
-    setSearchTerm,
-    hasActiveFilters,
-    hasSearch,
-  };
+  const contextValue: FiltersContextValue = useMemo(
+    () => ({
+      state,
+      setFilters,
+      applyFilters,
+      applySearch,
+      setQuickFilter,
+      setSearchTerm,
+      hasActiveFilters,
+      hasSearch,
+    }),
+    [
+      state,
+      setFilters,
+      applyFilters,
+      applySearch,
+      setQuickFilter,
+      setSearchTerm,
+      hasActiveFilters,
+      hasSearch,
+    ],
+  );
 
   return <FiltersContext.Provider value={contextValue}>{children}</FiltersContext.Provider>;
 }

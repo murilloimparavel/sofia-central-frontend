@@ -75,6 +75,16 @@ function useChatIntegration() {
     refetchEnabled: account?.settings?.mask_contact_pii === true && !sessionIsMasked,
     apply: conversations.updateContactInConversations,
   });
+
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+  const reconcileContactUpdatedRef = useRef(reconcileContactUpdated);
+  reconcileContactUpdatedRef.current = reconcileContactUpdated;
+
   useEffect(() => {
     activeFiltersRef.current = filters.state.activeFilters;
   }, [filters.state.activeFilters]);
@@ -174,7 +184,7 @@ function useChatIntegration() {
         const findConversationByAnyId = (id: string): Conversation | null => {
           const idStr = String(id);
           return (
-            conversations.state.conversations.find(
+            conversationsRef.current.state.conversations.find(
               conv =>
                 String(conv.id) === idStr ||
                 String(conv.uuid || '') === idStr,
@@ -212,7 +222,7 @@ function useChatIntegration() {
         }));
 
         const targetConversationId = conversation ? String(conversation.id) : conversationId;
-        const existingMessages = messages.getMessages(targetConversationId);
+        const existingMessages = messagesRef.current.getMessages(targetConversationId);
         const messageExistsById = existingMessages.some(msg => msg.id === message.id);
 
         if (messageExistsById) {
@@ -220,10 +230,10 @@ function useChatIntegration() {
         }
 
         if (message.echo_id && message.message_type === MESSAGE_TYPE.OUTGOING) {
-          messages.replaceMessage(targetConversationId, message.echo_id, message);
+          messagesRef.current.replaceMessage(targetConversationId, message.echo_id, message);
           if (conversation) {
             const validTs = normalizeToUnixSeconds(message.created_at);
-            conversations.updateConversation({
+            conversationsRef.current.updateConversation({
               ...conversation,
               timestamp: validTs,
               last_activity_at: new Date(validTs * 1000).toISOString(),
@@ -246,11 +256,11 @@ function useChatIntegration() {
           return;
         }
 
-        messages.addMessage(targetConversationId, message);
+        messagesRef.current.addMessage(targetConversationId, message);
 
         if (!conversation) {
           if (message.message_type === MESSAGE_TYPE.INCOMING) {
-            conversations.incrementUnreadCount(targetConversationId);
+            conversationsRef.current.incrementUnreadCount(targetConversationId);
           }
           return;
         }
@@ -266,8 +276,8 @@ function useChatIntegration() {
             : urlConversationId;
           const currentConversationId =
             canonicalUrlConversationId ||
-            (conversations.state.selectedConversationId
-              ? String(conversations.state.selectedConversationId)
+            (conversationsRef.current.state.selectedConversationId
+              ? String(conversationsRef.current.state.selectedConversationId)
               : null);
           const messageConversationId = targetConversationId;
           const isConversationOpen = currentConversationId === messageConversationId;
@@ -292,8 +302,8 @@ function useChatIntegration() {
               console.warn('Failed to update read conversation in localStorage:', error);
             }
 
-            conversations.markAsRead(targetConversationId, { silent: true }).catch(() => {
-              conversations.updateUnreadCount(targetConversationId, 0);
+            conversationsRef.current.markAsRead(targetConversationId, { silent: true }).catch(() => {
+              conversationsRef.current.updateUnreadCount(targetConversationId, 0);
             });
           } else if (!isConversationOpen && isIncomingMessage) {
             try {
@@ -313,13 +323,13 @@ function useChatIntegration() {
             }
 
             // Incrementar contador de não lidas
-            conversations.incrementUnreadCount(targetConversationId);
+            conversationsRef.current.incrementUnreadCount(targetConversationId);
           }
 
           const validTimestamp = normalizeToUnixSeconds(message.created_at);
 
           // Preservar unread_count atual do estado ao atualizar conversa via WebSocket
-          const currentUnreadCount = conversations.getUnreadCount(targetConversationId);
+          const currentUnreadCount = conversationsRef.current.getUnreadCount(targetConversationId);
 
           const updatedConversation: Conversation = {
             ...conversation,
@@ -342,7 +352,7 @@ function useChatIntegration() {
             },
           };
 
-          conversations.updateConversation(updatedConversation);
+          conversationsRef.current.updateConversation(updatedConversation);
 
           if (shouldReloadMessageForMissingImageData(message)) {
             const existingTimer = attachmentReloadTimersRef.current[targetConversationId];
@@ -351,7 +361,7 @@ function useChatIntegration() {
             }
 
             attachmentReloadTimersRef.current[targetConversationId] = window.setTimeout(() => {
-              messages.loadMessages(targetConversationId).catch(() => {
+              messagesRef.current.loadMessages(targetConversationId).catch(() => {
                 return;
               });
               delete attachmentReloadTimersRef.current[targetConversationId];
@@ -376,8 +386,8 @@ function useChatIntegration() {
             });
 
             // Play notification sound if enabled and conversation is assigned to current user
-            if (currentUser) {
-              const isAssignedToMe = conversation.assignee_id === currentUser.id;
+            if (currentUserRef.current) {
+              const isAssignedToMe = conversation.assignee_id === currentUserRef.current.id;
 
               if (isAssignedToMe) {
                 const audioSettings = getAudioSettings();
@@ -400,9 +410,9 @@ function useChatIntegration() {
 
       onMessageUpdated: (message: Message) => {
         const conversationId = String(message.conversation_id);
-        messages.updateMessage(conversationId, message);
+        messagesRef.current.updateMessage(conversationId, message);
 
-        const conversation = conversations.getConversation(conversationId);
+        const conversation = conversationsRef.current.getConversation(conversationId);
         if (!conversation) {
           return;
         }
@@ -415,11 +425,11 @@ function useChatIntegration() {
         };
 
         if (message.message_type === MESSAGE_TYPE.ACTIVITY) {
-          conversations.updateConversation(updatedConversationBase);
+          conversationsRef.current.updateConversation(updatedConversationBase);
           return;
         }
 
-        conversations.updateConversation({
+        conversationsRef.current.updateConversation({
           ...updatedConversationBase,
           last_non_activity_message: {
             id: message.id,
@@ -444,7 +454,7 @@ function useChatIntegration() {
           }
 
           attachmentReloadTimersRef.current[conversationId] = window.setTimeout(() => {
-            messages.loadMessages(conversationId).catch(() => {
+            messagesRef.current.loadMessages(conversationId).catch(() => {
               return;
             });
             delete attachmentReloadTimersRef.current[conversationId];
@@ -453,11 +463,11 @@ function useChatIntegration() {
       },
 
       onConversationCreated: (conversation: Conversation) => {
-        if (!doesConversationMatchFilters(conversation, activeFiltersRef.current, currentUser?.id)) {
-          conversations.addHiddenConversation(conversation);
+        if (!doesConversationMatchFilters(conversation, activeFiltersRef.current, currentUserRef.current?.id)) {
+          conversationsRef.current.addHiddenConversation(conversation);
           return;
         }
-        conversations.addConversation(conversation);
+        conversationsRef.current.addConversation(conversation);
       },
 
       onConversationUpdated: (conversation: Partial<Conversation> & { id: string }) => {
@@ -467,7 +477,7 @@ function useChatIntegration() {
         }
 
         const conversationId = String(conversation.id);
-        const existingConversation = conversations.getConversation(conversationId);
+        const existingConversation = conversationsRef.current.getConversation(conversationId);
 
         // Merge WS partial data with existing conversation.
         // When existing data is present, spread produces a complete Conversation.
@@ -477,20 +487,20 @@ function useChatIntegration() {
           ? { ...existingConversation, ...conversation }
           : conversation as Conversation;
 
-        const matchesFilters = doesConversationMatchFilters(mergedConversation, activeFiltersRef.current, currentUser?.id);
+        const matchesFilters = doesConversationMatchFilters(mergedConversation, activeFiltersRef.current, currentUserRef.current?.id);
         const existsInList = !!existingConversation;
 
         if (!matchesFilters) {
-          conversations.addHiddenConversation(mergedConversation);
+          conversationsRef.current.addHiddenConversation(mergedConversation);
           if (existsInList) {
-            conversations.removeConversation(conversationId);
+            conversationsRef.current.removeConversation(conversationId);
           }
 
           // Sincronizar cache de escopos entre abas
           if (mergedConversation.assignee_id != null) {
             evictFromScopeCache('unassigned', conversationId);
             const isAssignedToMe =
-              currentUser?.id != null && String(mergedConversation.assignee_id) === String(currentUser.id);
+              currentUserRef.current?.id != null && String(mergedConversation.assignee_id) === String(currentUserRef.current.id);
             if (isAssignedToMe) {
               addOrUpdateInScopeCache('mine', mergedConversation);
             } else {
@@ -512,8 +522,8 @@ function useChatIntegration() {
 
         // 🔒 PROTEÇÃO: Se esta conversa está selecionada (foi marcada como lida),
         // preservar o unread_count do estado local em vez de usar o valor do WebSocket
-        const isSelected = String(conversations.state.selectedConversationId) === conversationId;
-        const localUnreadCount = conversations.getUnreadCount(conversationId);
+        const isSelected = String(conversationsRef.current.state.selectedConversationId) === conversationId;
+        const localUnreadCount = conversationsRef.current.getUnreadCount(conversationId);
 
         // Se está selecionada e foi marcada como lida (unreadCount = 0), preservar isso
         const updatedConversation =
@@ -560,7 +570,7 @@ function useChatIntegration() {
           ? { ...(existingConversation?.custom_attributes || {}), ...incomingCustomAttrs }
           : undefined;
 
-        conversations.updateConversation({
+        conversationsRef.current.updateConversation({
           ...updatedConversation,
           ...(incomingLabels.length > 0 || existingLabels.length > 0 ? { labels: resolvedLabels } : {}),
           ...(resolvedCustomAttributes ? { custom_attributes: resolvedCustomAttributes } : {}),
@@ -581,7 +591,7 @@ function useChatIntegration() {
       },
 
       onConversationStatusChanged: (conversationId: string, status: Conversation['status'], updatedAt?: string) => {
-        const existingConversation = conversations.getConversation(conversationId);
+        const existingConversation = conversationsRef.current.getConversation(conversationId);
         if (!existingConversation) {
           return;
         }
@@ -596,9 +606,9 @@ function useChatIntegration() {
         // view ativa (ex.: reaberta enquanto vejo "Resolvidas"). Reconcilia como
         // o onConversationUpdated faz — senão a conversa fica pendurada e, se for
         // fixada, o sort de pinned a joga pro topo da lista errada.
-        if (!doesConversationMatchFilters(updatedConversation, activeFiltersRef.current, currentUser?.id)) {
-          conversations.addHiddenConversation(updatedConversation);
-          conversations.removeConversation(conversationId);
+        if (!doesConversationMatchFilters(updatedConversation, activeFiltersRef.current, currentUserRef.current?.id)) {
+          conversationsRef.current.addHiddenConversation(updatedConversation);
+          conversationsRef.current.removeConversation(conversationId);
           if (status === 'resolved') {
             evictFromScopeCache('mine', conversationId);
             evictFromScopeCache('unassigned', conversationId);
@@ -608,7 +618,7 @@ function useChatIntegration() {
           return;
         }
 
-        conversations.updateConversation(updatedConversation);
+        conversationsRef.current.updateConversation(updatedConversation);
       },
 
       onAssigneeChanged: (
@@ -616,7 +626,7 @@ function useChatIntegration() {
         assigneeId: string | null,
         assignee?: Conversation['assignee'],
       ) => {
-        const existingConversation = conversations.getConversation(conversationId);
+        const existingConversation = conversationsRef.current.getConversation(conversationId);
 
         const updatedConversation: Conversation = existingConversation
           ? {
@@ -633,18 +643,18 @@ function useChatIntegration() {
         const matchesFilters = doesConversationMatchFilters(
           updatedConversation,
           activeFiltersRef.current,
-          currentUser?.id,
+          currentUserRef.current?.id,
         );
         const existsInList = !!existingConversation;
 
         // Atualizar lista da view ativa
         if (!matchesFilters) {
-          conversations.addHiddenConversation(updatedConversation);
+          conversationsRef.current.addHiddenConversation(updatedConversation);
           if (existsInList) {
-            conversations.removeConversation(conversationId);
+            conversationsRef.current.removeConversation(conversationId);
           }
         } else {
-          conversations.updateConversation(updatedConversation);
+          conversationsRef.current.updateConversation(updatedConversation);
         }
 
         // Sincronizar cache de escopos entre abas (Fila, Chats, Todas)
@@ -652,7 +662,7 @@ function useChatIntegration() {
           // Atribuída a alguém: sai da Fila imediatamente
           evictFromScopeCache('unassigned', conversationId);
           const isAssignedToMe =
-            currentUser?.id != null && String(assigneeId) === String(currentUser.id);
+            currentUserRef.current?.id != null && String(assigneeId) === String(currentUserRef.current.id);
           if (isAssignedToMe) {
             addOrUpdateInScopeCache('mine', updatedConversation);
           } else {
@@ -669,12 +679,12 @@ function useChatIntegration() {
 
         // Se a conversa atualmente aberta na tela foi atribuída a outro atendente, notificar
         const isCurrentSelected =
-          String(conversations.state.selectedConversationId) === conversationId;
+          String(conversationsRef.current.state.selectedConversationId) === conversationId;
         if (
           isCurrentSelected &&
           assignee?.name &&
-          currentUser?.id != null &&
-          String(assigneeId) !== String(currentUser.id)
+          currentUserRef.current?.id != null &&
+          String(assigneeId) !== String(currentUserRef.current.id)
         ) {
           toast.info(`Conversa assumida por ${assignee.name}`);
         }
@@ -683,9 +693,9 @@ function useChatIntegration() {
       },
 
       onConversationRead: (conversationId: string, unreadCount: number) => {
-        conversations.updateUnreadCount(conversationId, unreadCount);
+        conversationsRef.current.updateUnreadCount(conversationId, unreadCount);
 
-        const conversation = conversations.getConversation(conversationId);
+        const conversation = conversationsRef.current.getConversation(conversationId);
         if (!conversation) {
           return;
         }
@@ -697,28 +707,26 @@ function useChatIntegration() {
 
         // EVO-1960: zerar não-lidas pode tirar a conversa da view "Não lidas".
         // Mesma reconciliação do status — evita o vazamento (inclusive de fixadas).
-        if (!doesConversationMatchFilters(updatedConversation, activeFiltersRef.current, currentUser?.id)) {
-          conversations.addHiddenConversation(updatedConversation);
-          conversations.removeConversation(conversationId);
+        if (!doesConversationMatchFilters(updatedConversation, activeFiltersRef.current, currentUserRef.current?.id)) {
+          conversationsRef.current.addHiddenConversation(updatedConversation);
+          conversationsRef.current.removeConversation(conversationId);
           return;
         }
 
-        conversations.updateConversation(updatedConversation);
+        conversationsRef.current.updateConversation(updatedConversation);
       },
 
       onConversationLastActivity: (conversationId: string, lastActivityAt: string) => {
-        conversations.updateConversationLastActivity(conversationId, lastActivityAt);
+        conversationsRef.current.updateConversationLastActivity(conversationId, lastActivityAt);
       },
 
-      onContactUpdated: reconcileContactUpdated,
+      onContactUpdated: (event: Parameters<typeof reconcileContactUpdated>[0]) => {
+        reconcileContactUpdatedRef.current(event);
+      },
     });
   }, [
-    websocket,
-    messages,
-    conversations,
-    currentUser,
+    websocket.registerHandlers,
     shouldReloadMessageForMissingImageData,
-    reconcileContactUpdated,
   ]);
 
   // Integrated actions
@@ -810,20 +818,36 @@ function useChatIntegration() {
     saveState,
   ]);
 
-  return {
-    messages,
-    conversations,
-    filters,
-    websocket,
-    ui,
-    selectedConversation,
-    selectedMessages,
-    filteredConversations,
-    loadConversationsWithFilters,
-    selectConversationAndLoadMessages,
-    applyFiltersAndReload,
-    applySearchAndReload,
-  };
+  return useMemo(
+    () => ({
+      messages,
+      conversations,
+      filters,
+      websocket,
+      ui,
+      selectedConversation,
+      selectedMessages,
+      filteredConversations,
+      loadConversationsWithFilters,
+      selectConversationAndLoadMessages,
+      applyFiltersAndReload,
+      applySearchAndReload,
+    }),
+    [
+      messages,
+      conversations,
+      filters,
+      websocket,
+      ui,
+      selectedConversation,
+      selectedMessages,
+      filteredConversations,
+      loadConversationsWithFilters,
+      selectConversationAndLoadMessages,
+      applyFiltersAndReload,
+      applySearchAndReload,
+    ],
+  );
 }
 
 // Componente Provider interno que usa todos os hooks
