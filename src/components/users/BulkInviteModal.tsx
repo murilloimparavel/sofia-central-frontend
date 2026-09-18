@@ -152,7 +152,7 @@ export default function BulkInviteModal({ isOpen, onClose, onSuccess }: BulkInvi
               </Button>
               <Button
                 onClick={handleClose}
-                className="bg-[#00ffa7] hover:bg-[#00e693] text-black border-0 font-semibold"
+                className="font-semibold"
               >
                 {t('bulkInvite.actions.finish')}
               </Button>
@@ -217,7 +217,7 @@ usuario4@exemplo.com`}
             <Button
               type="submit"
               disabled={loading || !emailsText.trim()}
-              className="bg-[#00ffa7] hover:bg-[#00e693] text-black border-0 font-semibold"
+              className="font-semibold"
             >
               {loading ? (
                 <>

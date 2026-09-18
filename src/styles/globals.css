@@ -94,6 +94,14 @@
 }
 
 :root {
+  /* SOFIA Central Brand - Blue Primary Theme (Light Mode) */
+  --primary: oklch(54.61% 0.215 262.88);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(54.61% 0.215 262.88 / 0.4);
+  --sidebar-primary: oklch(54.61% 0.215 262.88);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --chart-1: oklch(54.61% 0.215 262.88);
+
   /* Flow Builder design tokens — LIGHT mode values (EVO-1253). */
   --flow-node-trigger-bg: oklch(0.95 0.05 150);
   --flow-node-trigger-fg: oklch(0.30 0.12 150);
@@ -146,6 +154,14 @@
 }
 
 .dark {
+  /* SOFIA Central Brand - Blue Primary Theme (Dark Mode) */
+  --primary: oklch(60.0% 0.200 260.0);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(60.0% 0.200 260.0 / 0.4);
+  --sidebar-primary: oklch(60.0% 0.200 260.0);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --chart-1: oklch(60.0% 0.200 260.0);
+
   /* Flow Builder design tokens — DARK mode overrides (EVO-1253). */
   --flow-node-trigger-bg: oklch(0.22 0.05 150);
   --flow-node-trigger-fg: oklch(0.90 0.10 150);

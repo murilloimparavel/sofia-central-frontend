@@ -44,9 +44,9 @@ const DashboardTrendsSection = ({ data, t, channelShareData }: DashboardTrendsSe
             description={t('dashboard.charts.visitorsDescription') || 'Tendência diária de conversas no período'}
             data={data.trends.conversations_daily}
             icon={TrendingUp}
-            color="#22c55e"
-            gradientFrom="#22c55e"
-            gradientTo="#10b981"
+            color="#2563eb"
+            gradientFrom="#3b82f6"
+            gradientTo="#1d4ed8"
             valueFormatter={value => value.toFixed(0)}
             tooltip={{ title: tTours('dashboard.step9.title'), content: tTours('dashboard.step9.content') }}
           />

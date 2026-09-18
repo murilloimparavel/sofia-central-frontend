@@ -267,7 +267,7 @@ export default function MCPServerForm({
         <Button
           type="submit"
           disabled={loading}
-          className="flex-1 bg-[#00ffa7] hover:bg-[#00e693] text-black border-0 font-semibold"
+          className="flex-1 font-semibold"
         >
           {loading
             ? t('form.buttons.saving')

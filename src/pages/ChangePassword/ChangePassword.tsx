@@ -75,10 +75,10 @@ const ChangePassword = () => {
       ></div>
 
       {/* Overlay com padrão de pontos ou grid (opcional) */}
-      <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle,_#10b981_1px,_transparent_1px)] bg-[size:24px_24px] z-0"></div>
+      <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle,_#2563eb_1px,_transparent_1px)] bg-[size:24px_24px] z-0"></div>
 
-      {/* Overlay com tom verde sutil */}
-      <div className="absolute inset-0 bg-emerald-900/20 z-0"></div>
+      {/* Overlay com tom azul sutil */}
+      <div className="absolute inset-0 bg-primary/10 z-0"></div>
 
       {/* Conteúdo */}
       <div className="z-10 flex flex-col items-center justify-center w-full p-2">

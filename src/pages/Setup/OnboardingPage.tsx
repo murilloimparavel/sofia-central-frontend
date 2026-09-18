@@ -69,8 +69,8 @@ function SelectField({ label, id, value, options, onChange, placeholder = 'Selec
             transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           }}
           onFocus={(e) => {
-            e.target.style.borderColor = '#00ffa7';
-            e.target.style.boxShadow = '0 0 0 2px rgba(0, 255, 167, 0.35)';
+            e.target.style.borderColor = '#3b82f6';
+            e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.35)';
           }}
           onBlur={(e) => {
             e.target.style.borderColor = value ? '#3f3f46' : '#27272a';
@@ -242,8 +242,8 @@ export default function OnboardingPage() {
           width: 100%;
           height: 40px;
           background: #09090b;
-          border: 0.5px solid #00ffa7;
-          box-shadow: 0 0 0 2px rgba(0, 255, 167, 0.35);
+          border: 0.5px solid #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
           border-radius: 8px;
           color: #fafafa;
           font-size: 14px;
@@ -257,8 +257,8 @@ export default function OnboardingPage() {
         .evo-submit-btn {
           width: 100%;
           height: 40px;
-          background: #00ffa7;
-          color: #000;
+          background: #2563eb;
+          color: #ffffff;
           border: none;
           border-radius: 8px;
           font-size: 14px;
@@ -379,8 +379,8 @@ export default function OnboardingPage() {
                       padding: '8px 10px',
                       borderRadius: '5px',
                       border: 'none',
-                      background: isSelected ? 'rgba(0,255,167,0.08)' : 'transparent',
-                      color: isSelected ? '#00ffa7' : '#a1a1aa',
+                      background: isSelected ? 'rgba(59,130,246,0.12)' : 'transparent',
+                      color: isSelected ? '#3b82f6' : '#a1a1aa',
                       fontSize: '13px',
                       fontFamily: 'ui-sans-serif, system-ui, sans-serif',
                       cursor: 'pointer',
@@ -403,7 +403,7 @@ export default function OnboardingPage() {
                     <span>{t(lang.labelKey)}</span>
                     {isSelected && (
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                        <path d="M2 6l3 3 5-5" stroke="#00ffa7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M2 6l3 3 5-5" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
                   </button>
@@ -456,7 +456,7 @@ export default function OnboardingPage() {
                 data-testid="progress-bar-fill"
                 style={{
                   height: '3px',
-                  background: '#00ffa7',
+                  background: '#3b82f6',
                   borderRadius: '99px',
                   width: `${progressPct}%`,
                   transition: 'width 0.3s ease',
@@ -531,8 +531,8 @@ export default function OnboardingPage() {
                       transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
                     }}
                     onFocus={(e) => {
-                      e.target.style.borderColor = '#00ffa7';
-                      e.target.style.boxShadow = '0 0 0 2px rgba(0, 255, 167, 0.35)';
+                      e.target.style.borderColor = '#3b82f6';
+                      e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.35)';
                     }}
                     onBlur={(e) => {
                       e.target.style.borderColor = form.mainChannel ? '#3f3f46' : '#27272a';
