@@ -321,6 +321,12 @@
     "closeContactPanel": "Fechar detalhes do contato"
   },
   "chatSidebar": {
+    "scopeTabs": {
+      "mine": "Chats",
+      "unassigned": "Fila",
+      "bot": "Robô",
+      "all": "Todas"
+    },
     "segments": {
       "ariaLabel": "Vistas de conversas",
       "open": "Abertas",

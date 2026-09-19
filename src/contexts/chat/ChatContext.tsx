@@ -612,6 +612,13 @@ function useChatIntegration() {
           if (status === 'resolved') {
             evictFromScopeCache('mine', conversationId);
             evictFromScopeCache('unassigned', conversationId);
+            evictFromScopeCache('bot', conversationId);
+          } else if (status === 'pending') {
+            evictFromScopeCache('mine', conversationId);
+            evictFromScopeCache('unassigned', conversationId);
+            addOrUpdateInScopeCache('bot', updatedConversation);
+          } else if (status === 'open') {
+            evictFromScopeCache('bot', conversationId);
           }
           addOrUpdateInScopeCache('all', updatedConversation);
           useUnansweredConversationsStore.getState().fetch();
@@ -619,6 +626,11 @@ function useChatIntegration() {
         }
 
         conversationsRef.current.updateConversation(updatedConversation);
+        if (status === 'pending') {
+          addOrUpdateInScopeCache('bot', updatedConversation);
+        } else {
+          evictFromScopeCache('bot', conversationId);
+        }
       },
 
       onAssigneeChanged: (
@@ -657,7 +669,7 @@ function useChatIntegration() {
           conversationsRef.current.updateConversation(updatedConversation);
         }
 
-        // Sincronizar cache de escopos entre abas (Fila, Chats, Todas)
+        // Sincronizar cache de escopos entre abas (Fila, Chats, Robô, Todas)
         if (assigneeId != null) {
           // Atribuída a alguém: sai da Fila imediatamente
           evictFromScopeCache('unassigned', conversationId);
@@ -674,6 +686,12 @@ function useChatIntegration() {
             addOrUpdateInScopeCache('unassigned', updatedConversation);
           }
           evictFromScopeCache('mine', conversationId);
+        }
+
+        if (updatedConversation.status === 'pending') {
+          addOrUpdateInScopeCache('bot', updatedConversation);
+        } else {
+          evictFromScopeCache('bot', conversationId);
         }
         addOrUpdateInScopeCache('all', updatedConversation);
 

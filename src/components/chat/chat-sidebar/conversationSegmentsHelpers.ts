@@ -9,7 +9,7 @@ import type { ConversationFilter } from '@/types/chat/api';
 
 export type ConversationSegmentId = 'open' | 'pending' | 'resolved' | 'unread' | 'unanswered' | 'groups';
 
-export type ConversationScopeId = 'mine' | 'unassigned' | 'all';
+export type ConversationScopeId = 'mine' | 'unassigned' | 'bot' | 'all';
 
 export interface ConversationSegment {
   id: ConversationSegmentId;
@@ -48,6 +48,8 @@ export const CONVERSATION_SCOPE_PRESETS: Record<ConversationScopeId, BaseFilter[
   mine: [assigneeFilter('me'), statusFilter('open')],
   // Fila: novos atendimentos em andamento aguardando operador (sem responsável)
   unassigned: [assigneeFilter('unassigned'), statusFilter('open')],
+  // Robô: todos os atendimentos sob controle da IA / agentes autônomos
+  bot: [assigneeFilter('all'), statusFilter('pending')],
   // Todas: visão global da empresa com todos os atendimentos e status
   all: [assigneeFilter('all'), statusFilter('all')],
 };
@@ -55,6 +57,13 @@ export const CONVERSATION_SCOPE_PRESETS: Record<ConversationScopeId, BaseFilter[
 export const getActiveConversationScope = (
   active: ConversationFilter[],
 ): ConversationScopeId | null => {
+  const statusFilterItem = active.find(f => f.attribute_key === 'status');
+  const statusValue =
+    statusFilterItem &&
+    (Array.isArray(statusFilterItem.values) ? statusFilterItem.values[0] : statusFilterItem.values);
+
+  if (statusValue === 'pending') return 'bot';
+
   const filter = active.find(f => f.attribute_key === 'assignee_type' || f.attribute_key === 'assignee_id');
   const value = filter && (Array.isArray(filter.values) ? filter.values[0] : filter.values);
   if (value === 'me') return 'mine';

@@ -326,6 +326,12 @@
     "closeContactPanel": "Close contact details"
   },
   "chatSidebar": {
+    "scopeTabs": {
+      "mine": "My Chats",
+      "unassigned": "Queue",
+      "bot": "Bot",
+      "all": "All"
+    },
     "segments": {
       "ariaLabel": "Conversation views",
       "open": "Open",

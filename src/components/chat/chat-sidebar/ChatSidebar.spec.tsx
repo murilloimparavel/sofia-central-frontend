@@ -178,10 +178,11 @@ beforeEach(() => {
 });
 
 describe('ChatSidebar scope navigation', () => {
-  it('renders all three scope tabs: Chats, Fila, and Todas', () => {
+  it('renders all four scope tabs: Chats, Fila, Robô, and Todas', () => {
     render(<ChatSidebar {...defaultProps} />);
     expect(screen.getByRole('tab', { name: /mine/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /unassigned/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /bot/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /all/i })).toBeInTheDocument();
   });
 
@@ -196,6 +197,14 @@ describe('ChatSidebar scope navigation', () => {
     expect(onFilterApply).toHaveBeenCalledWith([
       expect.objectContaining({ attributeKey: 'assignee_type', values: 'unassigned' }),
       expect.objectContaining({ attributeKey: 'status', values: 'open' }),
+    ]);
+
+    const botTab = screen.getByRole('tab', { name: /bot/i });
+    await user.click(botTab);
+
+    expect(onFilterApply).toHaveBeenCalledWith([
+      expect.objectContaining({ attributeKey: 'assignee_type', values: 'all' }),
+      expect.objectContaining({ attributeKey: 'status', values: 'pending' }),
     ]);
   });
 });

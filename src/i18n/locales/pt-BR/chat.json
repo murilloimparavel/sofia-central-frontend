@@ -329,6 +329,7 @@
     "scopeTabs": {
       "mine": "Chats",
       "unassigned": "Fila",
+      "bot": "Robô",
       "all": "Todas"
     },
     "segments": {

@@ -57,6 +57,7 @@ export const useConversationHandlers = () => {
         reconcileWithActiveView({ ...conversation, status: 'resolved' });
         evictFromScopeCache('mine', conversation.id);
         evictFromScopeCache('unassigned', conversation.id);
+        evictFromScopeCache('bot', conversation.id);
         addOrUpdateInScopeCache('all', { ...conversation, status: 'resolved' });
       } catch (error) {
         console.error('❌ Error marking as resolved:', error);
@@ -73,6 +74,7 @@ export const useConversationHandlers = () => {
         reconcileWithActiveView({ ...conversation, status: 'pending' });
         evictFromScopeCache('mine', conversation.id);
         evictFromScopeCache('unassigned', conversation.id);
+        addOrUpdateInScopeCache('bot', { ...conversation, status: 'pending' });
         addOrUpdateInScopeCache('all', { ...conversation, status: 'pending' });
       } catch (error) {
         console.error('❌ Error marking as pending:', error);
@@ -86,6 +88,7 @@ export const useConversationHandlers = () => {
       try {
         await conversations.updateConversationStatus(conversation.id, 'open');
         reconcileWithActiveView({ ...conversation, status: 'open' });
+        evictFromScopeCache('bot', conversation.id);
         const isMine =
           conversation.assignee_id != null &&
           currentUser?.id != null &&
