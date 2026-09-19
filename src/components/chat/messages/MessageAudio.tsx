@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@evoapi/design-system/button';
 import { toast } from 'sonner';
 import { Attachment } from '@/types/chat/api';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useAudioPlaybackStore } from '@/store/audioPlaybackStore';
+import { getStableBarHeights } from './audioWaveformUtils';
 
 // Ícones preenchidos customizados
 const PlayFilled = ({ className }: { className?: string }) => (
@@ -36,316 +38,161 @@ interface MessageAudioProps {
   attachments: Attachment[];
 }
 
+// Pool global compartilhado para detecção de duração sob demanda (apenas 1 áudio por vez, sem encher o DOM)
+let sharedDurationAudio: HTMLAudioElement | null = null;
+const getSharedDurationAudio = (): HTMLAudioElement => {
+  if (!sharedDurationAudio && typeof document !== 'undefined') {
+    sharedDurationAudio = document.createElement('audio');
+    sharedDurationAudio.preload = 'metadata';
+    sharedDurationAudio.volume = 0;
+  }
+  return sharedDurationAudio!;
+};
+
+// Fila sequencial de duração para evitar esgotamento de hardware de mídia no celular
+const durationQueue: Array<{ url: string; attachmentId?: string | number; callback: (dur: number) => void }> = [];
+let isProcessingDurationQueue = false;
+
+const processDurationQueue = () => {
+  if (isProcessingDurationQueue || durationQueue.length === 0) return;
+  isProcessingDurationQueue = true;
+
+  const item = durationQueue.shift();
+  if (!item) {
+    isProcessingDurationQueue = false;
+    return;
+  }
+
+  const audio = getSharedDurationAudio();
+  let finished = false;
+
+  const cleanup = () => {
+    if (finished) return;
+    finished = true;
+    audio.removeEventListener('loadedmetadata', onLoaded);
+    audio.removeEventListener('error', onError);
+    audio.removeAttribute('src');
+    audio.load(); // Libera decodificador de mídia
+    isProcessingDurationQueue = false;
+    setTimeout(processDurationQueue, 30);
+  };
+
+  const onLoaded = () => {
+    const dur = audio.duration;
+    if (dur && !isNaN(dur) && isFinite(dur) && dur > 0) {
+      item.callback(dur);
+    }
+    cleanup();
+  };
+
+  const onError = () => {
+    cleanup();
+  };
+
+  audio.addEventListener('loadedmetadata', onLoaded);
+  audio.addEventListener('error', onError);
+  audio.src = item.url;
+
+  // Timeout de segurança para nunca travar a fila
+  setTimeout(() => {
+    if (!finished) cleanup();
+  }, 4000);
+};
+
+// Cache global de durações
+const globalDurationsCache: Record<string, number> = {};
+
 const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
   const { t } = useLanguage('chat');
   const [currentPlaying, setCurrentPlaying] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [durations, setDurations] = useState<Record<string, number>>({});
   const audioRef = useRef<HTMLAudioElement>(null);
+  const playPromiseRef = useRef<Promise<void> | null>(null);
 
-  // Cache global de durações por attachment (persiste entre re-renders)
-  const globalDurationsRef = useRef<Record<string, number>>({});
-
-  // const formatFileSize = (bytes: number) => {
-  //   if (bytes === 0) return '0 Bytes';
-  //   const k = 1024;
-  //   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  //   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  //   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  // };
+  const { activeUrl, registerActiveAudio, clearActiveAudio } = useAudioPlaybackStore();
 
   const formatDuration = (seconds: number): string => {
+    if (!seconds || isNaN(seconds) || !isFinite(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Cache busting para áudios (como o Evolution)
-  const timeStampAppendedURL = (dataUrl: string): string => {
-    try {
-      const url = new URL(dataUrl);
-      if (!url.searchParams.has('t')) {
-        url.searchParams.append('t', Date.now().toString());
+  // Se outro componente assumiu a reprodução no store global, pausamos este
+  useEffect(() => {
+    if (currentPlaying && activeUrl !== currentPlaying && isPlaying) {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.pause();
       }
-      return url.toString();
-    } catch {
-      return dataUrl;
+      setIsPlaying(false);
     }
-  };
+  }, [activeUrl, currentPlaying, isPlaying]);
 
-  const loadDurationSimple = (url: string, attachmentId?: number | string) => {
-    if (durations[url]) return;
-
-    // Evitar reprocessamento do mesmo attachment ID
-    if (attachmentId && globalDurationsRef.current[attachmentId]) {
-      setDurations(prev => ({ ...prev, [url]: globalDurationsRef.current[attachmentId] }));
-      return;
-    }
-
-    // PRIMEIRO: Para blobs locais, verificar se tem duração customizada
-    if (url.startsWith('blob:')) {
+  const pauseThisAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio) {
       try {
-        fetch(url)
-          .then(response => response.blob())
-          .then(blob => {
-            const customDuration = (blob as any).__duration;
-            if (customDuration && customDuration > 0) {
-              setDurations(prev => ({ ...prev, [url]: customDuration }));
-
-              if (attachmentId) {
-                globalDurationsRef.current[attachmentId] = customDuration;
-              }
-              return;
-            }
-
-            // Fallback para método normal
-            loadFromAudioElement();
-          })
-          .catch(() => {
-            loadFromAudioElement();
-          });
-      } catch {
-        loadFromAudioElement();
+        audio.pause();
+      } catch (e) {
+        console.warn('Erro ao pausar:', e);
       }
-    } else {
-      // Para URLs do servidor, usar método normal diretamente
-      loadFromAudioElement();
     }
+    setIsPlaying(false);
+    setIsLoading(false);
+  }, []);
 
-    function loadFromAudioElement() {
-      // CRIAR ELEMENTO TEMPORÁRIO SEPARADO - NÃO AFETA A REPRODUÇÃO
-      const tempAudio = document.createElement('audio');
-      const timestampedUrl = timeStampAppendedURL(url);
-
-      const cleanup = () => {
-        tempAudio.removeEventListener('loadedmetadata', onLoadedMetadata);
-        tempAudio.removeEventListener('error', onError);
-        tempAudio.remove(); // Remove do DOM
-      };
-
-      const onLoadedMetadata = () => {
-        const duration = tempAudio.duration;
-
-        // SE DURAÇÃO É VÁLIDA, USAR DIRETO
-        if (duration && !isNaN(duration) && isFinite(duration) && duration > 0) {
-          setDurations(prev => ({ ...prev, [url]: duration }));
-
-          if (attachmentId) {
-            globalDurationsRef.current[attachmentId] = duration;
-          }
-
-          cleanup();
-          return;
-        }
-
-        // SE DURAÇÃO É INFINITY/NaN, APLICAR WORKAROUND
-        if (duration === Infinity || isNaN(duration)) {
-          // APLICAR FIX DO STACKOVERFLOW NO ELEMENTO TEMPORÁRIO
-          tempAudio.currentTime = 1e101; // Força recálculo
-
-          const onTimeUpdate = () => {
-            const realDuration = tempAudio.duration;
-
-            if (
-              realDuration &&
-              !isNaN(realDuration) &&
-              isFinite(realDuration) &&
-              realDuration > 0
-            ) {
-              setDurations(prev => ({ ...prev, [url]: realDuration }));
-
-              if (attachmentId) {
-                globalDurationsRef.current[attachmentId] = realDuration;
-              }
-
-              // Remove listener e limpa
-              tempAudio.removeEventListener('timeupdate', onTimeUpdate);
-              cleanup();
-            }
-          };
-
-          // Adicionar listener para timeupdate
-          tempAudio.addEventListener('timeupdate', onTimeUpdate);
-
-          // Timeout de segurança (10 segundos)
-          setTimeout(() => {
-            tempAudio.removeEventListener('timeupdate', onTimeUpdate);
-            cleanup();
-          }, 10000);
-        } else {
-          cleanup();
-        }
-      };
-
-      const onError = () => {
-        cleanup();
-      };
-
-      // Configurar elemento temporário
-      tempAudio.addEventListener('loadedmetadata', onLoadedMetadata);
-      tempAudio.addEventListener('error', onError);
-      tempAudio.preload = 'metadata';
-      tempAudio.volume = 0; // Silencioso
-      tempAudio.style.display = 'none'; // Invisível
-      tempAudio.src = timestampedUrl;
-
-      // Adicionar ao DOM temporariamente
-      document.body.appendChild(tempAudio);
-    }
-  };
-
-  // const loadDurationFromPlaybackElement = (url: string, attachmentId?: number | string) => {
-  //   if (durations[url]) return;
-
-  //   // PRIMEIRO: Para blobs locais, verificar se tem duração customizada
-  //   if (url.startsWith('blob:')) {
-  //     try {
-  //       fetch(url)
-  //         .then(response => response.blob())
-  //         .then(blob => {
-  //           const customDuration = (blob as any).__duration;
-  //           if (customDuration && customDuration > 0) {
-  //             setDurations(prev => ({ ...prev, [url]: customDuration }));
-
-  //             if (attachmentId) {
-  //               globalDurationsRef.current[attachmentId] = customDuration;
-  //             }
-  //             return;
-  //           }
-
-  //           // Fallback para elemento de reprodução
-  //           usePlaybackElementForDuration();
-  //         })
-  //         .catch(() => {
-  //           usePlaybackElementForDuration();
-  //         });
-  //     } catch {
-  //       usePlaybackElementForDuration();
-  //     }
-  //   } else {
-  //     // Para URLs do servidor, usar elemento de reprodução diretamente
-  //     usePlaybackElementForDuration();
-  //   }
-
-  //   function usePlaybackElementForDuration() {
-
-  //     // CRIAR ELEMENTO SEPARADO PARA NÃO INTERFERIR NA REPRODUÇÃO
-  //     const tempAudio = document.createElement('audio');
-
-  //     const timestampedUrl = timeStampAppendedURL(url);
-
-  //     const onLoadedMetadata = () => {
-  //       const duration = tempAudio.duration;
-
-  //       // SE DURAÇÃO É VÁLIDA, USAR DIRETO
-  //       if (duration && !isNaN(duration) && isFinite(duration) && duration > 0) {
-  //         setDurations(prev => ({ ...prev, [url]: duration }));
-
-  //         if (attachmentId) {
-  //           globalDurationsRef.current[attachmentId] = duration;
-  //         }
-
-  //         cleanup();
-  //         return;
-  //       }
-
-  //       // SE DURAÇÃO É INFINITY/NaN, APLICAR FIX DO STACKOVERFLOW
-  //       if (duration === Infinity || isNaN(duration)) {
-
-  //         // FORÇAR CURRENTTIME PARA VALOR ALTO PARA "QUEBRAR" O INFINITY
-  //         tempAudio.currentTime = 1e101; // Número gigante como no StackOverflow
-
-  //         const onTimeUpdate = () => {
-  //           const realDuration = tempAudio.duration;
-
-  //           if (
-  //             realDuration &&
-  //             !isNaN(realDuration) &&
-  //             isFinite(realDuration) &&
-  //             realDuration > 0
-  //           ) {
-
-  //             // NÃO PRECISA RESETAR PORQUE É ELEMENTO TEMPORÁRIO
-
-  //             setDurations(prev => ({ ...prev, [url]: realDuration }));
-
-  //             if (attachmentId) {
-  //               globalDurationsRef.current[attachmentId] = realDuration;
-  //             }
-
-  //             // Remover listener específico do timeupdate
-  //             tempAudio.removeEventListener('timeupdate', onTimeUpdate);
-  //             cleanup();
-  //           }
-  //         };
-
-  //         // Adicionar listener para timeupdate
-  //         tempAudio.addEventListener('timeupdate', onTimeUpdate);
-
-  //         // Timeout de segurança para evitar loop infinito
-  //         setTimeout(() => {
-  //           tempAudio.removeEventListener('timeupdate', onTimeUpdate);
-  //           cleanup();
-  //         }, 5000);
-  //       } else {
-  //         cleanup();
-  //       }
-  //     };
-
-  //     const onError = (error: any) => {
-  //       cleanup();
-  //     };
-
-  //     const cleanup = () => {
-  //       tempAudio.removeEventListener('loadedmetadata', onLoadedMetadata);
-  //       tempAudio.removeEventListener('error', onError);
-  //       tempAudio.remove(); // Remover elemento temporário
-  //     };
-
-  //     // Configurar elemento temporário
-  //     tempAudio.addEventListener('loadedmetadata', onLoadedMetadata);
-  //     tempAudio.addEventListener('error', onError);
-  //     tempAudio.preload = 'metadata';
-  //     tempAudio.volume = 0; // Silencioso
-  //     tempAudio.style.display = 'none';
-  //     tempAudio.src = timestampedUrl;
-
-  //     // Adicionar ao DOM temporariamente
-  //     document.body.appendChild(tempAudio);
-
-  //   }
-  // };
-
-  const togglePlayback = (attachment: Attachment) => {
+  const togglePlayback = async (attachment: Attachment) => {
     if (!attachment.data_url) return;
-
     const audio = audioRef.current;
     if (!audio) return;
 
-    if (currentPlaying === attachment.data_url && isPlaying) {
+    const url = attachment.data_url;
+
+    if (currentPlaying === url && isPlaying) {
       // Pausar
-      audio.pause();
-      setIsPlaying(false);
+      pauseThisAudio();
+      clearActiveAudio(url);
     } else {
-      // Reproduzir
-      if (currentPlaying !== attachment.data_url) {
-        audio.src = attachment.data_url;
-        setCurrentPlaying(attachment.data_url);
+      // Notificar store global para parar qualquer outro áudio tocando no sistema
+      registerActiveAudio(url, pauseThisAudio);
+
+      if (currentPlaying !== url) {
+        audio.src = url;
+        if (typeof audio.load === 'function') {
+          audio.load();
+        }
+        setCurrentPlaying(url);
+        setCurrentTime(0);
       }
 
       audio.playbackRate = playbackRate;
+      setIsLoading(true);
 
-      audio.play().catch(error => {
+      try {
+        playPromiseRef.current = audio.play();
+        await playPromiseRef.current;
+        setIsPlaying(true);
+        setIsLoading(false);
+      } catch (error: any) {
+        // Ignorar AbortError originado por nova ação de pause
+        if (error?.name === 'AbortError') {
+          console.warn('Reprodução interrompida por nova ação');
+          return;
+        }
         console.error('Erro ao reproduzir áudio:', error);
         toast.error(t('messages.messageAudio.playbackError'), {
           description: t('messages.messageAudio.playbackErrorDescription'),
         });
         setIsPlaying(false);
-      });
-      setIsPlaying(true);
+        setIsLoading(false);
+        clearActiveAudio(url);
+      }
     }
   };
 
@@ -356,18 +203,33 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
     if (audioRef.current) audioRef.current.playbackRate = nextRate;
   };
 
+  // Suporte a toque e clique (scrubbing) na onda sonora
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>, targetDuration: number) => {
+    if (!targetDuration || targetDuration <= 0) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clientX = 'touches' in e && e.touches[0] ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const ratio = clickX / rect.width;
+    const newTime = ratio * targetDuration;
+
+    audio.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const handleLoadedMetadata = () => {
-      const duration = audio.duration;
-      // Verificar se a duração é válida
-      if (duration && !isNaN(duration) && isFinite(duration)) {
-        setDuration(duration);
-        // Armazenar duração para o áudio atual
+      const dur = audio.duration;
+      if (dur && !isNaN(dur) && isFinite(dur)) {
+        setDuration(dur);
         if (audio.src) {
-          setDurations(prev => ({ ...prev, [audio.src]: duration }));
+          setDurations(prev => ({ ...prev, [audio.src]: dur }));
+          globalDurationsCache[audio.src] = dur;
         }
       }
     };
@@ -376,100 +238,137 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
       setCurrentTime(audio.currentTime);
     };
 
+    const handleCanPlay = () => {
+      setIsLoading(false);
+    };
+
     const handleEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
       setCurrentPlaying(null);
+      if (audio.src) clearActiveAudio(audio.src);
+    };
+
+    const handleError = () => {
+      setIsPlaying(false);
+      setIsLoading(false);
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
     };
-  }, []);
+  }, [clearActiveAudio]);
 
-  // Carregar durações usando o próprio elemento de reprodução
+  // Carregar durações de forma leve e sequencial
   useEffect(() => {
-    // AGUARDAR UM POUCO PARA O DOM ESTAR PRONTO
-    setTimeout(() => {
-      attachments.forEach((attachment, _index) => {
-        if (attachment.data_url) {
-          // PRIMEIRO: Verificar cache global por ID do attachment
-          if (attachment.id) {
-            const cachedDuration = globalDurationsRef.current[attachment.id];
-            if (cachedDuration) {
-              setDurations(prev => ({ ...prev, [attachment.data_url!]: cachedDuration }));
-              return;
-            }
-          }
+    attachments.forEach((attachment) => {
+      if (!attachment.data_url) return;
+      const url = attachment.data_url;
 
-          loadDurationSimple(attachment.data_url, attachment.id);
-        }
+      // 1. Verificar metadata duration se veio do backend
+      const metaDuration = (attachment.meta?.duration as number) || (attachment.meta?.seconds as number);
+      if (metaDuration && metaDuration > 0) {
+        setDurations(prev => ({ ...prev, [url]: metaDuration }));
+        globalDurationsCache[url] = metaDuration;
+        return;
+      }
+
+      // 2. Verificar cache global
+      if (globalDurationsCache[url]) {
+        setDurations(prev => ({ ...prev, [url]: globalDurationsCache[url] }));
+        return;
+      }
+
+      // 3. Adicionar à fila sequencial leve sem injetar nós no DOM
+      durationQueue.push({
+        url,
+        attachmentId: attachment.id,
+        callback: (dur: number) => {
+          globalDurationsCache[url] = dur;
+          setDurations(prev => ({ ...prev, [url]: dur }));
+        },
       });
-    }, 100); // 100ms de delay para garantir que o DOM está pronto
+      processDurationQueue();
+    });
   }, [attachments]);
 
   return (
     <>
-      <audio ref={audioRef} preload="metadata" />
+      {/* Elemento de áudio com playsInline para iOS e sem poluição de DOM */}
+      <audio ref={audioRef} preload="metadata" playsInline webkit-playsinline="true" />
 
       <div className="space-y-2">
         {attachments
-          .filter(attachment => {
-            // 🔒 FILTRAR: Apenas attachments com data_url válido e não vazio
-            return attachment && attachment.data_url && attachment.data_url.trim() !== '';
-          })
+          .filter(attachment => attachment && attachment.data_url && attachment.data_url.trim() !== '')
           .map((attachment, index) => {
             const isCurrentlyPlaying = currentPlaying === attachment.data_url && isPlaying;
-            const progressValue =
-              currentPlaying === attachment.data_url ? (currentTime / duration) * 100 : 0;
+            const itemDuration = durations[attachment.data_url] || (currentPlaying === attachment.data_url ? duration : 0);
+            const progressValue = itemDuration > 0 && currentPlaying === attachment.data_url
+              ? Math.min(100, Math.max(0, (currentTime / itemDuration) * 100))
+              : 0;
 
-            const transcribedText =
-              attachment.transcribed_text || attachment.meta?.transcribed_text;
+            const transcribedText = attachment.transcribed_text || attachment.meta?.transcribed_text;
+
+            // Barras determinísticas baseadas em hash
+            const barHeights = getStableBarHeights(attachment.data_url || String(attachment.id || index), 25);
 
             return (
               <div key={attachment.id || index} className="space-y-2">
-                {/* Audio Player */}
+                {/* Audio Player Card com touch targets adequados para mobile */}
                 <div
-                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted/70 transition-colors select-none"
                   style={{
-                    minWidth: '200px',
-                    maxWidth: 'min(280px, calc(100vw - 100px))',
+                    minWidth: '220px',
+                    maxWidth: 'min(320px, calc(100vw - 80px))',
                   }}
                 >
-                  {/* Botão Play/Pause estilo WhatsApp */}
+                  {/* Botão Play/Pause tamanho 44x44 (Apple HIG / Google Material) */}
                   <Button
+                    type="button"
                     variant="default"
                     size="icon"
                     onClick={() => togglePlayback(attachment)}
-                    className="h-9 w-9 rounded-full bg-primary hover:bg-primary/85 text-primary-foreground flex-shrink-0 border-0 shadow-sm"
+                    aria-label={isCurrentlyPlaying ? 'Pausar áudio' : 'Reproduzir áudio'}
+                    className="h-11 w-11 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0 border-0 shadow-sm transition-transform active:scale-95"
                   >
-                    {isCurrentlyPlaying ? (
-                      <PauseFilled className="h-4 w-4" />
+                    {isLoading && currentPlaying === attachment.data_url ? (
+                      <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                    ) : isCurrentlyPlaying ? (
+                      <PauseFilled className="h-5 w-5" />
                     ) : (
-                      <PlayFilled className="h-4 w-4 ml-0.5" />
+                      <PlayFilled className="h-5 w-5 ml-0.5" />
                     )}
                   </Button>
 
-                  {/* Waveform visual e tempo */}
-                  <div className="flex-1 min-w-0 flex flex-col gap-1">
-                    {/* Barras de onda estilo WhatsApp */}
-                    <div className="flex items-center gap-0.5 h-5">
-                      {Array.from({ length: 25 }).map((_, i) => {
-                        const barHeight = Math.max(3, Math.random() * 16 + 3);
+                  {/* Waveform interativo (Scrubbing tátil) e tempo */}
+                  <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                    {/* Barras de onda com suporte a clique e arraste */}
+                    <div
+                      className="flex items-center gap-0.5 h-7 cursor-pointer touch-none py-1"
+                      onClick={(e) => handleSeek(e, itemDuration)}
+                      onTouchStart={(e) => handleSeek(e, itemDuration)}
+                      onTouchMove={(e) => handleSeek(e, itemDuration)}
+                      title="Toque para avançar ou retroceder"
+                    >
+                      {barHeights.map((barHeight, i) => {
                         const isActive = i < (progressValue / 100) * 25;
                         return (
                           <div
                             key={i}
-                            className={`w-0.5 rounded-full transition-all duration-150 ${
+                            className={`w-1 rounded-full transition-colors duration-100 ${
                               isActive
                                 ? 'bg-primary'
-                                : 'bg-muted-foreground/30 dark:bg-muted-foreground/20'
+                                : 'bg-muted-foreground/30 dark:bg-muted-foreground/25'
                             }`}
                             style={{
                               height: `${barHeight}px`,
@@ -479,24 +378,18 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
                       })}
                     </div>
 
-                    {/* Tempo */}
+                    {/* Tempo de reprodução */}
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground font-mono">
-                        {currentPlaying === attachment.data_url
-                          ? formatDuration(currentTime)
-                          : '0:00'}
+                      <span className="text-muted-foreground font-mono text-[11px]">
+                        {currentPlaying === attachment.data_url ? formatDuration(currentTime) : '0:00'}
                       </span>
-                      <span className="text-muted-foreground font-mono">
-                        {(() => {
-                          const url = attachment.data_url;
-                          const duration = url ? durations[url] : null;
-                          return duration ? formatDuration(duration) : '0:00';
-                        })()}
+                      <span className="text-muted-foreground font-mono text-[11px]">
+                        {formatDuration(itemDuration)}
                       </span>
                     </div>
                   </div>
 
-                  {/* Velocidade de reprodução */}
+                  {/* Velocidade de reprodução (Touch target confortável) */}
                   <div className="flex items-center flex-shrink-0">
                     <Button
                       type="button"
@@ -504,16 +397,16 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
                       variant="ghost"
                       onClick={cyclePlaybackRate}
                       aria-label={`Velocidade de reprodução: ${playbackRate}x`}
-                      className="h-7 min-w-9 rounded-full px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                      className="h-8 min-w-10 rounded-full px-2 text-xs font-semibold tabular-nums text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
                     >
                       {playbackRate.toString().replace('.', ',')}x
                     </Button>
                   </div>
                 </div>
 
-                {/* Transcription Text */}
+                {/* Texto Transcrito (Whisper) */}
                 {transcribedText && (
-                  <div className="px-2 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <div className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 font-medium">
                       {t('messages.messageAudio.transcription')}
                     </p>
