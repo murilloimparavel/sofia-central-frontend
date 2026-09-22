@@ -204,7 +204,7 @@ export function conversationsReducer(
 
       // Encontrar a conversa selecionada para armazenar os dados
       const selectedConversation = payloadStr
-        ? state.conversations.find(conv => String(conv.id) === payloadStr) || null
+        ? state.conversations.find(conv => matchesConversationId(conv, payloadStr)) || null
         : null;
 
       return {
