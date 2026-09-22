@@ -121,6 +121,12 @@ interface BulkSnapshot {
   wasUnread: boolean;
 }
 
+interface ScrollRestoreSnapshot {
+  scrollTop: number;
+  anchorId: string | null;
+  anchorOffset: number | null;
+}
+
 // Converte um ConversationFilter (estado global) para o BaseFilter do modal
 // avançado. Usado no sync activeFilters->modal e ao remesclar a navegação por
 // chip no apply do modal.
@@ -189,7 +195,7 @@ const ChatSidebar = ({
   // A seleção pode marcar a conversa como lida e atualizar/reordenar a lista.
   // Guardamos a posição somente para cliques manuais, evitando que a
   // reconciliação do estado faça a lista voltar ao topo.
-  const pendingScrollRestoreRef = useRef<number | null>(null);
+  const pendingScrollRestoreRef = useRef<ScrollRestoreSnapshot | null>(null);
   const loadingMoreRef = useRef(false);
   const lastScrollTimeRef = useRef<number>(0);
 
@@ -197,7 +203,22 @@ const ChatSidebar = ({
     (conversation: Conversation) => {
       const container = sidebarScrollRef.current;
       if (container) {
-        pendingScrollRestoreRef.current = container.scrollTop;
+        const containerRect = container.getBoundingClientRect();
+        const cards = Array.from(
+          container.querySelectorAll<HTMLElement>('[data-conversation-card="true"]'),
+        );
+        const firstVisibleCard = cards.find(card => {
+          const cardRect = card.getBoundingClientRect();
+          return cardRect.bottom > containerRect.top;
+        });
+
+        pendingScrollRestoreRef.current = {
+          scrollTop: container.scrollTop,
+          anchorId: firstVisibleCard?.dataset.conversationId ?? null,
+          anchorOffset: firstVisibleCard
+            ? firstVisibleCard.getBoundingClientRect().top - containerRect.top
+            : null,
+        };
       }
       onConversationSelect(conversation);
     },
@@ -205,20 +226,36 @@ const ChatSidebar = ({
   );
 
   useLayoutEffect(() => {
-    const scrollTop = pendingScrollRestoreRef.current;
+    const snapshot = pendingScrollRestoreRef.current;
     const container = sidebarScrollRef.current;
-    if (scrollTop == null || !container) return;
+    if (!snapshot || !container) return;
 
     pendingScrollRestoreRef.current = null;
-    container.scrollTop = scrollTop;
+
+    const restoreScrollPosition = () => {
+      const anchor = snapshot.anchorId
+        ? Array.from(
+            container.querySelectorAll<HTMLElement>('[data-conversation-card="true"]'),
+          ).find(card => card.dataset.conversationId === snapshot.anchorId) ?? null
+        : null;
+
+      if (anchor && snapshot.anchorOffset != null) {
+        const containerRect = container.getBoundingClientRect();
+        const currentOffset = anchor.getBoundingClientRect().top - containerRect.top;
+        container.scrollTop += currentOffset - snapshot.anchorOffset;
+      } else {
+        // Se a âncora foi removida pelo filtro, preserva o fallback numérico.
+        container.scrollTop = snapshot.scrollTop;
+      }
+    };
+
+    restoreScrollPosition();
 
     // Alguns componentes de lista/reconciliações executam uma atualização
     // adicional depois do commit. Reaplicar no próximo frame cobre esse caso
     // sem alterar o comportamento de carregamento infinito.
     const frame = requestAnimationFrame(() => {
-      if (sidebarScrollRef.current) {
-        sidebarScrollRef.current.scrollTop = scrollTop;
-      }
+      if (sidebarScrollRef.current) restoreScrollPosition();
     });
 
     return () => cancelAnimationFrame(frame);

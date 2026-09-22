@@ -96,6 +96,8 @@ const ConversationCardComponent: React.FC<ConversationCardProps> = ({
   const cardContent = (
     <div
       key={conversation.id}
+      data-conversation-card="true"
+      data-conversation-id={String(conversation.id)}
       className={`p-4 mx-0.5 mb-2.5 rounded-[14px] border cursor-pointer transition-colors ${
         isBulkSelected
           ? 'bg-primary/5 border-primary/20'
