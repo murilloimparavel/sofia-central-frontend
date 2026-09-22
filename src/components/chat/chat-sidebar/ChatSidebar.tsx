@@ -229,8 +229,6 @@ const ChatSidebar = ({
     const snapshot = pendingScrollRestoreRef.current;
     if (!snapshot || !sidebarScrollRef.current) return;
 
-    pendingScrollRestoreRef.current = null;
-
     const restoreScrollPosition = () => {
       const container = sidebarScrollRef.current;
       if (!container) return;
@@ -260,14 +258,19 @@ const ChatSidebar = ({
     const secondFrame = requestAnimationFrame(() => {
       requestAnimationFrame(restoreScrollPosition);
     });
-    const lateRestore = window.setTimeout(restoreScrollPosition, 250);
-    const finalRestore = window.setTimeout(restoreScrollPosition, 750);
+    const retryTimer = window.setInterval(restoreScrollPosition, 50);
+    const stopRetryTimer = window.setTimeout(() => {
+      window.clearInterval(retryTimer);
+      if (pendingScrollRestoreRef.current === snapshot) {
+        pendingScrollRestoreRef.current = null;
+      }
+    }, 2000);
 
     return () => {
       cancelAnimationFrame(frame);
       cancelAnimationFrame(secondFrame);
-      window.clearTimeout(lateRestore);
-      window.clearTimeout(finalRestore);
+      window.clearInterval(retryTimer);
+      window.clearTimeout(stopRetryTimer);
     };
   }, [conversations.state.selectedConversationId, conversations.state.conversations]);
 
