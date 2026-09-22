@@ -196,6 +196,7 @@ const ChatSidebar = ({
   // Guardamos a posição somente para cliques manuais, evitando que a
   // reconciliação do estado faça a lista voltar ao topo.
   const pendingScrollRestoreRef = useRef<ScrollRestoreSnapshot | null>(null);
+  const scrollRestoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingMoreRef = useRef(false);
   const lastScrollTimeRef = useRef<number>(0);
 
@@ -258,14 +259,25 @@ const ChatSidebar = ({
       requestAnimationFrame(restoreScrollPosition);
     });
 
-    return () => {
-      cancelAnimationFrame(frame);
-      cancelAnimationFrame(secondFrame);
+    // A seleção pode ser seguida por uma reconciliação assíncrona da coleção
+    // (WebSocket/REST/unread). Mantemos a âncora por uma janela curta para que
+    // a próxima troca de `conversations` também restaure a posição, sem um
+    // interval contínuo enquanto o operador trabalha.
+    if (scrollRestoreTimeoutRef.current) {
+      clearTimeout(scrollRestoreTimeoutRef.current);
+    }
+    scrollRestoreTimeoutRef.current = setTimeout(() => {
       if (pendingScrollRestoreRef.current === snapshot) {
         pendingScrollRestoreRef.current = null;
       }
+      scrollRestoreTimeoutRef.current = null;
+    }, 600);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelAnimationFrame(secondFrame);
     };
-  }, [conversations.state.selectedConversationId]);
+  }, [conversations.state.selectedConversationId, conversations.state.conversations]);
 
   useEffect(() => {
     onClearSelection();
