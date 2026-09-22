@@ -227,12 +227,14 @@ const ChatSidebar = ({
 
   useLayoutEffect(() => {
     const snapshot = pendingScrollRestoreRef.current;
-    const container = sidebarScrollRef.current;
-    if (!snapshot || !container) return;
+    if (!snapshot || !sidebarScrollRef.current) return;
 
     pendingScrollRestoreRef.current = null;
 
     const restoreScrollPosition = () => {
+      const container = sidebarScrollRef.current;
+      if (!container) return;
+
       const anchor = snapshot.anchorId
         ? Array.from(
             container.querySelectorAll<HTMLElement>('[data-conversation-card="true"]'),
@@ -252,13 +254,21 @@ const ChatSidebar = ({
     restoreScrollPosition();
 
     // Alguns componentes de lista/reconciliações executam uma atualização
-    // adicional depois do commit. Reaplicar no próximo frame cobre esse caso
-    // sem alterar o comportamento de carregamento infinito.
-    const frame = requestAnimationFrame(() => {
-      if (sidebarScrollRef.current) restoreScrollPosition();
+    // adicional depois do commit. Reaplicar em frames e após os updates
+    // assíncronos de leitura cobre esse caso sem alterar o carregamento infinito.
+    const frame = requestAnimationFrame(restoreScrollPosition);
+    const secondFrame = requestAnimationFrame(() => {
+      requestAnimationFrame(restoreScrollPosition);
     });
+    const lateRestore = window.setTimeout(restoreScrollPosition, 250);
+    const finalRestore = window.setTimeout(restoreScrollPosition, 750);
 
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelAnimationFrame(secondFrame);
+      window.clearTimeout(lateRestore);
+      window.clearTimeout(finalRestore);
+    };
   }, [conversations.state.selectedConversationId, conversations.state.conversations]);
 
   useEffect(() => {
