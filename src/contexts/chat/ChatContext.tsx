@@ -106,6 +106,48 @@ function useChatIntegration() {
     conversations.state.selectedConversationId,
     messages,
   ]);
+
+  // Fallback leve para a conversa aberta. O WebSocket continua sendo o caminho
+  // principal; esta reconciliação incremental só consulta mensagens depois do
+  // último id local, evitando recarregar o histórico inteiro ou sobrecarregar a
+  // API. Também cobre eventos perdidos durante reconexões silenciosas.
+  useEffect(() => {
+    const conversationId = conversations.state.selectedConversationId;
+    if (!conversationId) return;
+
+    let disposed = false;
+    let timer: number | undefined;
+
+    const syncIfVisible = () => {
+      if (!disposed && document.visibilityState === 'visible') {
+        void messagesRef.current.syncConversationMessages(String(conversationId));
+      }
+    };
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') syncIfVisible();
+    };
+
+    // Reconcilição imediata ao voltar para a conversa/aba; depois, apenas uma
+    // consulta incremental a cada 7s enquanto ela permanece aberta.
+    syncIfVisible();
+    timer = window.setTimeout(function pollOpenConversation() {
+      syncIfVisible();
+      if (!disposed) timer = window.setTimeout(pollOpenConversation, 7000);
+    }, 7000);
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    window.addEventListener('online', handleVisibilityOrFocus);
+
+    return () => {
+      disposed = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      window.removeEventListener('online', handleVisibilityOrFocus);
+    };
+  }, [conversations.state.selectedConversationId]);
   useEffect(() => {
     return () => {
       Object.values(attachmentReloadTimersRef.current).forEach(timerId => {
@@ -193,7 +235,16 @@ function useChatIntegration() {
         };
         const conversation = findConversationByAnyId(conversationId);
 
-        if (!conversation && activeFiltersRef.current.length > 0) {
+        const selectedConversationId = String(
+          conversationsRef.current.state.selectedConversationId || '',
+        );
+        const isSelectedConversation =
+          selectedConversationId === conversationId ||
+          (conversation && selectedConversationId === String(conversation.id));
+
+        // Nunca descartar um evento da conversa que o operador está vendo só
+        // porque a lista atual está filtrada ou atrasada.
+        if (!conversation && activeFiltersRef.current.length > 0 && !isSelectedConversation) {
           return;
         }
 

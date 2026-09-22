@@ -1,4 +1,12 @@
-import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type CSSProperties,
+} from 'react';
 import { Button } from '@evoapi/design-system/button';
 import { Input } from '@evoapi/design-system/input';
 import { Badge } from '@evoapi/design-system/badge';
@@ -178,8 +186,43 @@ const ChatSidebar = ({
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
+  // A seleção pode marcar a conversa como lida e atualizar/reordenar a lista.
+  // Guardamos a posição somente para cliques manuais, evitando que a
+  // reconciliação do estado faça a lista voltar ao topo.
+  const pendingScrollRestoreRef = useRef<number | null>(null);
   const loadingMoreRef = useRef(false);
   const lastScrollTimeRef = useRef<number>(0);
+
+  const handleConversationCardSelect = useCallback(
+    (conversation: Conversation) => {
+      const container = sidebarScrollRef.current;
+      if (container) {
+        pendingScrollRestoreRef.current = container.scrollTop;
+      }
+      onConversationSelect(conversation);
+    },
+    [onConversationSelect],
+  );
+
+  useLayoutEffect(() => {
+    const scrollTop = pendingScrollRestoreRef.current;
+    const container = sidebarScrollRef.current;
+    if (scrollTop == null || !container) return;
+
+    pendingScrollRestoreRef.current = null;
+    container.scrollTop = scrollTop;
+
+    // Alguns componentes de lista/reconciliações executam uma atualização
+    // adicional depois do commit. Reaplicar no próximo frame cobre esse caso
+    // sem alterar o comportamento de carregamento infinito.
+    const frame = requestAnimationFrame(() => {
+      if (sidebarScrollRef.current) {
+        sidebarScrollRef.current.scrollTop = scrollTop;
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [conversations.state.selectedConversationId, conversations.state.conversations]);
 
   useEffect(() => {
     onClearSelection();
@@ -864,7 +907,7 @@ const ChatSidebar = ({
                   isBulkSelected={isBulkSelected}
                   selectionMode={selectionMode}
                   unreadCount={conversations.getUnreadCount(conversation.id) || 0}
-                  onSelect={onConversationSelect}
+                  onSelect={handleConversationCardSelect}
                   onToggleSelect={onToggleSelect}
                   onStartSelection={handleStartSelection}
                   onPin={onPinConversation}

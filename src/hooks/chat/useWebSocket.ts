@@ -49,6 +49,7 @@ export const useWebSocket = (
   const { enabled = true, websocketHost, handlers = {}, autoConnect = true } = options;
 
   const connectorRef = useRef<ChatActionCableConnector | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const handlersRef = useRef(handlers);
 
@@ -129,6 +130,11 @@ export const useWebSocket = (
    * Desconectar do WebSocket
    */
   const disconnect = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
     if (connectorRef.current) {
       connectorRef.current.disconnect();
       connectorRef.current = null;
@@ -140,8 +146,13 @@ export const useWebSocket = (
    * Reconectar WebSocket
    */
   const reconnect = useCallback(() => {
-    disconnect();
-    setTimeout(connect, 1000); // Aguardar 1 segundo antes de reconectar
+    if (reconnectTimerRef.current) return;
+
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null;
+      disconnect();
+      connect();
+    }, 1000); // Aguardar 1 segundo antes de reconectar
   }, [disconnect, connect]);
 
   /**
@@ -192,6 +203,10 @@ export const useWebSocket = (
 
     // Cleanup na desmontagem
     return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       if (connectorRef.current) {
         connectorRef.current.destroy();
         connectorRef.current = null;
@@ -234,6 +249,22 @@ export const useWebSocket = (
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [enabled, isConnected, reconnect]);
+
+  // O navegador pode suspender o socket quando a rede muda (Wi-Fi/VPN,
+  // notebook acordando, troca de aba). O evento online é mais barato e mais
+  // confiável que esperar o próximo watchdog de 5s.
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleOnline = () => {
+      if (!connectorRef.current || !connectorRef.current.isConnected()) {
+        reconnect();
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [enabled, reconnect]);
 
   useEffect(() => {
     const handleAuthLost = () => {
