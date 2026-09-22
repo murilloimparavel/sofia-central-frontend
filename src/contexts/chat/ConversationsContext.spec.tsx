@@ -30,7 +30,7 @@ describe('ConversationsContext reducer', () => {
     localStorage.clear();
   });
 
-  it('normalizes selected conversation id and clears unread count on select', () => {
+  it('normalizes selection without rebuilding the conversation list', () => {
     const state = {
       ...initialState,
       conversations: [makeConversation()],
@@ -44,7 +44,9 @@ describe('ConversationsContext reducer', () => {
 
     expect(nextState.selectedConversationId).toBe('conversation-1');
     expect(nextState.unreadCounts['conversation-1']).toBe(0);
-    expect(nextState.conversations[0].unread_count).toBe(0);
+    expect(nextState.conversations[0].unread_count).toBe(5);
+    expect(nextState.conversations).toBe(state.conversations);
+    expect(nextState.selectedConversationData?.unread_count).toBe(0);
   });
 
   it('keeps selected conversation unread count at zero on UPDATE_CONVERSATION', () => {

@@ -251,28 +251,21 @@ const ChatSidebar = ({
 
     restoreScrollPosition();
 
-    // Alguns componentes de lista/reconciliações executam uma atualização
-    // adicional depois do commit. Reaplicar em frames e após os updates
-    // assíncronos de leitura cobre esse caso sem alterar o carregamento infinito.
+    // Reaplicar no próximo frame cobre a reconciliação do novo item selecionado
+    // sem manter um polling contínuo enquanto o operador trabalha.
     const frame = requestAnimationFrame(restoreScrollPosition);
     const secondFrame = requestAnimationFrame(() => {
       requestAnimationFrame(restoreScrollPosition);
     });
-    const retryTimer = window.setInterval(restoreScrollPosition, 50);
-    const stopRetryTimer = window.setTimeout(() => {
-      window.clearInterval(retryTimer);
-      if (pendingScrollRestoreRef.current === snapshot) {
-        pendingScrollRestoreRef.current = null;
-      }
-    }, 2000);
 
     return () => {
       cancelAnimationFrame(frame);
       cancelAnimationFrame(secondFrame);
-      window.clearInterval(retryTimer);
-      window.clearTimeout(stopRetryTimer);
+      if (pendingScrollRestoreRef.current === snapshot) {
+        pendingScrollRestoreRef.current = null;
+      }
     };
-  }, [conversations.state.selectedConversationId, conversations.state.conversations]);
+  }, [conversations.state.selectedConversationId]);
 
   useEffect(() => {
     onClearSelection();

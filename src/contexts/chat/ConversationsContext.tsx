@@ -290,15 +290,6 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
               payload: { conversationId: canonicalConversationId, count: 0 },
             });
 
-            // Também atualizar o objeto da conversa para manter sincronizado
-            const conversationInList = findConversationByAnyId(canonicalConversationId);
-            if (conversationInList) {
-              dispatch({
-                type: 'UPDATE_CONVERSATION',
-                payload: { ...conversationInList, unread_count: 0 },
-              });
-            }
-
             // Salvar no localStorage que esta conversa foi marcada como lida
             try {
               const saved = localStorage.getItem('crm-chat-state');
