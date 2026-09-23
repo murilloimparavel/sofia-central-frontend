@@ -13,7 +13,7 @@ interface ConversationListProps {
   unreadCount: (conversationId: string) => number;
   onSelect: (conversation: Conversation) => void;
   onToggleSelect: (displayId: string) => void;
-  onStartSelection: (conversation: Conversation) => void;
+  onStartSelection: (displayId: string) => void;
   onPin: (conversation: Conversation) => void;
   onUnpin: (conversation: Conversation) => void;
   onArchive: (conversation: Conversation) => void;
