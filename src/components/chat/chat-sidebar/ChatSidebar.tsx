@@ -1,7 +1,6 @@
 import {
   useState,
   useEffect,
-  useLayoutEffect,
   useRef,
   useCallback,
   useMemo,
@@ -50,7 +49,7 @@ import { NoConversations } from '../empty-states';
 import ConversationsFilterPopover from '../filters/ConversationsFilterPopover';
 import ConversationSegments from './ConversationSegments';
 import ConversationScopeTabs from './ConversationScopeTabs';
-import { ConversationCard } from './ConversationCard';
+import { ConversationList } from './ConversationList';
 import GlobalSearchPanel from '../search/GlobalSearchPanel';
 import { BaseFilter } from '@/types/core';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -62,6 +61,7 @@ import type {
   SearchContactResult,
   SearchMessageResult,
 } from '@/types/chat/search';
+import { useConversationListScroll } from '@/hooks/chat/useConversationListScroll';
 
 interface ChatSidebarProps {
   mobileView: 'list' | 'chat';
@@ -119,12 +119,6 @@ const CHIP_NAV_KEYS = ['status', ...NAVIGATION_FILTER_KEYS];
 interface BulkSnapshot {
   id: string;
   wasUnread: boolean;
-}
-
-interface ScrollRestoreSnapshot {
-  scrollTop: number;
-  anchorId: string | null;
-  anchorOffset: number | null;
 }
 
 // Converte um ConversationFilter (estado global) para o BaseFilter do modal
@@ -192,92 +186,25 @@ const ChatSidebar = ({
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
-  // A seleção pode marcar a conversa como lida e atualizar/reordenar a lista.
-  // Guardamos a posição somente para cliques manuais, evitando que a
-  // reconciliação do estado faça a lista voltar ao topo.
-  const pendingScrollRestoreRef = useRef<ScrollRestoreSnapshot | null>(null);
-  const scrollRestoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingMoreRef = useRef(false);
   const lastScrollTimeRef = useRef<number>(0);
+  const { rememberScrollPosition, captureBeforeSelection } = useConversationListScroll({
+    containerRef: sidebarScrollRef,
+    listVersion: conversations.state.conversations,
+    resetKey: JSON.stringify({
+      filters: filters.state.activeFilters,
+      showArchived,
+      searchInput,
+    }),
+  });
 
   const handleConversationCardSelect = useCallback(
     (conversation: Conversation) => {
-      const container = sidebarScrollRef.current;
-      if (container) {
-        const containerRect = container.getBoundingClientRect();
-        const cards = Array.from(
-          container.querySelectorAll<HTMLElement>('[data-conversation-card="true"]'),
-        );
-        const firstVisibleCard = cards.find(card => {
-          const cardRect = card.getBoundingClientRect();
-          return cardRect.bottom > containerRect.top;
-        });
-
-        pendingScrollRestoreRef.current = {
-          scrollTop: container.scrollTop,
-          anchorId: firstVisibleCard?.dataset.conversationId ?? null,
-          anchorOffset: firstVisibleCard
-            ? firstVisibleCard.getBoundingClientRect().top - containerRect.top
-            : null,
-        };
-      }
+      captureBeforeSelection();
       onConversationSelect(conversation);
     },
-    [onConversationSelect],
+    [captureBeforeSelection, onConversationSelect],
   );
-
-  useLayoutEffect(() => {
-    const snapshot = pendingScrollRestoreRef.current;
-    if (!snapshot || !sidebarScrollRef.current) return;
-
-    const restoreScrollPosition = () => {
-      const container = sidebarScrollRef.current;
-      if (!container) return;
-
-      const anchor = snapshot.anchorId
-        ? Array.from(
-            container.querySelectorAll<HTMLElement>('[data-conversation-card="true"]'),
-          ).find(card => card.dataset.conversationId === snapshot.anchorId) ?? null
-        : null;
-
-      if (anchor && snapshot.anchorOffset != null) {
-        const containerRect = container.getBoundingClientRect();
-        const currentOffset = anchor.getBoundingClientRect().top - containerRect.top;
-        container.scrollTop += currentOffset - snapshot.anchorOffset;
-      } else {
-        // Se a âncora foi removida pelo filtro, preserva o fallback numérico.
-        container.scrollTop = snapshot.scrollTop;
-      }
-    };
-
-    restoreScrollPosition();
-
-    // Reaplicar no próximo frame cobre a reconciliação do novo item selecionado
-    // sem manter um polling contínuo enquanto o operador trabalha.
-    const frame = requestAnimationFrame(restoreScrollPosition);
-    const secondFrame = requestAnimationFrame(() => {
-      requestAnimationFrame(restoreScrollPosition);
-    });
-
-    // A seleção pode ser seguida por uma reconciliação assíncrona da coleção
-    // (WebSocket/REST/unread). Mantemos a âncora por uma janela curta para que
-    // a próxima troca de `conversations` também restaure a posição, sem um
-    // interval contínuo enquanto o operador trabalha.
-    if (scrollRestoreTimeoutRef.current) {
-      clearTimeout(scrollRestoreTimeoutRef.current);
-    }
-    scrollRestoreTimeoutRef.current = setTimeout(() => {
-      if (pendingScrollRestoreRef.current === snapshot) {
-        pendingScrollRestoreRef.current = null;
-      }
-      scrollRestoreTimeoutRef.current = null;
-    }, 600);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      cancelAnimationFrame(secondFrame);
-    };
-  }, [conversations.state.selectedConversationId, conversations.state.conversations]);
 
   useEffect(() => {
     onClearSelection();
@@ -432,6 +359,7 @@ const ChatSidebar = ({
   ).length;
 
   const handleSidebarScroll = useCallback(async () => {
+    rememberScrollPosition();
     const now = Date.now();
     if (now - lastScrollTimeRef.current < 150) return;
 
@@ -469,7 +397,7 @@ const ChatSidebar = ({
       setIsLoadingMoreConversations(false);
       loadingMoreRef.current = false;
     }
-  }, [conversations]);
+  }, [conversations, rememberScrollPosition]);
 
   const handleLoadMoreClick = useCallback(async () => {
     if (loadingMoreRef.current || isLoadingMoreConversations || !hasNextPage) return;
@@ -946,56 +874,25 @@ const ChatSidebar = ({
           </div>
         ) : (
           <>
-            {visibleConversations.map((conversation: Conversation) => {
-              const canonicalId = String(conversation.uuid || conversation.id);
-              const isSelected =
-                String(conversations.state.selectedConversationId) === String(conversation.id) ||
-                String(conversations.state.selectedConversationId) === canonicalId;
-              const isBulkSelected =
-                selectionMode && selectedConversationIds.has(String(conversation.display_id));
-
-              return (
-                <ConversationCard
-                  key={conversation.id}
-                  conversation={conversation}
-                  isSelected={isSelected}
-                  isBulkSelected={isBulkSelected}
-                  selectionMode={selectionMode}
-                  unreadCount={conversations.getUnreadCount(conversation.id) || 0}
-                  onSelect={handleConversationCardSelect}
-                  onToggleSelect={onToggleSelect}
-                  onStartSelection={handleStartSelection}
-                  onPin={onPinConversation}
-                  onUnpin={onUnpinConversation}
-                  onArchive={onArchiveConversation}
-                  onUnarchive={onUnarchiveConversation}
-                  onDelete={onDeleteConversation}
-                  t={t}
-                />
-              );
-            })}
-
-            {/* EVO-1672: proportional cushion (~half a viewport) so fast
-                scroll / slow networks read as a deliberate "loading more"
-                affordance instead of a blank gap with pop-in. */}
-            {isLoadingMoreConversations && (
-              <div className="border-t border-border/40">
-                <ConversationSkeleton count={5} />
-              </div>
-            )}
-
-            {!isLoadingMoreConversations && hasNextPage && !showArchived && (
-              <div className="p-3 border-t border-border/40">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleLoadMoreClick}
-                >
-                  Carregar mais
-                </Button>
-              </div>
-            )}
+            <ConversationList
+              conversations={visibleConversations}
+              selectedConversationId={conversations.state.selectedConversationId}
+              selectedConversationIds={selectedConversationIds}
+              selectionMode={selectionMode}
+              isLoadingMore={isLoadingMoreConversations}
+              hasNextPage={hasNextPage && !showArchived}
+              unreadCount={conversations.getUnreadCount}
+              onSelect={handleConversationCardSelect}
+              onToggleSelect={onToggleSelect}
+              onStartSelection={handleStartSelection}
+              onPin={onPinConversation}
+              onUnpin={onUnpinConversation}
+              onArchive={onArchiveConversation}
+              onUnarchive={onUnarchiveConversation}
+              onDelete={onDeleteConversation}
+              onLoadMore={handleLoadMoreClick}
+              t={t}
+            />
           </>
         )}
       </div>
