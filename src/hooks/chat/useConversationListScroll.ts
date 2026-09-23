@@ -35,11 +35,36 @@ export function useConversationListScroll({
   const lastScrollTopRef = useRef(0);
   const pendingSnapshotRef = useRef<ScrollSnapshot | null>(null);
   const previousResetKeyRef = useRef(resetKey);
+  const initializedRef = useRef(false);
+
+  const storageKey = `crm-conversation-list-scroll:${resetKey}`;
+
+  const readStoredScrollTop = useCallback(() => {
+    try {
+      return Number(sessionStorage.getItem(storageKey) || 0) || 0;
+    } catch {
+      return 0;
+    }
+  }, [storageKey]);
+
+  const persistScrollTop = useCallback(
+    (scrollTop: number) => {
+      try {
+        sessionStorage.setItem(storageKey, String(Math.max(0, scrollTop)));
+      } catch {
+        // Storage can be unavailable in private browsing or restricted frames.
+      }
+    },
+    [storageKey],
+  );
 
   const rememberScrollPosition = useCallback(() => {
     const container = containerRef.current;
-    if (container) lastScrollTopRef.current = container.scrollTop;
-  }, [containerRef]);
+    if (container) {
+      lastScrollTopRef.current = container.scrollTop;
+      persistScrollTop(container.scrollTop);
+    }
+  }, [containerRef, persistScrollTop]);
 
   const captureBeforeSelection = useCallback(() => {
     const container = containerRef.current;
@@ -58,7 +83,8 @@ export function useConversationListScroll({
         : null,
     };
     lastScrollTopRef.current = container.scrollTop;
-  }, [containerRef]);
+    persistScrollTop(container.scrollTop);
+  }, [containerRef, persistScrollTop]);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -66,10 +92,15 @@ export function useConversationListScroll({
 
     if (previousResetKeyRef.current !== resetKey) {
       previousResetKeyRef.current = resetKey;
-      lastScrollTopRef.current = 0;
+      lastScrollTopRef.current = readStoredScrollTop();
       pendingSnapshotRef.current = null;
-      container.scrollTop = 0;
+      container.scrollTop = lastScrollTopRef.current;
       return;
+    }
+
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      lastScrollTopRef.current = readStoredScrollTop();
     }
 
     const snapshot = pendingSnapshotRef.current;
@@ -90,6 +121,7 @@ export function useConversationListScroll({
         current.scrollTop = snapshot?.scrollTop ?? lastScrollTopRef.current;
       }
       lastScrollTopRef.current = current.scrollTop;
+      persistScrollTop(current.scrollTop);
     };
 
     restore();
@@ -98,7 +130,7 @@ export function useConversationListScroll({
     // scrollTop passa a ser a fonte de verdade, permitindo nova rolagem manual.
     pendingSnapshotRef.current = null;
     return () => cancelAnimationFrame(frame);
-  }, [containerRef, listVersion, resetKey]);
+  }, [containerRef, listVersion, persistScrollTop, readStoredScrollTop, resetKey]);
 
   return { rememberScrollPosition, captureBeforeSelection };
 }
