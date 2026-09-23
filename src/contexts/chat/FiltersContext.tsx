@@ -116,7 +116,6 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
       onError: (error: string) => void,
     ) => {
       dispatch({ type: 'SET_APPLYING_FILTERS', payload: true });
-      dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
 
       try {
         if (filters.length === 0) {
@@ -124,18 +123,21 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           const response = await chatService.getConversations();
           const { conversations, pagination } = extractConversationsData(response);
           onSuccess(conversations, pagination, { kind: 'list', params: {} });
+          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         } else if (shouldUseAdvancedFilters(filters)) {
           // Usar filtros avançados (POST /filter)
           const filterRequest = convertFiltersToApiFormat(filters);
           const response = await chatService.filterConversations(filterRequest);
           const { conversations, pagination } = extractConversationsData(response);
           onSuccess(conversations, pagination, { kind: 'filter', request: filterRequest });
+          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         } else {
           // Usar filtros simples (GET /conversations)
           const params = convertFiltersToUrlParams(filters);
           const response = await chatService.getConversations(params);
           const { conversations, pagination } = extractConversationsData(response);
           onSuccess(conversations, pagination, { kind: 'list', params });
+          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         }
       } catch (error) {
         const errorMessage =
