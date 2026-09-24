@@ -444,6 +444,7 @@ interface MessagesContextValue {
   onCancelReply: () => void;
   onCopyMessage: (message: Message) => void;
   onDeleteMessage: (conversationId: string, message: Message) => Promise<void>;
+  retryMessage: (conversationId: string, messageId: string) => Promise<void>;
 
   // Direct state manipulation (for WebSocket integration)
   setMessages: (conversationId: string, messages: Message[]) => void;
@@ -941,6 +942,22 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     [t],
   );
 
+  const retryMessage = useCallback(
+    async (conversationId: string, messageId: string) => {
+      try {
+        const retriedMessage = await chatService.retryMessage(conversationId, messageId);
+        dispatch({ type: 'UPDATE_MESSAGE', payload: { conversationId, message: retriedMessage } });
+        toast.success(t('messages.messageStatus.retrySubmitted'));
+      } catch (error) {
+        toast.error(t('messages.messageStatus.retryFailed'), {
+          description: error instanceof Error ? error.message : undefined,
+        });
+        throw error;
+      }
+    },
+    [t],
+  );
+
   // Direct state manipulation (for WebSocket integration)
   const setMessages = useCallback((conversationId: string, messages: Message[]) => {
     dispatch({
@@ -1044,6 +1061,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       onCancelReply,
       onCopyMessage,
       onDeleteMessage,
+      retryMessage,
       setMessages,
       addMessage,
       updateMessage,
@@ -1069,6 +1087,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       onCancelReply,
       onCopyMessage,
       onDeleteMessage,
+      retryMessage,
       setMessages,
       addMessage,
       updateMessage,

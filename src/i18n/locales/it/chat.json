@@ -96,7 +96,9 @@
       "statusUnavailableText": "Stato non disponibile",
       "sendFailedText": "Invio fallito",
       "sendFailed": "Invio fallito - Clicca per vedere il motivo",
-      "tryAgain": "Riprova"
+      "tryAgain": "Riprova",
+      "retrySubmitted": "Nuovo tentativo di invio avviato",
+      "retryFailed": "Impossibile riprovare l’invio"
     },
     "replyPreview": {
       "imageAttachment": "📷 Immagine",

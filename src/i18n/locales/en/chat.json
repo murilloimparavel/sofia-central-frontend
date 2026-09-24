@@ -97,7 +97,9 @@
       "statusUnavailableText": "Status unavailable",
       "sendFailedText": "Send failed",
       "sendFailed": "Send failed - Click to see the reason",
-      "tryAgain": "Try again"
+      "tryAgain": "Try again",
+      "retrySubmitted": "Message retry started",
+      "retryFailed": "Could not retry this message"
     },
     "replyPreview": {
       "imageAttachment": "📷 Image",

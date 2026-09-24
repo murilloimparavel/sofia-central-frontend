@@ -583,8 +583,8 @@ const Chat = () => {
   };
 
   const handleRetryMessage = (messageId: string) => {
-    // TODO: Implementar retry específico para uma mensagem via Context
-    console.log('Retry message:', messageId);
+    if (!conversations.state.selectedConversationId) return;
+    void messages.retryMessage(String(conversations.state.selectedConversationId), messageId).catch(() => undefined);
   };
 
   // 🎯 CONVERSATION HANDLERS: Usar handlers dos hooks customizados

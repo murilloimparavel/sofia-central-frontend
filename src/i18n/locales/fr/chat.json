@@ -96,7 +96,9 @@
       "statusUnavailableText": "Statut indisponible",
       "sendFailedText": "Échec de l'envoi",
       "sendFailed": "Échec de l'envoi - Cliquez pour voir la raison",
-      "tryAgain": "Réessayer"
+      "tryAgain": "Réessayer",
+      "retrySubmitted": "Nouvelle tentative d’envoi lancée",
+      "retryFailed": "Impossible de réessayer l’envoi"
     },
     "replyPreview": {
       "imageAttachment": "📷 Image",

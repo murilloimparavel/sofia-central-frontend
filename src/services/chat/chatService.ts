@@ -215,6 +215,11 @@ class ChatService {
     });
   }
 
+  async retryMessage(conversationId: string, messageId: string): Promise<Message> {
+    const response = await api.post(`/conversations/${conversationId}/messages/${messageId}/retry`);
+    return extractData<Message>(response);
+  }
+
   async deleteMessage(conversationId: string, messageId: string): Promise<Message> {
     const response = await api.delete(`/conversations/${conversationId}/messages/${messageId}`);
     return extractData<Message>(response);
