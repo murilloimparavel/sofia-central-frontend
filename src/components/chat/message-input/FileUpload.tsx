@@ -6,22 +6,38 @@ import { useLanguage } from '@/hooks/useLanguage';
 
 export type FileUploadCategory = 'document' | 'media' | 'all';
 
+const DOCUMENT_TYPES = [
+  'application/pdf',
+  'application/x-pdf',
+  'text/*',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/csv',
+  'application/rtf',
+  'text/rtf',
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.txt',
+  '.csv',
+  '.rtf',
+];
+
 const CATEGORY_ALLOWED_TYPES: Record<FileUploadCategory, string[]> = {
-  document: [
-    'application/pdf',
-    'text/*',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  ],
+  // WhatsApp document mode preserves original quality for images and videos too.
+  document: [...DOCUMENT_TYPES, 'image/*', 'video/*'],
   media: ['image/*', 'video/*'],
   all: [
     'image/*',
-    'application/pdf',
-    'text/*',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ...DOCUMENT_TYPES,
     'audio/*',
     'video/*',
   ],
@@ -69,6 +85,38 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const resolvedAllowedTypes = allowedTypes ?? CATEGORY_ALLOWED_TYPES[category];
 
+  const isAllowedFileType = useCallback(
+    (file: File): boolean => {
+      const mimeType = file.type.toLowerCase();
+      const fileName = file.name.toLowerCase();
+
+      return resolvedAllowedTypes.some(type => {
+        const normalizedType = type.toLowerCase();
+
+        if (normalizedType.startsWith('.')) {
+          return fileName.endsWith(normalizedType);
+        }
+
+        if (normalizedType.endsWith('/*')) {
+          const baseType = normalizedType.split('/')[0];
+          return mimeType.startsWith(`${baseType}/`);
+        }
+
+        if (mimeType === normalizedType) return true;
+
+        // Some browsers/platforms report documents as application/octet-stream
+        // or with an empty MIME type. The extension is a safe fallback because
+        // it is checked only against the explicit document extension allowlist.
+        return (
+          (mimeType === '' || mimeType === 'application/octet-stream') &&
+          normalizedType.startsWith('.') &&
+          fileName.endsWith(normalizedType)
+        );
+      });
+    },
+    [resolvedAllowedTypes],
+  );
+
   const validateFile = useCallback(
     (file: File): boolean => {
       // Validar tamanho
@@ -83,13 +131,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       }
 
       // Validar tipo
-      const isValidType = resolvedAllowedTypes.some(type => {
-        if (type.endsWith('/*')) {
-          const baseType = type.split('/')[0];
-          return file.type.startsWith(baseType + '/');
-        }
-        return file.type === type;
-      });
+      const isValidType = isAllowedFileType(file);
 
       if (!isValidType) {
         toast.error(t('messageInput.fileUpload.errors.fileTypeNotAllowed'), {
@@ -102,7 +144,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       return true;
     },
-    [maxFileSize, resolvedAllowedTypes, t],
+    [isAllowedFileType, maxFileSize, t],
   );
 
   const handleFiles = useCallback(
@@ -175,7 +217,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
     return resolvedAllowedTypes
       .map(type => {
         if (type === 'image/*') return t('messageInput.fileUpload.fileTypes.images');
-        if (type === 'application/pdf') return t('messageInput.fileUpload.fileTypes.pdf');
+        if (type === 'application/pdf' || type === 'application/x-pdf' || type === '.pdf') {
+          return t('messageInput.fileUpload.fileTypes.pdf');
+        }
         if (type === 'text/*') return t('messageInput.fileUpload.fileTypes.text');
         if (type === 'audio/*') return t('messageInput.fileUpload.fileTypes.audio');
         if (type === 'video/*') return t('messageInput.fileUpload.fileTypes.video');
