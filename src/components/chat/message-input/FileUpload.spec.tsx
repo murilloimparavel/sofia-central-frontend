@@ -7,12 +7,12 @@ vi.mock('@/hooks/useLanguage', () => ({
 }));
 
 describe('FileUpload document validation', () => {
-  it('allows files up to 40 MiB and rejects files above that limit', () => {
+  it('allows files up to 90 MiB and rejects files above that limit', () => {
     const onFilesSelected = vi.fn();
     const { container } = render(
       <FileUpload
         inputId="large-file-input"
-        maxFileSize={40}
+        maxFileSize={90}
         category="document"
         enableGlobalDropZone={false}
         onFilesSelected={onFilesSelected}
@@ -20,13 +20,13 @@ describe('FileUpload document validation', () => {
     );
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const atLimit = new File(['x'], 'large.pdf', { type: 'application/pdf' });
-    Object.defineProperty(atLimit, 'size', { value: 40 * 1024 * 1024 });
+    Object.defineProperty(atLimit, 'size', { value: 90 * 1024 * 1024 });
     fireEvent.change(input, { target: { files: [atLimit] } });
     expect(onFilesSelected).toHaveBeenCalledWith([atLimit]);
 
     onFilesSelected.mockClear();
     const overLimit = new File(['x'], 'too-large.pdf', { type: 'application/pdf' });
-    Object.defineProperty(overLimit, 'size', { value: 40 * 1024 * 1024 + 1 });
+    Object.defineProperty(overLimit, 'size', { value: 90 * 1024 * 1024 + 1 });
     fireEvent.change(input, { target: { files: [overLimit] } });
     expect(onFilesSelected).not.toHaveBeenCalled();
   });

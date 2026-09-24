@@ -59,6 +59,7 @@ interface PostData {
 interface SendMessageOptions {
   content: string;
   files?: File[];
+  sendAsDocument?: boolean;
   isPrivate?: boolean;
   templateParams?: any;
   cannedResponseId?: string | null;

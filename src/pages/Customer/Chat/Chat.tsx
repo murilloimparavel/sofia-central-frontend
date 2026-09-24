@@ -56,6 +56,7 @@ const AssignmentModal = React.lazy(() => import('@/components/chat/assignment/As
 interface SendMessageOptions {
   content: string;
   files?: File[];
+  sendAsDocument?: boolean;
   isPrivate?: boolean;
   templateParams?: any;
   cannedResponseId?: string | null;
@@ -535,6 +536,7 @@ const Chat = () => {
     cannedResponseId,
     templateParams,
     isRecordedAudio,
+    sendAsDocument,
   }: SendMessageOptions) => {
     if (!can('conversations', 'update')) {
       toast.error(t('messages.noPermissionSend'));
@@ -553,6 +555,7 @@ const Chat = () => {
           files: files || [],
           isPrivate: isPrivate || false,
           cannedResponseId: cannedResponseId || null,
+          sendAsDocument,
           templateParams,
         });
       } else if (files && files.length > 0) {
@@ -564,6 +567,7 @@ const Chat = () => {
           cannedResponseId,
           undefined,
           isRecordedAudio,
+          sendAsDocument,
         );
       } else {
         await messages.sendMessage(

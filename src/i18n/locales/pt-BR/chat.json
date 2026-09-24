@@ -740,8 +740,10 @@
       "errors": {
         "fileTooLarge": "Arquivo muito grande",
         "fileTooLargeDescription": "{{fileName}} excede o limite de {{maxSize}}MB",
+        "totalSizeExceeded": "O total dos arquivos selecionados excede o limite de {{maxSize}}MB por envio.",
         "fileTypeNotAllowed": "Tipo de arquivo não permitido",
-        "fileTypeNotAllowedDescription": "{{fileName}} não é um tipo de arquivo suportado"
+        "fileTypeNotAllowedDescription": "{{fileName}} não é um tipo de arquivo suportado",
+        "mixedAttachmentModes": "Envie documentos ou fotos e vídeos em mensagens separadas."
       },
       "success": {
         "fileAdded": "Arquivo adicionado",

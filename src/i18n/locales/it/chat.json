@@ -709,8 +709,10 @@
       "errors": {
         "fileTooLarge": "File troppo grande",
         "fileTooLargeDescription": "{{fileName}} supera il limite di {{maxSize}}MB",
+        "totalSizeExceeded": "Il totale dei file selezionati supera il limite di {{maxSize}}MB per messaggio.",
         "fileTypeNotAllowed": "Tipo di file non consentito",
-        "fileTypeNotAllowedDescription": "{{fileName}} non è un tipo di file supportato"
+        "fileTypeNotAllowedDescription": "{{fileName}} non è un tipo di file supportato",
+        "mixedAttachmentModes": "Invia documenti e foto/video in messaggi separati."
       },
       "success": {
         "fileAdded": "File aggiunto",

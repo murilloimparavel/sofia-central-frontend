@@ -424,6 +424,7 @@ interface MessagesContextValue {
     cannedResponseId?: string | null,
     onUploadProgress?: (progress: number, fileName: string) => void,
     isRecordedAudio?: boolean | string[],
+    sendAsDocument?: boolean,
   ) => Promise<Message | undefined>;
   // Internal method for template support
   _sendMessageBase: (
@@ -436,6 +437,7 @@ interface MessagesContextValue {
       cannedResponseId?: string | null;
       onUploadProgress?: (progress: number, fileName: string) => void;
       isRecordedAudio?: boolean | string[];
+      sendAsDocument?: boolean;
     },
   ) => Promise<Message | undefined>;
 
@@ -678,6 +680,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         cannedResponseId?: string | null;
         onUploadProgress?: (progress: number, fileName: string) => void;
         isRecordedAudio?: boolean | string[];
+        sendAsDocument?: boolean;
       },
     ) => {
       const {
@@ -687,6 +690,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         cannedResponseId,
         onUploadProgress,
         isRecordedAudio,
+        sendAsDocument,
       } = options;
 
       const currentUser = useAuthStore.getState().currentUser;
@@ -708,7 +712,9 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           ? files.map((file, index) => ({
               id: (Date.now() + index).toString(),
               message_id: Date.now().toString(),
-              file_type: file.type.startsWith('audio/')
+              file_type: sendAsDocument
+                ? ('file' as const)
+                : file.type.startsWith('audio/')
                 ? ('audio' as const)
                 : file.type.startsWith('image/')
                 ? ('image' as const)
@@ -731,7 +737,15 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           content || (files.length > 0 ? (isAudioFile ? '' : `📎 ${files.length} arquivo(s)`) : ''),
         message_type: 'outgoing',
         content_type:
-          files.length > 0 ? (isAudioFile ? 'audio' : isImageFile ? 'image' : 'file') : 'text',
+          files.length > 0
+            ? sendAsDocument
+              ? 'file'
+              : isAudioFile
+                ? 'audio'
+                : isImageFile
+                  ? 'image'
+                  : 'file'
+            : 'text',
         status: 'progress', // Status temporário para mensagem em envio
         created_at: Math.floor(Date.now() / 1000).toString(),
         conversation_id: conversationId,
@@ -775,6 +789,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
                 contentAttributes.in_reply_to as string | number | undefined,
                 pendingMessage.id,
                 isRecordedAudio,
+                sendAsDocument,
               )
             : await chatService.sendMessage(conversationId, {
                 content: messageContent,
@@ -879,6 +894,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       cannedResponseId?: string | null,
       onUploadProgress?: (progress: number, fileName: string) => void,
       isRecordedAudio?: boolean | string[],
+      sendAsDocument?: boolean,
     ) => {
       return _sendMessageBase(conversationId, {
         content,
@@ -887,6 +903,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         cannedResponseId,
         onUploadProgress,
         isRecordedAudio,
+        sendAsDocument,
       });
     },
     [_sendMessageBase],
