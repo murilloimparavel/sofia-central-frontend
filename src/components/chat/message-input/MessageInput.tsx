@@ -257,6 +257,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [isTyping, onTypingStop]);
 
+  // Reset local typing state when switching conversations. ChatArea sends the
+  // matching "off" for the previous conversation using its tracked ID.
+  useEffect(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    setIsTyping(false);
+  }, [conversationId]);
+
   // Cleanup do timeout na desmontagem
   useEffect(() => {
     return () => {

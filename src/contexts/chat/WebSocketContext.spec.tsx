@@ -10,7 +10,7 @@ let capturedHandlers: Record<string, ((data: unknown) => void) | undefined> = {}
 vi.mock('@/hooks/chat/useWebSocket', () => ({
   useWebSocket: (_userId: string, _token: string, opts: { handlers?: typeof capturedHandlers }) => {
     capturedHandlers = opts?.handlers ?? {};
-    return { isConnected: false, sendTypingOn: vi.fn(), sendTypingOff: vi.fn() };
+    return { isConnected: false };
   },
 }));
 

@@ -17,8 +17,6 @@ export interface UseWebSocketReturn {
   isConnected: boolean;
   connect: () => void;
   disconnect: () => void;
-  sendTypingOn: (conversationId: string) => void;
-  sendTypingOff: (conversationId: string) => void;
   updateHandlers: (handlers: Partial<ChatEventHandlers>) => void;
   reconnect: () => void;
 }
@@ -33,7 +31,7 @@ export interface UseWebSocketReturn {
  *
  * @example
  * ```typescript
- * const { connector, isConnected, sendTypingOn } = useWebSocket(userId, token, {
+ * const { connector, isConnected } = useWebSocket(userId, token, {
  *   handlers: {
  *     onMessageCreated: (data) => console.log('Nova mensagem:', data),
  *     onTypingOn: (data) => console.log('Usuário digitando:', data)
@@ -156,34 +154,6 @@ export const useWebSocket = (
   }, [disconnect, connect]);
 
   /**
-   * Enviar indicação de digitação
-   */
-  const sendTypingOn = useCallback(
-    (conversationId: string) => {
-      if (connectorRef.current && isConnected) {
-        connectorRef.current.sendTypingOn(conversationId);
-      } else {
-        console.warn('⚠️ Não é possível enviar typing_on - WebSocket não conectado');
-      }
-    },
-    [isConnected],
-  );
-
-  /**
-   * Enviar parada de digitação
-   */
-  const sendTypingOff = useCallback(
-    (conversationId: string) => {
-      if (connectorRef.current && isConnected) {
-        connectorRef.current.sendTypingOff(conversationId);
-      } else {
-        console.warn('⚠️ Não é possível enviar typing_off - WebSocket não conectado');
-      }
-    },
-    [isConnected],
-  );
-
-  /**
    * Atualizar handlers
    */
   const updateHandlers = useCallback((newHandlers: Partial<ChatEventHandlers>) => {
@@ -282,8 +252,6 @@ export const useWebSocket = (
     isConnected,
     connect,
     disconnect,
-    sendTypingOn,
-    sendTypingOff,
     updateHandlers,
     reconnect,
   };

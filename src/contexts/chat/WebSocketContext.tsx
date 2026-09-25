@@ -196,9 +196,7 @@ interface WebSocketHandlers {
 interface WebSocketContextValue {
   state: WebSocketState;
 
-  // WebSocket actions
-  sendTypingOn: (conversationId: string) => void;
-  sendTypingOff: (conversationId: string) => void;
+  // WebSocket state and inbound events
   getTypingUsers: (
     conversationId: string,
   ) => Array<{ id: string; name: string; avatar_url?: string }>;
@@ -222,11 +220,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const handlersRef = React.useRef<WebSocketHandlers>({});
 
   // WebSocket Integration com dados reais
-  const {
-    isConnected: wsConnected,
-    sendTypingOn: wsSendTypingOn,
-    sendTypingOff: wsSendTypingOff,
-  } = useWebSocket(
+  const { isConnected: wsConnected } = useWebSocket(
     user?.id || '', // ✅ ID real do usuário
     user?.pubsub_token || '', // ✅ Token real do usuário
     {
@@ -739,25 +733,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_WEBSOCKET_CONNECTION', payload: wsConnected });
   }, [wsConnected]);
 
-  // WebSocket functions
-  const sendTypingOn = useCallback(
-    (conversationId: string) => {
-      if (wsConnected) {
-        wsSendTypingOn(conversationId);
-      }
-    },
-    [wsConnected, wsSendTypingOn],
-  );
-
-  const sendTypingOff = useCallback(
-    (conversationId: string) => {
-      if (wsConnected) {
-        wsSendTypingOff(conversationId);
-      }
-    },
-    [wsConnected, wsSendTypingOff],
-  );
-
   const getTypingUsers = useCallback(
     (conversationId: string) => {
       return state.typingUsers[conversationId] || [];
@@ -783,8 +758,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const contextValue: WebSocketContextValue = useMemo(
     () => ({
       state,
-      sendTypingOn,
-      sendTypingOff,
       getTypingUsers,
       isWebSocketConnected,
       getPresenceStatus,
@@ -792,8 +765,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       state,
-      sendTypingOn,
-      sendTypingOff,
       getTypingUsers,
       isWebSocketConnected,
       getPresenceStatus,
