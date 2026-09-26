@@ -397,6 +397,10 @@
           "label": "Enable auto assignment",
           "description": "New conversations will be automatically assigned to available team members"
         },
+        "assignOnReply": {
+          "label": "Assign to the agent who replies",
+          "description": "Assign an unassigned conversation to the first agent who sends a public reply."
+        },
         "maxLimit": {
           "title": "Maximum Conversations Limit",
           "label": "Maximum conversations per team member",

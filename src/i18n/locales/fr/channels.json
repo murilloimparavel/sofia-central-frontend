@@ -381,6 +381,10 @@
           "label": "Activer l'attribution automatique",
           "description": "Les nouvelles conversations seront automatiquement attribuées aux Agents disponibles"
         },
+        "assignOnReply": {
+          "label": "Attribuer à l'Agent qui répond",
+          "description": "Attribue une conversation sans responsable au premier Agent qui envoie une réponse publique."
+        },
         "maxLimit": {
           "title": "Limite Maximale de Conversations",
           "label": "Maximum de conversations par Agent",

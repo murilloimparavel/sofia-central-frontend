@@ -14,14 +14,16 @@ import type { AgentChannel } from '@/types/channels/inbox';
 interface CollaboratorsFormProps {
   inboxId: string;
   enableAutoAssignment?: boolean;
+  assignOnAgentReply?: boolean;
   maxAssignmentLimit?: number | null;
   registerSave?: (handle: TabSaveHandle | null) => void;
-  onAutoAssignmentChange?: (enabled: boolean, limit?: number | null) => void;
+  onAutoAssignmentChange?: (enabled: boolean, limit?: number | null, assignOnAgentReply?: boolean) => void;
 }
 
 export default function CollaboratorsForm({
   inboxId,
   enableAutoAssignment: initialAutoAssignment = false,
+  assignOnAgentReply: initialAssignOnAgentReply = false,
   maxAssignmentLimit: initialMaxLimit = null,
   registerSave,
   onAutoAssignmentChange,
@@ -32,6 +34,7 @@ export default function CollaboratorsForm({
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
   const [isUpdatingAgents, setIsUpdatingAgents] = useState(false);
   const [enableAutoAssignment, setEnableAutoAssignment] = useState(initialAutoAssignment);
+  const [assignOnAgentReply, setAssignOnAgentReply] = useState(initialAssignOnAgentReply);
   const [maxAssignmentLimit, setMaxAssignmentLimit] = useState<number | null>(initialMaxLimit);
   const [isUpdatingAssignment, setIsUpdatingAssignment] = useState(false);
 
@@ -80,6 +83,7 @@ export default function CollaboratorsForm({
   // Use a ref to track previous values to ensure we update even when value is null
   const prevMaxLimitRef = useRef<number | null | undefined>(initialMaxLimit);
   const prevAutoAssignmentRef = useRef<boolean>(initialAutoAssignment);
+  const prevAssignOnAgentReplyRef = useRef<boolean>(initialAssignOnAgentReply);
 
   useEffect(() => {
     // Only update if values actually changed
@@ -88,13 +92,18 @@ export default function CollaboratorsForm({
       prevAutoAssignmentRef.current = initialAutoAssignment;
     }
 
+    if (prevAssignOnAgentReplyRef.current !== initialAssignOnAgentReply) {
+      setAssignOnAgentReply(initialAssignOnAgentReply);
+      prevAssignOnAgentReplyRef.current = initialAssignOnAgentReply;
+    }
+
     // Normalize undefined to null for comparison
     const normalizedMaxLimit = initialMaxLimit !== undefined ? initialMaxLimit : null;
     if (prevMaxLimitRef.current !== normalizedMaxLimit) {
       setMaxAssignmentLimit(normalizedMaxLimit);
       prevMaxLimitRef.current = normalizedMaxLimit;
     }
-  }, [initialAutoAssignment, initialMaxLimit]);
+  }, [initialAutoAssignment, initialAssignOnAgentReply, initialMaxLimit]);
 
   const handleAgentToggle = (agent: AgentChannel) => {
     setSelectedAgents(prev => {
@@ -145,13 +154,29 @@ export default function CollaboratorsForm({
     try {
       // Call parent callback or API to update auto assignment
       if (onAutoAssignmentChange) {
-        await onAutoAssignmentChange(checked, maxAssignmentLimit);
+        await onAutoAssignmentChange(checked, maxAssignmentLimit, assignOnAgentReply);
       }
       toast.success(t('settings.collaborators.autoAssignment.success.updated'));
     } catch (error) {
       console.error('Error updating auto assignment:', error);
       toast.error(t('settings.collaborators.autoAssignment.errors.updateError'));
       setEnableAutoAssignment(!checked); // Revert on error
+    } finally {
+      setIsUpdatingAssignment(false);
+    }
+  };
+
+  const handleAssignOnAgentReplyToggle = async (checked: boolean) => {
+    setAssignOnAgentReply(checked);
+    setIsUpdatingAssignment(true);
+
+    try {
+      await onAutoAssignmentChange?.(enableAutoAssignment, maxAssignmentLimit, checked);
+      toast.success(t('settings.collaborators.autoAssignment.success.updated'));
+    } catch (error) {
+      console.error('Error updating assign-on-reply setting:', error);
+      toast.error(t('settings.collaborators.autoAssignment.errors.updateError'));
+      setAssignOnAgentReply(!checked);
     } finally {
       setIsUpdatingAssignment(false);
     }
@@ -369,6 +394,23 @@ export default function CollaboratorsForm({
               <Switch
                 checked={enableAutoAssignment}
                 onCheckedChange={handleAutoAssignmentToggle}
+                disabled={isUpdatingAssignment}
+              />
+            </div>
+
+            {/* Assign an unassigned conversation to the human agent who replies */}
+            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+              <div>
+                <label className="text-sm font-medium text-foreground">
+                  {t('settings.collaborators.autoAssignment.assignOnReply.label')}
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.collaborators.autoAssignment.assignOnReply.description')}
+                </p>
+              </div>
+              <Switch
+                checked={assignOnAgentReply}
+                onCheckedChange={handleAssignOnAgentReplyToggle}
                 disabled={isUpdatingAssignment}
               />
             </div>

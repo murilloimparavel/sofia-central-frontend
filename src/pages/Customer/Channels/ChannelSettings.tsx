@@ -804,18 +804,21 @@ export default function ChannelSettings({ inboxId: inboxIdProp, onExit }: Channe
                 inboxId={inboxId}
                 registerSave={handle => registerTabSave('collaborators', handle)}
                 enableAutoAssignment={inbox?.enable_auto_assignment === true}
+                assignOnAgentReply={inbox?.auto_assignment_config?.assign_on_agent_reply === true}
                 maxAssignmentLimit={
                   inbox?.auto_assignment_config?.max_assignment_limit !== undefined
                     ? inbox.auto_assignment_config.max_assignment_limit
                     : null
                 }
-                onAutoAssignmentChange={async (enabled, limit) => {
+                onAutoAssignmentChange={async (enabled, limit, assignOnAgentReply) => {
                   // Update inbox auto assignment settings
                   const payload = {
                     id: inboxId,
                     enable_auto_assignment: enabled,
                     auto_assignment_config: {
+                      ...inbox?.auto_assignment_config,
                       max_assignment_limit: limit,
+                      assign_on_agent_reply: assignOnAgentReply,
                     },
                   };
                   await InboxesService.update(inboxId, payload);
