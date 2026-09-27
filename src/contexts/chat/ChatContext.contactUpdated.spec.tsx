@@ -20,6 +20,7 @@ const auth = vi.hoisted(() => ({
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => auth,
+  useOptionalAuth: () => auth,
 }));
 
 vi.mock('@/hooks/useLanguage', () => ({

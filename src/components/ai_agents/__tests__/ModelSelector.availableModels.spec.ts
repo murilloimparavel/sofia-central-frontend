@@ -19,6 +19,12 @@ const PROVIDER_PREFIX: Record<string, string> = {
   vertex_ai: 'vertex_ai/',
 };
 
+// Perplexity's pinned Sonar Chat Completions IDs retired on 2026-09-27. Until this picker
+// supports Agent API model IDs, that provider intentionally has no pinned fallback.
+const PROVIDERS_REQUIRING_PINNED_FALLBACK = Object.keys(PROVIDER_PREFIX).filter(
+  provider => provider !== 'perplexity',
+);
+
 // Mirrors ProviderSupportsDynamicModels in the core-service
 // (pkg/api_key/service/models_fetcher.go); update both together.
 const LISTS_LIVE = ['openai', 'gemini', 'anthropic', 'openrouter', 'deepseek', 'together_ai', 'fireworks_ai'];
@@ -64,8 +70,8 @@ describe('availableModels', () => {
     expect(oversized).toEqual([]);
   });
 
-  it('pins at least one entry per provider, so a failed listing is never an empty picker', () => {
-    const empty = Object.keys(PROVIDER_PREFIX).filter(
+  it('pins at least one current fallback entry per provider that requires one', () => {
+    const empty = PROVIDERS_REQUIRING_PINNED_FALLBACK.filter(
       p => !availableModels.some(m => m.provider === p),
     );
     expect(empty).toEqual([]);

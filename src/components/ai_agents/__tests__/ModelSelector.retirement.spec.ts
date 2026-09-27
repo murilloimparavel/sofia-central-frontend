@@ -19,12 +19,6 @@ import { availableModels } from '@/components/ai_agents/ModelSelector';
 // an expiry, so it is no deadline to assert. That axis reads the live lifecycle instead,
 // in ModelSelector.bedrockLifecycle.spec.ts.
 const RETIRES_ON: Record<string, string> = {
-  // Perplexity supports Sonar Chat Completions until this date; CRM-462 owns the move to
-  // the Agent API, and this is its "or the axis is emptied" half.
-  'perplexity/sonar': '2026-09-27',
-  'perplexity/sonar-pro': '2026-09-27',
-  'perplexity/sonar-reasoning-pro': '2026-09-27',
-  'perplexity/sonar-deep-research': '2026-09-27',
   // Vertex retires the whole Gemini 2.5 family. Pro has no GA successor to pin yet
   // (3.1 Pro is still Preview), which is exactly why the date needs a guard.
   'vertex_ai/gemini-2.5-pro': '2026-10-16',
