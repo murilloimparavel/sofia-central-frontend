@@ -602,73 +602,59 @@ const ChatSidebar = ({
           disabled={filters.state.isApplyingFilters}
         />
 
-        {/* Chips de segmento (Abertas/Pendentes/Concluídas/Agente/Grupos) — SÓ
-            aparecem com a busca focada (spec do protótipo: "filtros rápidos
-            ao focar a busca"), não fixos abaixo da aba Ativas. */}
-        {!showArchived && !selectionMode && isSearchPanelOpen && (
-          <ConversationSegments
-            activeFilters={filters.state.activeFilters}
-            onSelectSegment={handleApplyFilters}
-            disabled={filters.state.isApplyingFilters}
-          />
-        )}
-
-        {/* Linha "Ativas"/"Arquivadas" — navegação de nível superior (não
-            filtro de status). "Ativas": texto+sublinhado verde-claro quando
-            ativa, com seta "←" quando dentro de Arquivadas (voltar). O ícone
-            de caixa (Arquivadas) fica na MESMA linha, à direita, sem label —
-            só tooltip. Espelha exatamente o protótipo (não é um segmented
-            control nem duas seções empilhadas). */}
-        {!selectionMode && (
-          <div className="flex items-center justify-between border-b pb-0">
-            <button
-              type="button"
-              onClick={() => {
-                if (!showArchived) return;
-                setShowArchived(false);
-                void filters.applyFilters(
-                  filters.state.activeFilters,
-                  (c, p, q) => conversations.setConversations(c, p, q),
-                  () => {},
-                );
-              }}
-              className={`flex items-center gap-1.5 pb-2.5 text-sm cursor-pointer ${
-                !showArchived
-                  ? 'font-semibold text-foreground border-b-2 border-primary'
-                  : 'font-medium text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {showArchived && <ArrowLeft className="h-3.5 w-3.5" />}
-              {t('chatSidebar.view.active', 'Ativas')}
-            </button>
-            {!showArchived && (
-              <button
-                type="button"
-                title={t('chatSidebar.view.archived')}
-                aria-label={t('chatSidebar.view.archived')}
-                onClick={() => {
-                  setShowArchived(true);
-                  void conversations.loadConversations({ status: 'all', archived: true, per_page: 100 });
-                }}
-                className="flex items-center pb-2.5 text-muted-foreground hover:text-primary cursor-pointer"
-              >
-                <Archive className="h-[22px] w-[22px]" strokeWidth={2} />
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Contagem + Filtros — sem botão "Selecionar" (entra em modo seleção
             via clique-direito → "Selecionar Conversa", ver context menu). */}
         {!selectionMode && (
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              {(conversations.state.conversationsPagination?.total || visibleConversations.length)}{' '}
-              {(conversations.state.conversationsPagination?.total || visibleConversations.length) === 1
-                ? t('chatSidebar.conversation')
-                : t('chatSidebar.conversations')}
-            </span>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm text-muted-foreground">
+                {(conversations.state.conversationsPagination?.total || visibleConversations.length)}{' '}
+                {(conversations.state.conversationsPagination?.total || visibleConversations.length) === 1
+                  ? t('chatSidebar.conversation')
+                  : t('chatSidebar.conversations')}
+              </span>
+              {!showArchived && (
+                <ConversationSegments
+                  compact
+                  activeFilters={filters.state.activeFilters}
+                  onSelectSegment={handleApplyFilters}
+                  disabled={filters.state.isApplyingFilters}
+                />
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {!showArchived ? (
+                <button
+                  type="button"
+                  title={t('chatSidebar.view.archived')}
+                  aria-label={t('chatSidebar.view.archived')}
+                  onClick={() => {
+                    setShowArchived(true);
+                    void conversations.loadConversations({ status: 'all', archived: true, per_page: 100 });
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-primary cursor-pointer"
+                >
+                  <Archive className="h-5 w-5" strokeWidth={2} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  title={t('chatSidebar.view.active', 'Ativas')}
+                  aria-label={t('chatSidebar.view.active', 'Ativas')}
+                  onClick={() => {
+                    setShowArchived(false);
+                    void filters.applyFilters(
+                      filters.state.activeFilters,
+                      (c, p, q) => conversations.setConversations(c, p, q),
+                      () => {},
+                    );
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-primary cursor-pointer"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+              )}
+
               {/* Indicador de filtros ativos (status é navegação, não conta) */}
               {appliedFilterCount > 0 && (
                 <Badge variant="secondary" className="text-xs">

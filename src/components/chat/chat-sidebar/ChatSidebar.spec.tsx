@@ -207,6 +207,36 @@ describe('ChatSidebar scope navigation', () => {
       expect.objectContaining({ attributeKey: 'status', values: 'pending' }),
     ]);
   });
+
+  it('keeps quick status filters available in the compact toolbar dropdown', async () => {
+    const onFilterApply = vi.fn();
+    render(<ChatSidebar {...defaultProps} onFilterApply={onFilterApply} />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'chatSidebar.segments.ariaLabel' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'chatSidebar.segments.open' }));
+
+    expect(onFilterApply).toHaveBeenCalledWith([
+      expect.objectContaining({ attributeKey: 'status', values: 'open' }),
+    ]);
+  });
+
+  it('keeps archive navigation in the compact toolbar and returns to active conversations', async () => {
+    const context = makeMockContext();
+    overrideContext = context;
+    render(<ChatSidebar {...defaultProps} />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'chatSidebar.view.archived' }));
+    expect(context.conversations.loadConversations).toHaveBeenCalledWith({
+      status: 'all',
+      archived: true,
+      per_page: 100,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'chatSidebar.view.active' }));
+    expect(context.filters.applyFilters).toHaveBeenCalled();
+  });
 });
 
 const makePaginatedContext = (hasNextPage: boolean, loadMoreFn = vi.fn().mockResolvedValue(undefined)) => {

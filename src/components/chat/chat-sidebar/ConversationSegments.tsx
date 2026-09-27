@@ -17,6 +17,8 @@ interface ConversationSegmentsProps {
   activeFilters: ConversationFilter[];
   /** Applies the segment preset through the existing filter pipeline. */
   onSelectSegment: (preset: BaseFilter[]) => void;
+  /** Render all quick filters inside one compact dropdown instead of chips. */
+  compact?: boolean;
   disabled?: boolean;
 }
 
@@ -34,6 +36,7 @@ const CHIP_CLASS = 'h-8 shrink-0 cursor-pointer px-2.5 text-xs';
 const ConversationSegments = ({
   activeFilters,
   onSelectSegment,
+  compact = false,
   disabled = false,
 }: ConversationSegmentsProps) => {
   const { t } = useLanguage('chat');
@@ -47,6 +50,8 @@ const ConversationSegments = ({
   // reservando espaço pro botão de overflow. useLayoutEffect = colapsa antes do
   // paint (sem flicker). Recalcula no resize (ResizeObserver) e na troca de idioma.
   useLayoutEffect(() => {
+    if (compact) return;
+
     const container = containerRef.current;
     const measureLayer = measureRef.current;
     if (!container || !measureLayer) return;
@@ -86,7 +91,7 @@ const ConversationSegments = ({
     const observer = new ResizeObserver(compute);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [t]);
+  }, [compact, t]);
 
   const visible = CONVERSATION_SEGMENTS.slice(0, visibleCount);
   const overflow = CONVERSATION_SEGMENTS.slice(visibleCount);
@@ -96,6 +101,37 @@ const ConversationSegments = ({
     // Toggle: clicar no chip já ativo desmarca e volta pro All.
     onSelectSegment(segmentId === activeId ? ALL_SEGMENT_PRESET : preset);
   };
+
+  if (compact) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant={activeId ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 w-9 shrink-0 px-0 cursor-pointer"
+            disabled={disabled}
+            aria-label={t('chatSidebar.segments.ariaLabel')}
+            title={t('chatSidebar.segments.ariaLabel')}
+          >
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {CONVERSATION_SEGMENTS.map(segment => (
+            <DropdownMenuItem
+              key={segment.id}
+              className={`cursor-pointer ${segment.id === activeId ? 'font-semibold' : ''}`}
+              onClick={() => applySegment(segment.id, segment.preset)}
+            >
+              {t(segment.labelKey)}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   return (
     <div
