@@ -86,6 +86,7 @@ export const COMMON_ALLOWED = new Set<string>([
 ]);
 
 export const PER_FILE_ALLOWED: Record<string, Set<string>> = {
+  'layout.json': new Set(['SOFIA Central']),
   'adminSettings.json': new Set([
     'Frontend Runtime', 'Google OAuth', 'Relay (Exim / Postfix / Qmail)',
   ]),

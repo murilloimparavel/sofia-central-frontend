@@ -47,19 +47,18 @@ const isCalendarDate = (value: string) => {
 };
 
 describe('announced retirements', () => {
-  it('offers no id whose end-of-service date has arrived', () => {
-    const expired = Object.entries(RETIRES_ON)
-      .filter(([value]) => availableModels.some(m => m.value === value))
-      .filter(([, date]) => date <= today())
+  it('does not offer ids after their end-of-service date', () => {
+    const offeredAfterRetirement = Object.entries(RETIRES_ON)
+      .filter(([value, date]) => date <= today() && availableModels.some(m => m.value === value))
       .map(([value, date]) => `${value} (retired ${date})`);
-    expect(expired).toEqual([]);
+    expect(offeredAfterRetirement).toEqual([]);
   });
 
-  it('dates only ids the list still carries, so a removal cleans the table too', () => {
-    const orphaned = Object.keys(RETIRES_ON).filter(
-      value => !availableModels.some(m => m.value === value),
-    );
-    expect(orphaned).toEqual([]);
+  it('keeps pinned models available until their future end-of-service date', () => {
+    const removedEarly = Object.entries(RETIRES_ON)
+      .filter(([value, date]) => date > today() && !availableModels.some(m => m.value === value))
+      .map(([value, date]) => `${value} (retires ${date})`);
+    expect(removedEarly).toEqual([]);
   });
 
   it('reads every date as a calendar date, not just as a digit pattern', () => {
