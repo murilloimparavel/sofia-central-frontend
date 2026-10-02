@@ -15,7 +15,8 @@
       "contextMenu": {
         "reply": "Responder",
         "copy": "Copiar mensaje",
-        "delete": "Eliminar mensaje"
+        "delete": "Eliminar mensaje",
+        "forward": "Reenviar"
       },
       "userFallback": "Usuario",
       "agent": {
@@ -107,6 +108,20 @@
       "noContent": "Mensaje sin contenido",
       "userFallback": "Usuario",
       "previousMessage": "Mensaje anterior"
+    },
+    "forward": {
+      "title": "Reenviar mensajes",
+      "description": "Selecciona hasta 10 mensajes y 5 contactos. Se enviarán gradualmente.",
+      "messages": "Mensajes",
+      "recipients": "Contactos",
+      "attachment": "Archivo adjunto",
+      "searchPlaceholder": "Buscar contacto por nombre o teléfono",
+      "removeContact": "Quitar {{name}}",
+      "searchError": "No se pudieron buscar contactos.",
+      "sendError": "No se pudieron reenviar los mensajes.",
+      "queued": "Envíos en cola para {{count}} contactos.",
+      "send": "Reenviar",
+      "cancel": "Cancelar"
     }
   },
   "assignment": {
