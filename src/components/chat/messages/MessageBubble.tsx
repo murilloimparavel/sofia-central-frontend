@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@evoapi/design-system/alert-dialog';
-import { LockIcon, Reply, Copy, Trash2, AlertTriangle, Shield, Ban } from 'lucide-react';
+import { LockIcon, Reply, Copy, Trash2, AlertTriangle, Shield, Ban, Forward } from 'lucide-react';
 import { Message, MESSAGE_TYPE } from '@/types/chat/api';
 import { useLanguage } from '@/hooks/useLanguage';
 import MessageText from '@/components/chat/messages/MessageText';
@@ -51,6 +51,8 @@ interface MessageBubbleProps {
   onReply?: (message: Message) => void;
   onCopy?: (message: Message) => void;
   onDelete?: (message: Message) => void;
+  onForward?: (message: Message) => void;
+  canForward?: boolean;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -71,6 +73,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReply,
   onCopy,
   onDelete,
+  onForward,
+  canForward = false,
 }) => {
   const { t } = useLanguage('chat');
   const isTemplate = message.message_type === MESSAGE_TYPE.TEMPLATE;
@@ -148,6 +152,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             <Copy className="h-4 w-4" />
             {t('messages.messageBubble.contextMenu.copy')}
           </ContextMenuItem>
+          {canForward && !isPrivate && !isRevokedByContact && message.status !== 'progress' && (
+            <ContextMenuItem onClick={() => onForward?.(message)} className="flex items-center gap-2">
+              <Forward className="h-4 w-4" />
+              {t('messages.messageBubble.contextMenu.forward')}
+            </ContextMenuItem>
+          )}
           <ContextMenuSeparator />
           <ContextMenuItem
             onClick={handleDeleteMessage}

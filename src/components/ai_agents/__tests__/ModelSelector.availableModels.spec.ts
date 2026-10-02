@@ -23,6 +23,11 @@ const PROVIDER_PREFIX: Record<string, string> = {
 // (pkg/api_key/service/models_fetcher.go); update both together.
 const LISTS_LIVE = ['openai', 'gemini', 'anthropic', 'openrouter', 'deepseek', 'together_ai', 'fireworks_ai'];
 
+// These providers have no live listing and still have current pinned models.
+// Perplexity is omitted while its Sonar endpoint is retired and Agent API
+// integration is not available in the core service.
+const PINNED_FALLBACK_PROVIDERS = ['bedrock', 'vertex_ai'];
+
 // One current family. The live list wins the moment a key is chosen, so each extra
 // pinned entry is only more surface to rot.
 const MAX_PINNED_WHEN_LISTED_LIVE = 3;
@@ -64,8 +69,8 @@ describe('availableModels', () => {
     expect(oversized).toEqual([]);
   });
 
-  it('pins at least one entry per provider, so a failed listing is never an empty picker', () => {
-    const empty = Object.keys(PROVIDER_PREFIX).filter(
+  it('pins a fallback for providers with current models but no live listing', () => {
+    const empty = PINNED_FALLBACK_PROVIDERS.filter(
       p => !availableModels.some(m => m.provider === p),
     );
     expect(empty).toEqual([]);

@@ -15,7 +15,8 @@
       "contextMenu": {
         "reply": "Rispondi",
         "copy": "Copia messaggio",
-        "delete": "Elimina messaggio"
+        "delete": "Elimina messaggio",
+        "forward": "Inoltra"
       },
       "userFallback": "Utente",
       "agent": {
@@ -107,6 +108,20 @@
       "noContent": "Messaggio senza contenuto",
       "userFallback": "Utente",
       "previousMessage": "Messaggio precedente"
+    },
+    "forward": {
+      "title": "Inoltra messaggi",
+      "description": "Seleziona fino a 10 messaggi e 5 contatti. L’invio sarà graduale.",
+      "messages": "Messaggi",
+      "recipients": "Contatti",
+      "attachment": "Allegato",
+      "searchPlaceholder": "Cerca per nome o telefono",
+      "removeContact": "Rimuovi {{name}}",
+      "searchError": "Impossibile cercare i contatti.",
+      "sendError": "Impossibile inoltrare i messaggi.",
+      "queued": "Invii aggiunti alla coda per {{count}} contatti.",
+      "send": "Inoltra",
+      "cancel": "Annulla"
     }
   },
   "assignment": {

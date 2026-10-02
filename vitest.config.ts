@@ -15,4 +15,5 @@ export default defineConfig({
     include: ['src/**/*.spec.ts', 'src/**/*.spec.tsx'],
     setupFiles: ['./src/test/setup.ts'],
   },
+  cacheDir: process.env.VITEST_CACHE_DIR || 'node_modules/.vite',
 });

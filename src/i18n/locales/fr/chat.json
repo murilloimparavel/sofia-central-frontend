@@ -15,7 +15,8 @@
       "contextMenu": {
         "reply": "Répondre",
         "copy": "Copier le message",
-        "delete": "Supprimer le message"
+        "delete": "Supprimer le message",
+        "forward": "Transférer"
       },
       "userFallback": "Utilisateur",
       "agent": {
@@ -107,6 +108,20 @@
       "noContent": "Message sans contenu",
       "userFallback": "Utilisateur",
       "previousMessage": "Message précédent"
+    },
+    "forward": {
+      "title": "Transférer des messages",
+      "description": "Sélectionnez jusqu’à 10 messages et 5 contacts. L’envoi sera progressif.",
+      "messages": "Messages",
+      "recipients": "Contacts",
+      "attachment": "Pièce jointe",
+      "searchPlaceholder": "Rechercher par nom ou téléphone",
+      "removeContact": "Retirer {{name}}",
+      "searchError": "Recherche des contacts impossible.",
+      "sendError": "Impossible de transférer les messages.",
+      "queued": "Envois mis en file pour {{count}} contacts.",
+      "send": "Transférer",
+      "cancel": "Annuler"
     }
   },
   "assignment": {

@@ -13,6 +13,7 @@ import { ChevronDown, Loader2 } from 'lucide-react';
 import MessageBubble from '@/components/chat/messages/MessageBubble';
 import PostPreview from '@/components/chat/messages/PostPreview';
 import SystemMessage from '@/components/chat/messages/SystemMessage';
+import ForwardMessagesDialog from '@/components/chat/messages/ForwardMessagesDialog';
 
 import { Message, MESSAGE_TYPE } from '@/types/chat/api';
 
@@ -58,6 +59,7 @@ interface MessageListProps {
   isInitialLoading: boolean;
   labels?: Array<{ id: string; title: string; color: string }>;
   isPostConversation?: boolean;
+  canForwardMessages?: boolean;
   postData?: PostData;
   messageModerations?: Map<string, FacebookCommentModeration>; // Map of message_id -> moderation
   onLoadMore: () => void;
@@ -115,6 +117,7 @@ const MessageList: React.FC<MessageListProps> = ({
   isInitialLoading,
   labels = [],
   isPostConversation = false,
+  canForwardMessages = false,
   postData,
   messageModerations,
   onLoadMore,
@@ -128,6 +131,7 @@ const MessageList: React.FC<MessageListProps> = ({
   const [isNearBottom, setIsNearBottom] = useState(true);
   const isNearBottomRef = useRef(true);
   const [hasNewMessage, setHasNewMessage] = useState(false);
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const lastSettledRef = useRef<{ id: string; timestamp: number } | null>(null);
   const lastPendingIdRef = useRef<string | null>(null);
   const conversationIdRef = useRef<string | null>(null);
@@ -512,6 +516,8 @@ const MessageList: React.FC<MessageListProps> = ({
                           onReply={onReplyToMessage}
                           onCopy={onCopyMessage}
                           onDelete={onDeleteMessage}
+                          onForward={setForwardMessage}
+                          canForward={canForwardMessages}
                         />
 
                         {/* Renderizar respostas aninhadas recursivamente */}
@@ -595,6 +601,8 @@ const MessageList: React.FC<MessageListProps> = ({
                           onReply={onReplyToMessage}
                           onCopy={onCopyMessage}
                           onDelete={onDeleteMessage}
+                          onForward={setForwardMessage}
+                          canForward={canForwardMessages}
                         />
                       </div>
                     </div>
@@ -649,6 +657,8 @@ const MessageList: React.FC<MessageListProps> = ({
                     onReply={onReplyToMessage}
                     onCopy={onCopyMessage}
                     onDelete={onDeleteMessage}
+                    onForward={setForwardMessage}
+                    canForward={canForwardMessages}
                   />
                 </div>
               );
@@ -656,6 +666,13 @@ const MessageList: React.FC<MessageListProps> = ({
           })()}
         </div>
       </div>
+
+      <ForwardMessagesDialog
+        open={Boolean(forwardMessage)}
+        onOpenChange={open => { if (!open) setForwardMessage(null); }}
+        messages={allOrderedMessages}
+        initialMessage={forwardMessage}
+      />
 
       {/* Botão voltar ao final / indicador de mensagem nova */}
       {!isNearBottom && (

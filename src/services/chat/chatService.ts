@@ -220,6 +220,13 @@ class ChatService {
     return extractData<Message>(response);
   }
 
+  async forwardMessages(conversationId: string, messageIds: string[], contactIds: string[]): Promise<void> {
+    await api.post(`/conversations/${conversationId}/messages/forward`, {
+      message_ids: messageIds,
+      contact_ids: contactIds,
+    });
+  }
+
   async sendMessageWithAttachments(
     conversationId: string,
     content: string,

@@ -367,6 +367,7 @@ const ChatArea = ({
             hasMoreMessages={messages.canLoadMore(selectedConversationId)}
             isLoadingMore={messages.isLoadingMore(selectedConversationId)}
             isInitialLoading={false}
+            canForwardMessages={isWhatsAppChannel}
             labels={labels}
             isPostConversation={
               selectedConversation?.additional_attributes?.conversation_type === 'post'

@@ -16,7 +16,8 @@
       "contextMenu": {
         "reply": "Reply",
         "copy": "Copy message",
-        "delete": "Delete message"
+        "delete": "Delete message",
+        "forward": "Forward"
       },
       "userFallback": "User",
       "agent": {
@@ -108,6 +109,20 @@
       "noContent": "Message with no content",
       "userFallback": "User",
       "previousMessage": "Previous message"
+    },
+    "forward": {
+      "title": "Forward messages",
+      "description": "Select up to 10 messages and 5 contacts. Messages will be sent gradually.",
+      "messages": "Messages",
+      "recipients": "Contacts",
+      "attachment": "Attachment",
+      "searchPlaceholder": "Search contacts by name or phone",
+      "removeContact": "Remove {{name}}",
+      "searchError": "Could not search contacts.",
+      "sendError": "Could not forward messages.",
+      "queued": "Messages queued for {{count}} contacts.",
+      "send": "Forward",
+      "cancel": "Cancel"
     }
   },
   "assignment": {
