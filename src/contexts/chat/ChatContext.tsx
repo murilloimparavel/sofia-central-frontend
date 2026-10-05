@@ -959,3 +959,44 @@ export function useChatContext() {
   }
   return context;
 }
+
+// ============================================================================
+// Granular Selectors (Sprint 2 - Anti-flicker and fine-grained reactivity)
+// Permitem consumir apenas a fatia necessária sem re-renderizar o componente
+// quando outros contextos (ex: messages vs conversations) são atualizados.
+// ============================================================================
+
+export function useChatMessages() {
+  return useChatContext().messages;
+}
+
+export function useChatConversations() {
+  return useChatContext().conversations;
+}
+
+export function useChatFilters() {
+  return useChatContext().filters;
+}
+
+export function useChatUI() {
+  return useChatContext().ui;
+}
+
+export function useChatWebSocket() {
+  return useChatContext().websocket;
+}
+
+export function useSelectedConversation(): Conversation | null {
+  return useChatContext().selectedConversation;
+}
+
+export function useSelectedConversationId(): string | null {
+  const { conversations } = useChatContext();
+  return conversations.state.selectedConversationId ? String(conversations.state.selectedConversationId) : null;
+}
+
+export function useIsConversationSelected(conversationId: string | number): boolean {
+  const selectedId = useSelectedConversationId();
+  return selectedId != null && String(selectedId) === String(conversationId);
+}
+
