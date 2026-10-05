@@ -45,10 +45,15 @@ import type { CannedResponse } from '@/types/knowledge';
 import { MessageTemplateModal } from '../message-template';
 import '../rich-text-editor/RichTextEditor.css';
 import { getModifierSymbol } from '@/utils/platform';
+import {
+  isAttachmentBatchWithinLimit,
+  MAX_ATTACHMENT_SIZE_MB,
+} from './uploadLimits';
 
 interface SendMessageOptions {
   content: string;
   files?: File[];
+  sendAsDocument?: boolean;
   isPrivate?: boolean;
   templateParams?: any;
   cannedResponseId?: string | null;
@@ -106,6 +111,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   }, [channelType]);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFilesAsDocuments, setSelectedFilesAsDocuments] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [isTyping, setIsTyping] = useState(false);
@@ -250,6 +256,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
       onTypingStop();
     }
   }, [isTyping, onTypingStop]);
+
+  // Reset local typing state when switching conversations. ChatArea sends the
+  // matching "off" for the previous conversation using its tracked ID.
+  useEffect(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    setIsTyping(false);
+  }, [conversationId]);
 
   // Cleanup do timeout na desmontagem
   useEffect(() => {
@@ -406,6 +422,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       await onSendMessage({
         content: currentMessage,
         files: filesToSend.length > 0 ? filesToSend : undefined,
+        sendAsDocument: selectedFilesAsDocuments,
         isPrivate: false,
         templateParams: undefined,
         cannedResponseId: selectedCannedResponseId,
@@ -415,6 +432,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       richEditorRef.current?.clear();
       setCurrentEditorMessage('');
       setSelectedFiles([]);
+      setSelectedFilesAsDocuments(false);
       setUploadProgress({});
 
       setSelectedCannedResponse(null);
@@ -508,12 +526,23 @@ const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, [showCannedResponses]);
 
-  const handleFilesSelected = useCallback((files: File[]) => {
+  const handleFilesSelected = useCallback((files: File[], asDocument = false) => {
     if (hasCannedMedia) {
       toast.info(t('messageInput.cannedResponse.mediaBlocksManualUpload'));
       return;
     }
+    if (selectedFiles.length > 0 && selectedFilesAsDocuments !== asDocument) {
+      toast.error(t('messageInput.fileUpload.errors.mixedAttachmentModes'));
+      return;
+    }
+    if (!isAttachmentBatchWithinLimit(selectedFiles, files)) {
+      toast.error(t('messageInput.fileUpload.errors.fileTooLarge'), {
+        description: t('messageInput.fileUpload.errors.totalSizeExceeded', { maxSize: MAX_ATTACHMENT_SIZE_MB }),
+      });
+      return;
+    }
     setSelectedFiles(prev => [...prev, ...files]);
+    setSelectedFilesAsDocuments(asDocument);
     const count = files.length;
     toast.success(
       count === 1
@@ -523,7 +552,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         duration: 2000,
       },
     );
-  }, [t, hasCannedMedia]);
+  }, [t, hasCannedMedia, selectedFiles.length, selectedFilesAsDocuments]);
 
   // Handle media paste from clipboard (Ctrl+V / Cmd+V)
   useEffect(() => {
@@ -553,7 +582,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
   }, [isDisabled, isSending, handleFilesSelected]);
 
   const handleRemoveFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setSelectedFiles(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 0) setSelectedFilesAsDocuments(false);
+      return next;
+    });
   };
 
   const handleSendFiles = async () => {
@@ -825,8 +858,17 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 the other two are click-only (menu-triggered) pickers. */}
             <FileUpload
               inputId="composer-file-input-all"
-              onFilesSelected={handleFilesSelected}
-              maxFileSize={100}
+              onFilesSelected={files => {
+                const documents = files.every(file =>
+                  /\.(pdf|docx?|xlsx?|pptx?|txt|csv|rtf)$/i.test(file.name) ||
+                  file.type.startsWith('image/') || file.type.startsWith('video/') ||
+                  file.type.startsWith('text/') || file.type === 'application/pdf' ||
+                  file.type.includes('officedocument') || file.type.includes('msword') ||
+                  file.type.includes('ms-excel') || file.type.includes('ms-powerpoint'),
+                );
+                handleFilesSelected(files, documents);
+              }}
+              maxFileSize={MAX_ATTACHMENT_SIZE_MB}
               multiple={true}
               category="all"
               disabled={isDisabled || isSending || isPendingConversation || hasCannedMedia}
@@ -835,8 +877,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
             </FileUpload>
             <FileUpload
               inputId="composer-file-input-document"
-              onFilesSelected={handleFilesSelected}
-              maxFileSize={100}
+              onFilesSelected={files => handleFilesSelected(files, true)}
+              maxFileSize={MAX_ATTACHMENT_SIZE_MB}
               multiple={true}
               category="document"
               enableGlobalDropZone={false}
@@ -846,8 +888,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
             </FileUpload>
             <FileUpload
               inputId="composer-file-input-media"
-              onFilesSelected={handleFilesSelected}
-              maxFileSize={100}
+              onFilesSelected={files => handleFilesSelected(files, false)}
+              maxFileSize={MAX_ATTACHMENT_SIZE_MB}
               multiple={true}
               category="media"
               enableGlobalDropZone={false}

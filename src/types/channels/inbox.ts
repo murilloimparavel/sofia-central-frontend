@@ -79,6 +79,7 @@ export interface Inbox {
   enable_auto_assignment?: boolean;
   auto_assignment_config?: {
     max_assignment_limit?: number | null;
+    assign_on_agent_reply?: boolean;
   };
   // Business hours
   working_hours_enabled?: boolean;

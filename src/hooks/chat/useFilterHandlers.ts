@@ -4,7 +4,7 @@ import { DEFAULT_FILTER } from '@/contexts/chat/FiltersContext';
 import { BaseFilter } from '@/types/core';
 import { convertBaseFiltersToConversationFilters } from '@/utils/chat/filterAdapters';
 import { saveConversationFilters, clearConversationFilters } from '@/utils/storage/filtersStorage';
-import { getScopeCache, setScopeCache } from '@/utils/chat/conversationScopeCache';
+import { setScopeCache } from '@/utils/chat/conversationScopeCache';
 import { getActiveConversationScope } from '@/components/chat/chat-sidebar/conversationSegmentsHelpers';
 
 export const useFilterHandlers = () => {
@@ -16,13 +16,9 @@ export const useFilterHandlers = () => {
       const apiFilters = convertBaseFiltersToConversationFilters(newFilters);
       const scopeId = getActiveConversationScope(apiFilters);
 
-      // SWR (0ms): se já temos o escopo em cache na memória, exibe imediatamente!
-      if (scopeId) {
-        const cached = getScopeCache(scopeId);
-        if (cached && cached.conversations.length > 0) {
-          conversations.setConversations(cached.conversations, cached.pagination, cached.query);
-        }
-      }
+      // Preserve the current list until the new request completes. Swapping
+      // to cache and then to network data caused two list reconciliations,
+      // visible flashes, and scroll clamping during scope changes.
 
       return new Promise<void>((resolve, reject) => {
         filters.applyFilters(

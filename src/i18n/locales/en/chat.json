@@ -98,7 +98,9 @@
       "statusUnavailableText": "Status unavailable",
       "sendFailedText": "Send failed",
       "sendFailed": "Send failed - Click to see the reason",
-      "tryAgain": "Try again"
+      "tryAgain": "Try again",
+      "retrySubmitted": "Message retry started",
+      "retryFailed": "Could not retry this message"
     },
     "replyPreview": {
       "imageAttachment": "📷 Image",
@@ -341,6 +343,12 @@
     "closeContactPanel": "Close contact details"
   },
   "chatSidebar": {
+    "scopeTabs": {
+      "mine": "My Chats",
+      "unassigned": "Queue",
+      "bot": "Bot",
+      "all": "All"
+    },
     "segments": {
       "ariaLabel": "Conversation views",
       "open": "Open",
@@ -747,8 +755,10 @@
       "errors": {
         "fileTooLarge": "File too large",
         "fileTooLargeDescription": "{{fileName}} exceeds the limit of {{maxSize}}MB",
+        "totalSizeExceeded": "The selected files exceed the {{maxSize}}MB limit per message.",
         "fileTypeNotAllowed": "File type not allowed",
-        "fileTypeNotAllowedDescription": "{{fileName}} is not a supported file type"
+        "fileTypeNotAllowedDescription": "{{fileName}} is not a supported file type",
+        "mixedAttachmentModes": "Send documents or photos and videos in separate messages."
       },
       "success": {
         "fileAdded": "File added",

@@ -1,8 +1,16 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import ChatArea from './ChatArea';
 import { Message, MESSAGE_TYPE } from '@/types/chat/api';
+
+const { toggleTypingStatus } = vi.hoisted(() => ({
+  toggleTypingStatus: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/services/conversations/conversationService', () => ({
+  conversationAPI: { toggleTypingStatus },
+}));
 
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({ t: (k: string) => k }),
@@ -24,8 +32,6 @@ vi.mock('@/contexts/chat/ChatContext', () => ({
   useChatContext: () => ({
     messages: mockMessagesContext,
     websocket: {
-      sendTypingOn: vi.fn(),
-      sendTypingOff: vi.fn(),
       getTypingUsers: vi.fn().mockReturnValue([]),
     },
   }),
@@ -56,7 +62,12 @@ vi.mock('../empty-states', () => ({
 }));
 
 vi.mock('@/components/chat/message-input/MessageInput', () => ({
-  default: () => <div data-testid="message-input">Message Input</div>,
+  default: ({ onTypingStart, onTypingStop }: { onTypingStart?: () => void; onTypingStop?: () => void }) => (
+    <div data-testid="message-input">
+      <button data-testid="typing-start" onClick={onTypingStart}>Start typing</button>
+      <button data-testid="typing-stop" onClick={onTypingStop}>Stop typing</button>
+    </div>
+  ),
 }));
 
 vi.mock('@/components/chat/chat-area/TypingIndicator', () => ({
@@ -74,6 +85,43 @@ const mockMessage: Message = {
 };
 
 describe('ChatArea non-destructive render', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('sends typing through the CRM API and clears the prior conversation when switching', async () => {
+    const props = {
+      selectedConversationId: '42',
+      selectedConversation: null,
+      selectedMessages: [mockMessage],
+      onSendMessage: vi.fn(),
+      onLoadMore: vi.fn(),
+      onRetryMessage: vi.fn(),
+    };
+    const { rerender } = render(<ChatArea {...props} />);
+
+    fireEvent.click(screen.getByTestId('typing-start'));
+    expect(toggleTypingStatus).toHaveBeenCalledWith('42', 'on');
+
+    rerender(<ChatArea {...props} selectedConversationId="43" />);
+    await waitFor(() => expect(toggleTypingStatus).toHaveBeenCalledWith('42', 'off'));
+  });
+
+  it('clears the typing indicator when the chat area unmounts', () => {
+    const props = {
+      selectedConversationId: '42',
+      selectedConversation: null,
+      selectedMessages: [mockMessage],
+      onSendMessage: vi.fn(),
+      onLoadMore: vi.fn(),
+      onRetryMessage: vi.fn(),
+    };
+    const { unmount } = render(<ChatArea {...props} />);
+
+    fireEvent.click(screen.getByTestId('typing-start'));
+    unmount();
+
+    expect(toggleTypingStatus).toHaveBeenCalledWith('42', 'off');
+  });
+
   it('renders MessageList immediately without skeleton when cached messages exist even if loading in background (SWR)', () => {
     mockMessagesContext.isMessagesLoading.mockReturnValue(true);
     mockMessagesContext.getMessagesError.mockReturnValue(null);

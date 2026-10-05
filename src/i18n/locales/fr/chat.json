@@ -97,7 +97,9 @@
       "statusUnavailableText": "Statut indisponible",
       "sendFailedText": "Échec de l'envoi",
       "sendFailed": "Échec de l'envoi - Cliquez pour voir la raison",
-      "tryAgain": "Réessayer"
+      "tryAgain": "Réessayer",
+      "retrySubmitted": "Nouvelle tentative d’envoi lancée",
+      "retryFailed": "Impossible de réessayer l’envoi"
     },
     "replyPreview": {
       "imageAttachment": "📷 Image",
@@ -722,8 +724,10 @@
       "errors": {
         "fileTooLarge": "Fichier trop volumineux",
         "fileTooLargeDescription": "{{fileName}} dépasse la limite de {{maxSize}}MB",
+        "totalSizeExceeded": "Le total des fichiers sélectionnés dépasse la limite de {{maxSize}}MB par message.",
         "fileTypeNotAllowed": "Type de fichier non autorisé",
-        "fileTypeNotAllowedDescription": "{{fileName}} n'est pas un type de fichier pris en charge"
+        "fileTypeNotAllowedDescription": "{{fileName}} n'est pas un type de fichier pris en charge",
+        "mixedAttachmentModes": "Envoyez les documents et les photos/vidéos dans des messages séparés."
       },
       "success": {
         "fileAdded": "Fichier ajouté",

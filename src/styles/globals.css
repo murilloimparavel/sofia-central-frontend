@@ -1,5 +1,13 @@
 @import 'tailwindcss';
 
+/* Keep the conversation usable when a saved sidebar width meets a narrower
+   desktop viewport or a different browser zoom level. */
+@media (min-width: 768px) {
+  [data-tour='chat-sidebar'] {
+    max-width: max(280px, calc(100% - 360px));
+  }
+}
+
 /* Define o variant dark para o Tailwind v4 */
 @custom-variant dark (&:is(.dark *));
 

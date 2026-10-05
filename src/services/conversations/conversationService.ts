@@ -14,6 +14,13 @@ import type {
 } from '@/types/chat/api';
 
 export const conversationAPI = {
+  // Broadcast typing through the authenticated CRM event pipeline.
+  async toggleTypingStatus(conversationId: string, typingStatus: 'on' | 'off'): Promise<void> {
+    await api.post(`/conversations/${conversationId}/toggle_typing_status`, {
+      typing_status: typingStatus,
+    });
+  },
+
   // Create new conversation
   async create(data: ConversationCreateData): Promise<Conversation> {
     const response = await api.post('/conversations', data);

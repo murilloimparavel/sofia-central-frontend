@@ -381,6 +381,10 @@
           "label": "Habilitar asignación automática",
           "description": "Las nuevas conversaciones serán asignadas automáticamente a los Agentes disponibles"
         },
+        "assignOnReply": {
+          "label": "Asignar al agente que responda",
+          "description": "Asigna una conversación sin responsable al primer agente que envíe una respuesta pública."
+        },
         "maxLimit": {
           "title": "Límite Máximo de Conversaciones",
           "label": "Máximo de conversaciones por Agente",

@@ -595,20 +595,6 @@ export class ChatActionCableConnector extends BaseActionCableConnector {
   }
 
   /**
-   * Enviar indicação de digitação
-   */
-  public sendTypingOn(conversationId: string): void {
-    this.perform('typing_on', { conversation_id: conversationId });
-  }
-
-  /**
-   * Enviar parada de digitação
-   */
-  public sendTypingOff(conversationId: string): void {
-    this.perform('typing_off', { conversation_id: conversationId });
-  }
-
-  /**
    * Callback quando reconectado
    */
   protected onReconnected(): void {

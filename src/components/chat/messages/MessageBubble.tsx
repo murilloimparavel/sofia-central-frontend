@@ -599,4 +599,36 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   );
 };
 
-export default MessageBubble;
+function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbleProps): boolean {
+  if (prev.message.id !== next.message.id) return false;
+  if (prev.message.status !== next.message.status) return false;
+  if (prev.message.content !== next.message.content) return false;
+  if (prev.message.created_at !== next.message.created_at) return false;
+  if (prev.message.attachments !== next.message.attachments) return false;
+  if (prev.isOwn !== next.isOwn) return false;
+  if (prev.isFromBot !== next.isFromBot) return false;
+  if (prev.isFromAgent !== next.isFromAgent) return false;
+  if (prev.showAvatar !== next.showAvatar) return false;
+  if (prev.showTimestamp !== next.showTimestamp) return false;
+  if (prev.isPostConversation !== next.isPostConversation) return false;
+  if (prev.isThreadRoot !== next.isThreadRoot) return false;
+  if (prev.isThreadReply !== next.isThreadReply) return false;
+  if (prev.isFacebookStyle !== next.isFacebookStyle) return false;
+  if (prev.moderation !== next.moderation) return false;
+  if (prev.labels !== next.labels) return false;
+  if (prev.canForward !== next.canForward) return false;
+  if (prev.onForward !== next.onForward) return false;
+
+  // Se a mensagem possui referência de resposta (reply), verificar allMessages
+  const hasReply = !!(
+    prev.message.content_attributes?.in_reply_to ||
+    prev.message.content_attributes?.in_reply_to_external_id
+  );
+  if (hasReply && prev.allMessages !== next.allMessages) {
+    return false;
+  }
+
+  return true;
+}
+
+export default React.memo(MessageBubble, areMessageBubblePropsEqual);

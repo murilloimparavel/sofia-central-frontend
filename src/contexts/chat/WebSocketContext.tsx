@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useWebSocket } from '@/hooks/chat/useWebSocket';
 import { useAuth } from '@/contexts/AuthContext';
@@ -196,9 +196,7 @@ interface WebSocketHandlers {
 interface WebSocketContextValue {
   state: WebSocketState;
 
-  // WebSocket actions
-  sendTypingOn: (conversationId: string) => void;
-  sendTypingOff: (conversationId: string) => void;
+  // WebSocket state and inbound events
   getTypingUsers: (
     conversationId: string,
   ) => Array<{ id: string; name: string; avatar_url?: string }>;
@@ -222,11 +220,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const handlersRef = React.useRef<WebSocketHandlers>({});
 
   // WebSocket Integration com dados reais
-  const {
-    isConnected: wsConnected,
-    sendTypingOn: wsSendTypingOn,
-    sendTypingOff: wsSendTypingOff,
-  } = useWebSocket(
+  const { isConnected: wsConnected } = useWebSocket(
     user?.id || '', // ✅ ID real do usuário
     user?.pubsub_token || '', // ✅ Token real do usuário
     {
@@ -739,25 +733,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_WEBSOCKET_CONNECTION', payload: wsConnected });
   }, [wsConnected]);
 
-  // WebSocket functions
-  const sendTypingOn = useCallback(
-    (conversationId: string) => {
-      if (wsConnected) {
-        wsSendTypingOn(conversationId);
-      }
-    },
-    [wsConnected, wsSendTypingOn],
-  );
-
-  const sendTypingOff = useCallback(
-    (conversationId: string) => {
-      if (wsConnected) {
-        wsSendTypingOff(conversationId);
-      }
-    },
-    [wsConnected, wsSendTypingOff],
-  );
-
   const getTypingUsers = useCallback(
     (conversationId: string) => {
       return state.typingUsers[conversationId] || [];
@@ -780,15 +755,22 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     handlersRef.current = { ...handlersRef.current, ...handlers };
   }, []);
 
-  const contextValue: WebSocketContextValue = {
-    state,
-    sendTypingOn,
-    sendTypingOff,
-    getTypingUsers,
-    isWebSocketConnected,
-    getPresenceStatus,
-    registerHandlers,
-  };
+  const contextValue: WebSocketContextValue = useMemo(
+    () => ({
+      state,
+      getTypingUsers,
+      isWebSocketConnected,
+      getPresenceStatus,
+      registerHandlers,
+    }),
+    [
+      state,
+      getTypingUsers,
+      isWebSocketConnected,
+      getPresenceStatus,
+      registerHandlers,
+    ],
+  );
 
   return <WebSocketContext.Provider value={contextValue}>{children}</WebSocketContext.Provider>;
 }

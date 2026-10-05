@@ -397,6 +397,10 @@
           "label": "Habilitar atribuição automática",
           "description": "As novas conversas serão automaticamente atribuídas aos agentes disponíveis"
         },
+        "assignOnReply": {
+          "label": "Atribuir ao atendente que responder",
+          "description": "Atribui uma conversa sem responsável ao primeiro atendente que enviar uma resposta pública."
+        },
         "maxLimit": {
           "title": "Limite Máximo de Conversas",
           "label": "Máximo de conversas por agente",

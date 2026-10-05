@@ -215,6 +215,11 @@ class ChatService {
     });
   }
 
+  async retryMessage(conversationId: string, messageId: string): Promise<Message> {
+    const response = await api.post(`/conversations/${conversationId}/messages/${messageId}/retry`);
+    return extractData<Message>(response);
+  }
+
   async deleteMessage(conversationId: string, messageId: string): Promise<Message> {
     const response = await api.delete(`/conversations/${conversationId}/messages/${messageId}`);
     return extractData<Message>(response);
@@ -237,6 +242,7 @@ class ChatService {
     inReplyTo?: string | number,
     echoId?: string,
     isRecordedAudio?: boolean | string[], // boolean: all attachments | string[]: filenames marked as PTT
+    sendAsDocument?: boolean,
   ): Promise<Message> {
     return withRetry(async () => {
       const formData = new FormData();
@@ -254,6 +260,10 @@ class ChatService {
 
       if (echoId) {
         formData.append('echo_id', echoId);
+      }
+
+      if (sendAsDocument) {
+        formData.append('send_as_document', 'true');
       }
 
       // Sinaliza ao backend que o(s) áudio(s) é(são) PTT/voice message.

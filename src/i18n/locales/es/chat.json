@@ -97,7 +97,9 @@
       "statusUnavailableText": "Estado no disponible",
       "sendFailedText": "Envío fallido",
       "sendFailed": "Envío fallido - Haga clic para ver el motivo",
-      "tryAgain": "Intentar de nuevo"
+      "tryAgain": "Intentar de nuevo",
+      "retrySubmitted": "Se inició un nuevo intento de envío",
+      "retryFailed": "No se pudo volver a intentar el envío"
     },
     "replyPreview": {
       "imageAttachment": "📷 Imagen",
@@ -336,6 +338,12 @@
     "closeContactPanel": "Cerrar detalles del contacto"
   },
   "chatSidebar": {
+    "scopeTabs": {
+      "mine": "Chats",
+      "unassigned": "Fila",
+      "bot": "Robot",
+      "all": "Todas"
+    },
     "segments": {
       "ariaLabel": "Vistas de conversaciones",
       "open": "Abiertas",
@@ -722,8 +730,10 @@
       "errors": {
         "fileTooLarge": "Archivo muy grande",
         "fileTooLargeDescription": "{{fileName}} excede el límite de {{maxSize}}MB",
+        "totalSizeExceeded": "El total de archivos seleccionados supera el límite de {{maxSize}}MB por mensaje.",
         "fileTypeNotAllowed": "Tipo de archivo no permitido",
-        "fileTypeNotAllowedDescription": "{{fileName}} no es un tipo de archivo soportado"
+        "fileTypeNotAllowedDescription": "{{fileName}} no es un tipo de archivo soportado",
+        "mixedAttachmentModes": "Envía documentos o fotos y videos en mensajes separados."
       },
       "success": {
         "fileAdded": "Archivo agregado",

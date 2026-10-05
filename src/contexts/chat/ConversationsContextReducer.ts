@@ -202,21 +202,17 @@ export function conversationsReducer(
         return state;
       }
 
-      // Quando seleciona conversa, zera o unread_count
-      const updatedConversations = state.conversations
-        .filter(conv => conv !== null && conv !== undefined && conv.id)
-        .map(conv => (conv.id === action.payload ? { ...conv, unread_count: 0 } : conv));
-
       // Encontrar a conversa selecionada para armazenar os dados
       const selectedConversation = payloadStr
-        ? state.conversations.find(conv => String(conv.id) === payloadStr) || null
+        ? state.conversations.find(conv => matchesConversationId(conv, payloadStr)) || null
         : null;
 
       return {
         ...state,
         selectedConversationId: payloadStr, // 🔧 SEMPRE ARMAZENAR COMO STRING
-        selectedConversationData: selectedConversation, // 🔧 ARMAZENAR DADOS DA CONVERSA
-        conversations: updatedConversations,
+        selectedConversationData: selectedConversation
+          ? { ...selectedConversation, unread_count: 0 }
+          : null, // 🔧 ARMAZENAR DADOS DA CONVERSA
         unreadCounts: {
           ...state.unreadCounts,
           ...(payloadStr ? { [payloadStr]: 0 } : {}), // Zera contador local também

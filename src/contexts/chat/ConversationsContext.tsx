@@ -290,15 +290,6 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
               payload: { conversationId: canonicalConversationId, count: 0 },
             });
 
-            // Também atualizar o objeto da conversa para manter sincronizado
-            const conversationInList = findConversationByAnyId(canonicalConversationId);
-            if (conversationInList) {
-              dispatch({
-                type: 'UPDATE_CONVERSATION',
-                payload: { ...conversationInList, unread_count: 0 },
-              });
-            }
-
             // Salvar no localStorage que esta conversa foi marcada como lida
             try {
               const saved = localStorage.getItem('crm-chat-state');
@@ -998,43 +989,81 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     [state.unreadCounts],
   );
 
-  const contextValue: ConversationsContextValue = {
-    state,
-    loadConversations,
-    loadMoreConversations,
-    setConversations,
-    loadSpecificConversation,
-    selectConversation,
-    updateConversationStatus,
-    returnConversationToBot,
-    updateConversationPriority,
-    pinConversation,
-    unpinConversation,
-    archiveConversation,
-    unarchiveConversation,
-    updateConversation,
-    updateContactInConversations,
-    addConversation,
-    removeConversation,
-    cleanupDuplicates,
-    updateUnreadCount,
-    updateConversationLastActivity,
-    incrementUnreadCount,
-    addHiddenConversation,
-    revealHiddenConversations,
-    selectedConversation,
-    getConversation,
-    getUnreadCount,
-    // Context menu actions
-    deleteConversation,
-    markAsRead,
-    markAsUnread,
-    markAsResolved,
-    markAsPending,
-    assignAgent,
-    assignTeam,
-    assignLabels,
-  };
+  const contextValue: ConversationsContextValue = useMemo(
+    () => ({
+      state,
+      loadConversations,
+      loadMoreConversations,
+      setConversations,
+      loadSpecificConversation,
+      selectConversation,
+      updateConversationStatus,
+      returnConversationToBot,
+      updateConversationPriority,
+      pinConversation,
+      unpinConversation,
+      archiveConversation,
+      unarchiveConversation,
+      updateConversation,
+      updateContactInConversations,
+      addConversation,
+      removeConversation,
+      cleanupDuplicates,
+      updateUnreadCount,
+      updateConversationLastActivity,
+      incrementUnreadCount,
+      addHiddenConversation,
+      revealHiddenConversations,
+      selectedConversation,
+      getConversation,
+      getUnreadCount,
+      // Context menu actions
+      deleteConversation,
+      markAsRead,
+      markAsUnread,
+      markAsResolved,
+      markAsPending,
+      assignAgent,
+      assignTeam,
+      assignLabels,
+    }),
+    [
+      state,
+      loadConversations,
+      loadMoreConversations,
+      setConversations,
+      loadSpecificConversation,
+      selectConversation,
+      updateConversationStatus,
+      returnConversationToBot,
+      updateConversationPriority,
+      pinConversation,
+      unpinConversation,
+      archiveConversation,
+      unarchiveConversation,
+      updateConversation,
+      updateContactInConversations,
+      addConversation,
+      removeConversation,
+      cleanupDuplicates,
+      updateUnreadCount,
+      updateConversationLastActivity,
+      incrementUnreadCount,
+      addHiddenConversation,
+      revealHiddenConversations,
+      selectedConversation,
+      getConversation,
+      getUnreadCount,
+      deleteConversation,
+      markAsRead,
+      markAsUnread,
+      markAsResolved,
+      markAsPending,
+      assignAgent,
+      assignTeam,
+      assignLabels,
+    ],
+  );
 
   return (
     <ConversationsContext.Provider value={contextValue}>{children}</ConversationsContext.Provider>

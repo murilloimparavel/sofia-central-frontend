@@ -6,6 +6,7 @@ import { useChatContext } from '@/contexts/chat/ChatContext';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useConversationModerations } from '@/hooks/chat/useConversationModerations';
 import { useAppDataStore } from '@/store/appDataStore';
+import { conversationAPI } from '@/services/conversations/conversationService';
 
 import { MessageCircle } from 'lucide-react';
 
@@ -59,6 +60,7 @@ interface PostData {
 interface SendMessageOptions {
   content: string;
   files?: File[];
+  sendAsDocument?: boolean;
   isPrivate?: boolean;
   templateParams?: any;
   cannedResponseId?: string | null;
@@ -88,6 +90,7 @@ const ChatArea = ({
 }: ChatAreaProps) => {
   const { t } = useLanguage('chat');
   const { messages, websocket } = useChatContext();
+  const activeTypingConversationRef = useRef<string | null>(null);
 
   // Load moderations for this conversation
   const { pendingResponseModerations, loadModerations, messageModerationsMap } =
@@ -127,16 +130,42 @@ const ChatArea = ({
   );
 
   const handleTypingStart = useCallback(() => {
-    if (selectedConversationId) {
-      websocket.sendTypingOn(selectedConversationId);
-    }
-  }, [selectedConversationId, websocket]);
+    if (!selectedConversationId || activeTypingConversationRef.current === selectedConversationId) return;
+
+    activeTypingConversationRef.current = selectedConversationId;
+    void conversationAPI.toggleTypingStatus(selectedConversationId, 'on').catch(() => {
+      console.warn('Não foi possível enviar o estado de digitação.');
+    });
+  }, [selectedConversationId]);
 
   const handleTypingStop = useCallback(() => {
-    if (selectedConversationId) {
-      websocket.sendTypingOff(selectedConversationId);
-    }
-  }, [selectedConversationId, websocket]);
+    const conversationId = activeTypingConversationRef.current;
+    if (!conversationId) return;
+
+    activeTypingConversationRef.current = null;
+    void conversationAPI.toggleTypingStatus(conversationId, 'off').catch(() => {
+      console.warn('Não foi possível encerrar o estado de digitação.');
+    });
+  }, []);
+
+  useEffect(() => {
+    const typingConversationId = activeTypingConversationRef.current;
+    if (!typingConversationId || typingConversationId === selectedConversationId) return;
+
+    activeTypingConversationRef.current = null;
+    void conversationAPI.toggleTypingStatus(typingConversationId, 'off').catch(() => {
+      console.warn('Não foi possível encerrar o estado de digitação.');
+    });
+  }, [selectedConversationId]);
+
+  useEffect(() => () => {
+    const typingConversationId = activeTypingConversationRef.current;
+    if (!typingConversationId) return;
+
+    void conversationAPI.toggleTypingStatus(typingConversationId, 'off').catch(() => {
+      console.warn('Não foi possível encerrar o estado de digitação.');
+    });
+  }, []);
 
   const handleReplyToMessage = useCallback(
     (message: Message) => {

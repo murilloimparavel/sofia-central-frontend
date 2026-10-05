@@ -448,4 +448,4 @@ export type MessageType = 'incoming' | 'outgoing' | 'activity' | 'template';
 export type SenderType = 'contact' | 'agent_bot' | 'agent' | 'user';
 export type AvailabilityStatus = 'online' | 'busy' | 'offline';
 export type Priority = 'low' | 'medium' | 'high' | 'urgent' | null;
-export type QuickFilterTab = 'all' | 'mine' | 'unassigned';
+export type QuickFilterTab = 'all' | 'mine' | 'unassigned' | 'bot';

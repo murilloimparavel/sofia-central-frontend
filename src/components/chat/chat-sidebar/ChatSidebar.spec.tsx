@@ -178,10 +178,11 @@ beforeEach(() => {
 });
 
 describe('ChatSidebar scope navigation', () => {
-  it('renders all three scope tabs: Chats, Fila, and Todas', () => {
+  it('renders all four scope tabs: Chats, Fila, Robô, and Todas', () => {
     render(<ChatSidebar {...defaultProps} />);
     expect(screen.getByRole('tab', { name: /mine/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /unassigned/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /bot/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /all/i })).toBeInTheDocument();
   });
 
@@ -196,6 +197,14 @@ describe('ChatSidebar scope navigation', () => {
     expect(onFilterApply).toHaveBeenCalledWith([
       expect.objectContaining({ attributeKey: 'assignee_type', values: 'unassigned' }),
       expect.objectContaining({ attributeKey: 'status', values: 'open' }),
+    ]);
+
+    const botTab = screen.getByRole('tab', { name: /bot/i });
+    await user.click(botTab);
+
+    expect(onFilterApply).toHaveBeenCalledWith([
+      expect.objectContaining({ attributeKey: 'assignee_type', values: 'all' }),
+      expect.objectContaining({ attributeKey: 'status', values: 'pending' }),
     ]);
   });
 });
@@ -220,6 +229,30 @@ const setScrollDimensions = (el: Element, scrollHeight: number, clientHeight: nu
 };
 
 describe('ChatSidebar scroll pagination (EVO-1407)', () => {
+  it('preserves the last user position when the conversation collection is reconciled', async () => {
+    const selected = makeConversation('99');
+    selected.contact = { id: '99', name: 'Selected Contact' } as never;
+    overrideContext = makePaginatedContext(false);
+    overrideContext.conversations.state.conversations = [mockConversation, selected];
+    const { rerender } = render(<ChatSidebar {...defaultProps} />);
+
+    const scrollEl = document.querySelector('[data-tour="chat-conversations-list"]')!;
+    setScrollDimensions(scrollEl, 5000, 600, 3200);
+    await act(async () => { fireEvent.scroll(scrollEl); });
+
+    await userEvent.click(screen.getByText('Selected Contact'));
+
+    // Simula SET_CONVERSATIONS/UPDATE_UNREAD_COUNT trocando a referência da
+    // coleção depois da seleção, que era o ponto em que a lista resetava.
+    overrideContext.conversations.state.conversations = [
+      { ...selected, unread_count: 0 } as never,
+      { ...mockConversation } as never,
+    ];
+    rerender(<ChatSidebar {...defaultProps} />);
+
+    expect(scrollEl.scrollTop).toBe(3200);
+  });
+
   it('renders "Carregar mais" button when has_next_page is true', async () => {
     overrideContext = makePaginatedContext(true);
     render(<ChatSidebar {...defaultProps} />);
@@ -407,4 +440,3 @@ describe('ChatSidebar defensive scope filtering', () => {
     expect(screen.queryByText('Assigned Contact')).not.toBeInTheDocument();
   });
 });
-

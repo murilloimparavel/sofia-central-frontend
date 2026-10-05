@@ -56,6 +56,7 @@ const AssignmentModal = React.lazy(() => import('@/components/chat/assignment/As
 interface SendMessageOptions {
   content: string;
   files?: File[];
+  sendAsDocument?: boolean;
   isPrivate?: boolean;
   templateParams?: any;
   cannedResponseId?: string | null;
@@ -130,15 +131,24 @@ const Chat = () => {
     return Number.isFinite(stored) && stored > 0 ? clampSidebarWidth(stored) : SIDEBAR_WIDTH_DEFAULT;
   });
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
-  const resizeStartRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const resizeStartRef = useRef<{
+    startX: number;
+    startWidth: number;
+    currentWidth: number;
+    sidebar: HTMLElement;
+  } | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
 
   const handleResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      resizeStartRef.current = { startX: e.clientX, startWidth: sidebarWidth };
+      const sidebar = e.currentTarget.previousElementSibling;
+      if (!(sidebar instanceof HTMLElement)) return;
+      const currentWidth = sidebar.getBoundingClientRect().width;
+      resizeStartRef.current = { startX: e.clientX, startWidth: currentWidth, currentWidth, sidebar };
       setIsResizingSidebar(true);
     },
-    [sidebarWidth],
+    [],
   );
 
   useEffect(() => {
@@ -147,15 +157,31 @@ const Chat = () => {
     const handleMouseMove = (e: MouseEvent) => {
       const start = resizeStartRef.current;
       if (!start) return;
-      setSidebarWidth(clampSidebarWidth(start.startWidth + (e.clientX - start.startX)));
+      start.currentWidth = clampSidebarWidth(start.startWidth + (e.clientX - start.startX));
+      if (resizeFrameRef.current == null) {
+        resizeFrameRef.current = requestAnimationFrame(() => {
+          start.sidebar.style.setProperty('--chat-sidebar-width', `${start.currentWidth}px`);
+          resizeFrameRef.current = null;
+        });
+      }
     };
     const handleMouseUp = () => {
+      if (resizeFrameRef.current != null) {
+        cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+      const start = resizeStartRef.current;
+      if (start) {
+        start.sidebar.style.setProperty('--chat-sidebar-width', `${start.currentWidth}px`);
+        setSidebarWidth(clampSidebarWidth(Math.round(start.sidebar.getBoundingClientRect().width)));
+      }
       resizeStartRef.current = null;
       setIsResizingSidebar(false);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('blur', handleMouseUp);
     // cursor/seleção globais durante o drag — sem isto, soltar o mouse fora da
     // faixa de 1px do handle interrompe o resize e o usuário seleciona texto
     // da tela por baixo.
@@ -167,6 +193,11 @@ const Chat = () => {
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('blur', handleMouseUp);
+      if (resizeFrameRef.current != null) {
+        cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
       document.body.style.cursor = prevCursor;
       document.body.style.userSelect = prevUserSelect;
     };
@@ -505,6 +536,7 @@ const Chat = () => {
     cannedResponseId,
     templateParams,
     isRecordedAudio,
+    sendAsDocument,
   }: SendMessageOptions) => {
     if (!can('conversations', 'update')) {
       toast.error(t('messages.noPermissionSend'));
@@ -523,6 +555,7 @@ const Chat = () => {
           files: files || [],
           isPrivate: isPrivate || false,
           cannedResponseId: cannedResponseId || null,
+          sendAsDocument,
           templateParams,
         });
       } else if (files && files.length > 0) {
@@ -534,6 +567,7 @@ const Chat = () => {
           cannedResponseId,
           undefined,
           isRecordedAudio,
+          sendAsDocument,
         );
       } else {
         await messages.sendMessage(
@@ -553,8 +587,8 @@ const Chat = () => {
   };
 
   const handleRetryMessage = (messageId: string) => {
-    // TODO: Implementar retry específico para uma mensagem via Context
-    console.log('Retry message:', messageId);
+    if (!conversations.state.selectedConversationId) return;
+    void messages.retryMessage(String(conversations.state.selectedConversationId), messageId).catch(() => undefined);
   };
 
   // 🎯 CONVERSATION HANDLERS: Usar handlers dos hooks customizados
@@ -923,7 +957,7 @@ const Chat = () => {
   return (
     <ErrorBoundary>
       <ChatTour />
-      <div className="h-full w-full flex flex-col md:flex-row overflow-hidden">
+      <div className="h-full w-full min-w-0 flex flex-col md:flex-row overflow-hidden">
         {/* Chat List Sidebar */}
         <ChatSidebar
           mobileView={mobileView}
@@ -976,7 +1010,7 @@ const Chat = () => {
           data-tour="chat-main-area"
           className={`
           ${mobileView === 'chat' ? 'flex' : 'hidden'} md:flex
-          flex-1 flex-col h-full min-h-0 max-h-full overflow-hidden
+          flex-1 min-w-0 flex-col h-full min-h-0 max-h-full overflow-hidden
         `}
         >
           {selectedConversation ? (

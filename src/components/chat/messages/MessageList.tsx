@@ -622,7 +622,7 @@ const MessageList: React.FC<MessageListProps> = ({
               // Mensagens de sistema são renderizadas separadamente
               if (message.message_type === MESSAGE_TYPE.ACTIVITY || message.message_type === MESSAGE_TYPE.TEMPLATE) {
                 return (
-                  <div key={`system-${message.id}-${index}`} data-message-id={message.id}>
+                  <div key={`system-${message.id || index}`} data-message-id={message.id}>
                     <SystemMessage message={message} labels={labels} />
                   </div>
                 );
@@ -641,7 +641,7 @@ const MessageList: React.FC<MessageListProps> = ({
               const moderation = messageModerations?.get(message.id);
 
               return (
-                <div key={`${message.id}-${index}`} data-message-id={message.id}>
+                <div key={message.id || index} data-message-id={message.id}>
                   <MessageBubble
                     message={message}
                     isOwn={isOwn}

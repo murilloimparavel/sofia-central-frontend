@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from 'react';
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type CSSProperties,
+} from 'react';
 import { Button } from '@evoapi/design-system/button';
 import { Input } from '@evoapi/design-system/input';
 import { Badge } from '@evoapi/design-system/badge';
@@ -42,7 +49,7 @@ import { NoConversations } from '../empty-states';
 import ConversationsFilterPopover from '../filters/ConversationsFilterPopover';
 import ConversationSegments from './ConversationSegments';
 import ConversationScopeTabs from './ConversationScopeTabs';
-import { ConversationCard } from './ConversationCard';
+import { ConversationList } from './ConversationList';
 import GlobalSearchPanel from '../search/GlobalSearchPanel';
 import { BaseFilter } from '@/types/core';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -54,6 +61,7 @@ import type {
   SearchContactResult,
   SearchMessageResult,
 } from '@/types/chat/search';
+import { useConversationListScroll } from '@/hooks/chat/useConversationListScroll';
 
 interface ChatSidebarProps {
   mobileView: 'list' | 'chat';
@@ -180,6 +188,23 @@ const ChatSidebar = ({
   const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = useRef(false);
   const lastScrollTimeRef = useRef<number>(0);
+  const { rememberScrollPosition, captureBeforeSelection } = useConversationListScroll({
+    containerRef: sidebarScrollRef,
+    listVersion: conversations.state.conversations,
+    resetKey: JSON.stringify({
+      filters: filters.state.activeFilters,
+      showArchived,
+      searchInput,
+    }),
+  });
+
+  const handleConversationCardSelect = useCallback(
+    (conversation: Conversation) => {
+      captureBeforeSelection();
+      onConversationSelect(conversation);
+    },
+    [captureBeforeSelection, onConversationSelect],
+  );
 
   useEffect(() => {
     onClearSelection();
@@ -334,6 +359,7 @@ const ChatSidebar = ({
   ).length;
 
   const handleSidebarScroll = useCallback(async () => {
+    rememberScrollPosition();
     const now = Date.now();
     if (now - lastScrollTimeRef.current < 150) return;
 
@@ -371,7 +397,7 @@ const ChatSidebar = ({
       setIsLoadingMoreConversations(false);
       loadingMoreRef.current = false;
     }
-  }, [conversations]);
+  }, [conversations, rememberScrollPosition]);
 
   const handleLoadMoreClick = useCallback(async () => {
     if (loadingMoreRef.current || isLoadingMoreConversations || !hasNextPage) return;
@@ -848,56 +874,25 @@ const ChatSidebar = ({
           </div>
         ) : (
           <>
-            {visibleConversations.map((conversation: Conversation) => {
-              const canonicalId = String(conversation.uuid || conversation.id);
-              const isSelected =
-                String(conversations.state.selectedConversationId) === String(conversation.id) ||
-                String(conversations.state.selectedConversationId) === canonicalId;
-              const isBulkSelected =
-                selectionMode && selectedConversationIds.has(String(conversation.display_id));
-
-              return (
-                <ConversationCard
-                  key={conversation.id}
-                  conversation={conversation}
-                  isSelected={isSelected}
-                  isBulkSelected={isBulkSelected}
-                  selectionMode={selectionMode}
-                  unreadCount={conversations.getUnreadCount(conversation.id) || 0}
-                  onSelect={onConversationSelect}
-                  onToggleSelect={onToggleSelect}
-                  onStartSelection={handleStartSelection}
-                  onPin={onPinConversation}
-                  onUnpin={onUnpinConversation}
-                  onArchive={onArchiveConversation}
-                  onUnarchive={onUnarchiveConversation}
-                  onDelete={onDeleteConversation}
-                  t={t}
-                />
-              );
-            })}
-
-            {/* EVO-1672: proportional cushion (~half a viewport) so fast
-                scroll / slow networks read as a deliberate "loading more"
-                affordance instead of a blank gap with pop-in. */}
-            {isLoadingMoreConversations && (
-              <div className="border-t border-border/40">
-                <ConversationSkeleton count={5} />
-              </div>
-            )}
-
-            {!isLoadingMoreConversations && hasNextPage && !showArchived && (
-              <div className="p-3 border-t border-border/40">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleLoadMoreClick}
-                >
-                  Carregar mais
-                </Button>
-              </div>
-            )}
+            <ConversationList
+              conversations={visibleConversations}
+              selectedConversationId={conversations.state.selectedConversationId}
+              selectedConversationIds={selectedConversationIds}
+              selectionMode={selectionMode}
+              isLoadingMore={isLoadingMoreConversations}
+              hasNextPage={hasNextPage && !showArchived}
+              unreadCount={conversations.getUnreadCount}
+              onSelect={handleConversationCardSelect}
+              onToggleSelect={onToggleSelect}
+              onStartSelection={handleStartSelection}
+              onPin={onPinConversation}
+              onUnpin={onUnpinConversation}
+              onArchive={onArchiveConversation}
+              onUnarchive={onUnarchiveConversation}
+              onDelete={onDeleteConversation}
+              onLoadMore={handleLoadMoreClick}
+              t={t}
+            />
           </>
         )}
       </div>

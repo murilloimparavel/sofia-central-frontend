@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { chatService } from '@/services/chat/chatService';
 import { extractConversationsData } from '@/utils/chat/responseHelpers';
@@ -116,7 +116,6 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
       onError: (error: string) => void,
     ) => {
       dispatch({ type: 'SET_APPLYING_FILTERS', payload: true });
-      dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
 
       try {
         if (filters.length === 0) {
@@ -124,18 +123,21 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           const response = await chatService.getConversations();
           const { conversations, pagination } = extractConversationsData(response);
           onSuccess(conversations, pagination, { kind: 'list', params: {} });
+          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         } else if (shouldUseAdvancedFilters(filters)) {
           // Usar filtros avançados (POST /filter)
           const filterRequest = convertFiltersToApiFormat(filters);
           const response = await chatService.filterConversations(filterRequest);
           const { conversations, pagination } = extractConversationsData(response);
           onSuccess(conversations, pagination, { kind: 'filter', request: filterRequest });
+          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         } else {
           // Usar filtros simples (GET /conversations)
           const params = convertFiltersToUrlParams(filters);
           const response = await chatService.getConversations(params);
           const { conversations, pagination } = extractConversationsData(response);
           onSuccess(conversations, pagination, { kind: 'list', params });
+          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         }
       } catch (error) {
         const errorMessage =
@@ -233,16 +235,28 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
   const hasActiveFilters = state.activeFilters.length > 0;
   const hasSearch = state.searchTerm.trim().length > 0;
 
-  const contextValue: FiltersContextValue = {
-    state,
-    setFilters,
-    applyFilters,
-    applySearch,
-    setQuickFilter,
-    setSearchTerm,
-    hasActiveFilters,
-    hasSearch,
-  };
+  const contextValue: FiltersContextValue = useMemo(
+    () => ({
+      state,
+      setFilters,
+      applyFilters,
+      applySearch,
+      setQuickFilter,
+      setSearchTerm,
+      hasActiveFilters,
+      hasSearch,
+    }),
+    [
+      state,
+      setFilters,
+      applyFilters,
+      applySearch,
+      setQuickFilter,
+      setSearchTerm,
+      hasActiveFilters,
+      hasSearch,
+    ],
+  );
 
   return <FiltersContext.Provider value={contextValue}>{children}</FiltersContext.Provider>;
 }

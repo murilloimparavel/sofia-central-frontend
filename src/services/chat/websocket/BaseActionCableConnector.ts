@@ -34,8 +34,12 @@ export class BaseActionCableConnector {
   protected connectionParams: ConnectionParams;
   protected websocketURL?: string;
   protected reconnectAttempts = 0;
+  protected connectionGeneration = 0;
+  protected destroyed = false;
 
-  static isDisconnected = false;
+  // Estado por instância: uma conexão antiga não pode alterar o estado de
+  // outra conexão criada durante uma reconexão.
+  protected isDisconnected = false;
 
   constructor(connectionParams: ConnectionParams, websocketHost?: string) {
     this.connectionParams = connectionParams;
@@ -59,6 +63,10 @@ export class BaseActionCableConnector {
    * Conectar ao canal WebSocket
    */
   protected connect(): void {
+    if (this.destroyed) return;
+
+    const generation = ++this.connectionGeneration;
+
     try {
       this.subscription = this.consumer.subscriptions.create(
         {
@@ -72,8 +80,10 @@ export class BaseActionCableConnector {
 
           // Conectado com sucesso
           connected: () => {
+            if (generation !== this.connectionGeneration || this.destroyed) return;
+
             const wasReconnecting = this.reconnectAttempts > 0;
-            BaseActionCableConnector.isDisconnected = false;
+            this.isDisconnected = false;
             this.reconnectAttempts = 0;
             this.onConnected();
             this.startPresenceInterval();
@@ -85,7 +95,9 @@ export class BaseActionCableConnector {
 
           // Desconectado
           disconnected: () => {
-            BaseActionCableConnector.isDisconnected = true;
+            if (generation !== this.connectionGeneration || this.destroyed) return;
+
+            this.isDisconnected = true;
             this.onDisconnected();
             this.stopPresenceInterval();
             this.initReconnectTimer();
@@ -158,7 +170,7 @@ export class BaseActionCableConnector {
    * Usa backoff exponencial: 1s → 2s → 4s → 8s → ... → 30s (teto).
    */
   protected attemptReconnect(): void {
-    if (!this.consumer) {
+    if (!this.consumer || this.destroyed) {
       console.warn('⚠️ Consumer não disponível');
       return;
     }
@@ -199,7 +211,7 @@ export class BaseActionCableConnector {
    * Chamado pelo timer de reconexão.
    */
   protected checkConnection(): void {
-    if (!BaseActionCableConnector.isDisconnected) {
+    if (!this.isDisconnected) {
       // Conexão restaurada — nada a fazer (onReconnected já foi chamado
       // pelo callback connected: via wasReconnecting)
       this.clearReconnectTimer();
@@ -215,6 +227,8 @@ export class BaseActionCableConnector {
    * Intervalo dobra a cada tentativa: 1s → 2s → 4s → ... → 30s (teto).
    */
   protected initReconnectTimer(): void {
+    if (this.destroyed) return;
+
     this.clearReconnectTimer();
 
     const backoffInterval = Math.min(
@@ -244,7 +258,7 @@ export class BaseActionCableConnector {
     this.stopPresenceInterval();
 
     const updatePresence = () => {
-      if (this.subscription && !BaseActionCableConnector.isDisconnected) {
+      if (this.subscription && !this.isDisconnected) {
         this.perform('update_presence');
       }
 
@@ -294,13 +308,17 @@ export class BaseActionCableConnector {
    * Verificar se está conectado
    */
   public isConnected(): boolean {
-    return !!this.subscription && !BaseActionCableConnector.isDisconnected;
+    return !!this.subscription && !this.isDisconnected;
   }
 
   /**
    * Desconectar do WebSocket
    */
   public disconnect(): void {
+    // Invalida imediatamente callbacks da subscription atual. O callback
+    // assíncrono de unsubscribe não pode reabrir o ciclo de reconexão.
+    this.connectionGeneration += 1;
+    this.isDisconnected = true;
     this.clearReconnectTimer();
     this.stopPresenceInterval();
 
@@ -313,13 +331,13 @@ export class BaseActionCableConnector {
       this.consumer.disconnect();
     }
 
-    BaseActionCableConnector.isDisconnected = true;
   }
 
   /**
    * Cleanup na destruição
    */
   public destroy(): void {
+    this.destroyed = true;
     this.disconnect();
     this.events = {};
   }

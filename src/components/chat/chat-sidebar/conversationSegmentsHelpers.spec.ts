@@ -45,9 +45,9 @@ describe('conversationSegmentsHelpers — unanswered (EVO-1963)', () => {
   });
 });
 
-describe('conversationSegmentsHelpers — Scope Tabs: Chats, Fila, Todas', () => {
+describe('conversationSegmentsHelpers — Scope Tabs: Chats, Fila, Robô, Todas', () => {
 
-  it('defines the correct operational presets for all three scopes', () => {
+  it('defines the correct operational presets for all four scopes', () => {
     // Chats: Meus atendimentos abertos
     expect(CONVERSATION_SCOPE_PRESETS.mine.map(f => `${f.attributeKey}=${f.values}`)).toEqual([
       'assignee_type=me',
@@ -60,6 +60,12 @@ describe('conversationSegmentsHelpers — Scope Tabs: Chats, Fila, Todas', () =>
       'status=open',
     ]);
 
+    // Robô: Atendimentos sob controle da IA (status pending)
+    expect(CONVERSATION_SCOPE_PRESETS.bot.map(f => `${f.attributeKey}=${f.values}`)).toEqual([
+      'assignee_type=all',
+      'status=pending',
+    ]);
+
     // Todas: Visão global com todos os status
     expect(CONVERSATION_SCOPE_PRESETS.all.map(f => `${f.attributeKey}=${f.values}`)).toEqual([
       'assignee_type=all',
@@ -67,15 +73,17 @@ describe('conversationSegmentsHelpers — Scope Tabs: Chats, Fila, Todas', () =>
     ]);
   });
 
-  it('routes all three scope presets through the fast GET path (not heavy POST /filter)', () => {
+  it('routes all four scope presets through the fast GET path (not heavy POST /filter)', () => {
     const mineFilters = convertBaseFiltersToConversationFilters(CONVERSATION_SCOPE_PRESETS.mine);
     const unassignedFilters = convertBaseFiltersToConversationFilters(
       CONVERSATION_SCOPE_PRESETS.unassigned,
     );
+    const botFilters = convertBaseFiltersToConversationFilters(CONVERSATION_SCOPE_PRESETS.bot);
     const allFilters = convertBaseFiltersToConversationFilters(CONVERSATION_SCOPE_PRESETS.all);
 
     expect(shouldUseAdvancedFilters(mineFilters)).toBe(false);
     expect(shouldUseAdvancedFilters(unassignedFilters)).toBe(false);
+    expect(shouldUseAdvancedFilters(botFilters)).toBe(false);
     expect(shouldUseAdvancedFilters(allFilters)).toBe(false);
   });
 
@@ -96,6 +104,14 @@ describe('conversationSegmentsHelpers — Scope Tabs: Chats, Fila, Todas', () =>
       assignee_type: 'unassigned',
     });
 
+    const botParams = convertFiltersToUrlParams(
+      convertBaseFiltersToConversationFilters(CONVERSATION_SCOPE_PRESETS.bot),
+    );
+    expect(botParams).toEqual({
+      status: 'pending',
+      assignee_type: 'all',
+    });
+
     const allParams = convertFiltersToUrlParams(
       convertBaseFiltersToConversationFilters(CONVERSATION_SCOPE_PRESETS.all),
     );
@@ -111,6 +127,8 @@ describe('conversationSegmentsHelpers — Scope Tabs: Chats, Fila, Todas', () =>
 
     expect(getActiveConversationScope([cf('assignee_type', 'me'), cf('status', 'open')])).toBe('mine');
     expect(getActiveConversationScope([cf('assignee_type', 'unassigned'), cf('status', 'open')])).toBe('unassigned');
+    expect(getActiveConversationScope([cf('assignee_type', 'all'), cf('status', 'pending')])).toBe('bot');
+    expect(getActiveConversationScope([cf('status', 'pending')])).toBe('bot');
     expect(getActiveConversationScope([cf('assignee_type', 'all'), cf('status', 'all')])).toBe('all');
     expect(getActiveConversationScope([cf('status', 'all')])).toBe(null);
   });
