@@ -70,13 +70,8 @@ const UUID_V4_REGEX =
 // (mesmo espírito de collapsed/pinned de outras UIs do produto). Limites
 // evitam extremos inúteis: muito estreito corta nome/prévia, muito largo
 // esmaga a área de chat em telas médias.
-const SIDEBAR_WIDTH_KEY = 'evo_chat_sidebar_width_v1';
-const SIDEBAR_WIDTH_DEFAULT = 384; // md:w-96 original
-const SIDEBAR_WIDTH_MIN = 280;
-const SIDEBAR_WIDTH_MAX = 560;
-
-const clampSidebarWidth = (px: number) =>
-  Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, px));
+import { useSidebarResize } from './hooks/useSidebarResize';
+import { chatLogger } from '@/utils/logger/chatLogger';
 
 const Chat = () => {
   const { t } = useLanguage('chat');
@@ -125,87 +120,8 @@ const Chat = () => {
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
   const [isContactSidebarOpen, setIsContactSidebarOpen] = useState(false);
 
-  // Coluna de conversas redimensionável (§3.1) — ver constantes acima.
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
-    return Number.isFinite(stored) && stored > 0 ? clampSidebarWidth(stored) : SIDEBAR_WIDTH_DEFAULT;
-  });
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
-  const resizeStartRef = useRef<{
-    startX: number;
-    startWidth: number;
-    currentWidth: number;
-    sidebar: HTMLElement;
-  } | null>(null);
-  const resizeFrameRef = useRef<number | null>(null);
-
-  const handleResizeMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      const sidebar = e.currentTarget.previousElementSibling;
-      if (!(sidebar instanceof HTMLElement)) return;
-      const currentWidth = sidebar.getBoundingClientRect().width;
-      resizeStartRef.current = { startX: e.clientX, startWidth: currentWidth, currentWidth, sidebar };
-      setIsResizingSidebar(true);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!isResizingSidebar) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const start = resizeStartRef.current;
-      if (!start) return;
-      start.currentWidth = clampSidebarWidth(start.startWidth + (e.clientX - start.startX));
-      if (resizeFrameRef.current == null) {
-        resizeFrameRef.current = requestAnimationFrame(() => {
-          start.sidebar.style.setProperty('--chat-sidebar-width', `${start.currentWidth}px`);
-          resizeFrameRef.current = null;
-        });
-      }
-    };
-    const handleMouseUp = () => {
-      if (resizeFrameRef.current != null) {
-        cancelAnimationFrame(resizeFrameRef.current);
-        resizeFrameRef.current = null;
-      }
-      const start = resizeStartRef.current;
-      if (start) {
-        start.sidebar.style.setProperty('--chat-sidebar-width', `${start.currentWidth}px`);
-        setSidebarWidth(clampSidebarWidth(Math.round(start.sidebar.getBoundingClientRect().width)));
-      }
-      resizeStartRef.current = null;
-      setIsResizingSidebar(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('blur', handleMouseUp);
-    // cursor/seleção globais durante o drag — sem isto, soltar o mouse fora da
-    // faixa de 1px do handle interrompe o resize e o usuário seleciona texto
-    // da tela por baixo.
-    const prevCursor = document.body.style.cursor;
-    const prevUserSelect = document.body.style.userSelect;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('blur', handleMouseUp);
-      if (resizeFrameRef.current != null) {
-        cancelAnimationFrame(resizeFrameRef.current);
-        resizeFrameRef.current = null;
-      }
-      document.body.style.cursor = prevCursor;
-      document.body.style.userSelect = prevUserSelect;
-    };
-  }, [isResizingSidebar]);
-
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
-  }, [sidebarWidth]);
+  // Coluna de conversas redimensionável via hook atomizado
+  const { sidebarWidth, isResizingSidebar, handleResizeMouseDown } = useSidebarResize();
 
   // Modal states
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);

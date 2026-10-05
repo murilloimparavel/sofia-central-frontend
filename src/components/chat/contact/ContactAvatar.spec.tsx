@@ -89,6 +89,7 @@ describe('ContactAvatar (EVO-1012)', () => {
     render(
       <ContactAvatar
         contact={{ id: '4', name: 'Alice Smith', avatar_url: null, thumbnail: null, avatar: null }}
+        showColoredFallback={true}
       />,
     );
 
