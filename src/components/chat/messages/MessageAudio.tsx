@@ -113,6 +113,7 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
   const [durations, setDurations] = useState<Record<string, number>>({});
   const audioRef = useRef<HTMLAudioElement>(null);
   const playPromiseRef = useRef<Promise<void> | null>(null);
+  const playbackRequestRef = useRef(0);
 
   const { activeUrl, registerActiveAudio, clearActiveAudio } = useAudioPlaybackStore();
 
@@ -147,6 +148,12 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
     setIsLoading(false);
   }, []);
 
+  const resetPlaybackState = useCallback((url?: string) => {
+    setIsPlaying(false);
+    setIsLoading(false);
+    if (url) clearActiveAudio(url);
+  }, [clearActiveAudio]);
+
   const togglePlayback = async (attachment: Attachment) => {
     if (!attachment.data_url) return;
     const audio = audioRef.current;
@@ -154,44 +161,60 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
 
     const url = attachment.data_url;
 
-    if (currentPlaying === url && isPlaying) {
+    if (currentPlaying === url && (isPlaying || isLoading)) {
       // Pausar
+      playbackRequestRef.current += 1;
       pauseThisAudio();
       clearActiveAudio(url);
     } else {
+      // Não empilhe chamadas de play() enquanto Safari ainda resolve a anterior.
+      if (isLoading) return;
+
       // Notificar store global para parar qualquer outro áudio tocando no sistema
       registerActiveAudio(url, pauseThisAudio);
 
       if (currentPlaying !== url) {
         audio.src = url;
-        if (typeof audio.load === 'function') {
-          audio.load();
-        }
         setCurrentPlaying(url);
         setCurrentTime(0);
       }
 
       audio.playbackRate = playbackRate;
       setIsLoading(true);
+      const requestId = ++playbackRequestRef.current;
 
       try {
         playPromiseRef.current = audio.play();
         await playPromiseRef.current;
+        if (requestId !== playbackRequestRef.current) {
+          // A play promise may resolve after the user or another player paused us.
+          // Respect the media element's actual state instead of reviving stale UI.
+          if (audio.paused) resetPlaybackState(url);
+          else audio.pause();
+          return;
+        }
+        if (audio.paused) {
+          resetPlaybackState(url);
+          return;
+        }
         setIsPlaying(true);
         setIsLoading(false);
       } catch (error: any) {
+        if (requestId !== playbackRequestRef.current) {
+          if (audio.paused) resetPlaybackState(url);
+          return;
+        }
         // Ignorar AbortError originado por nova ação de pause
         if (error?.name === 'AbortError') {
           console.warn('Reprodução interrompida por nova ação');
+          resetPlaybackState(url);
           return;
         }
         console.error('Erro ao reproduzir áudio:', error);
         toast.error(t('messages.messageAudio.playbackError'), {
           description: t('messages.messageAudio.playbackErrorDescription'),
         });
-        setIsPlaying(false);
-        setIsLoading(false);
-        clearActiveAudio(url);
+        resetPlaybackState(url);
       }
     }
   };
@@ -242,21 +265,33 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
       setIsLoading(false);
     };
 
+    const handlePlaying = () => {
+      setIsPlaying(true);
+      setIsLoading(false);
+    };
+
+    const handlePause = () => {
+      playbackRequestRef.current += 1;
+      resetPlaybackState(audio.src);
+    };
+
     const handleEnded = () => {
-      setIsPlaying(false);
+      playbackRequestRef.current += 1;
+      resetPlaybackState(audio.src);
       setCurrentTime(0);
       setCurrentPlaying(null);
-      if (audio.src) clearActiveAudio(audio.src);
     };
 
     const handleError = () => {
-      setIsPlaying(false);
-      setIsLoading(false);
+      playbackRequestRef.current += 1;
+      resetPlaybackState(audio.src);
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('playing', handlePlaying);
+    audio.addEventListener('pause', handlePause);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
 
@@ -264,10 +299,12 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('playing', handlePlaying);
+      audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
     };
-  }, [clearActiveAudio]);
+  }, [resetPlaybackState]);
 
   // Carregar durações de forma leve e sequencial
   useEffect(() => {

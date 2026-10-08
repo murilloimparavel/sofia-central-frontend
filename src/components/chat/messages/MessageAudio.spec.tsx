@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import MessageAudio from './MessageAudio';
 import { Attachment } from '@/types/chat/api';
 import { useAudioPlaybackStore } from '@/store/audioPlaybackStore';
+import { toast } from 'sonner';
 
 vi.mock('sonner', () => ({
   toast: { warning: vi.fn(), success: vi.fn(), error: vi.fn() },
@@ -74,8 +75,13 @@ describe('MessageAudio Mobile & Reliability', () => {
   });
 
   it('registers active audio in useAudioPlaybackStore to prevent concurrent playback', async () => {
-    window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
-    window.HTMLMediaElement.prototype.pause = vi.fn();
+    window.HTMLMediaElement.prototype.play = vi.fn(function (this: HTMLAudioElement) {
+      Object.defineProperty(this, 'paused', { configurable: true, value: false });
+      return Promise.resolve();
+    });
+    window.HTMLMediaElement.prototype.pause = vi.fn(function (this: HTMLAudioElement) {
+      Object.defineProperty(this, 'paused', { configurable: true, value: true });
+    });
     window.HTMLMediaElement.prototype.load = vi.fn();
 
     render(<MessageAudio attachments={mockAttachments} />);
@@ -87,5 +93,79 @@ describe('MessageAudio Mobile & Reliability', () => {
 
     expect(useAudioPlaybackStore.getState().activeUrl).toBe('https://example.com/audio1.ogg');
     expect(useAudioPlaybackStore.getState().isPlaying).toBe(true);
+  });
+
+  it('does not call load() explicitly before play() on a user tap', async () => {
+    const play = vi.fn().mockResolvedValue(undefined);
+    const load = vi.fn();
+    window.HTMLMediaElement.prototype.play = play;
+    window.HTMLMediaElement.prototype.pause = vi.fn();
+    window.HTMLMediaElement.prototype.load = load;
+
+    render(<MessageAudio attachments={[mockAttachments[0]]} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Reproduzir áudio'));
+    });
+
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('reports playback rejection and resets the loading state', async () => {
+    window.HTMLMediaElement.prototype.play = vi.fn().mockRejectedValue(new Error('decode failed'));
+    window.HTMLMediaElement.prototype.pause = vi.fn();
+    window.HTMLMediaElement.prototype.load = vi.fn();
+
+    render(<MessageAudio attachments={[mockAttachments[0]]} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Reproduzir áudio'));
+    });
+
+    expect(toast.error).toHaveBeenCalled();
+    expect(screen.getByLabelText('Reproduzir áudio')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('keeps playback paused if the play promise resolves after the user paused', async () => {
+    let resolvePlay!: () => void;
+    const play = vi.fn(() => new Promise<void>((resolve) => {
+      resolvePlay = resolve;
+    }));
+    const pause = vi.fn();
+    window.HTMLMediaElement.prototype.play = play;
+    window.HTMLMediaElement.prototype.pause = pause;
+    window.HTMLMediaElement.prototype.load = vi.fn();
+
+    render(<MessageAudio attachments={[mockAttachments[0]]} />);
+
+    fireEvent.click(screen.getByLabelText('Reproduzir áudio'));
+    fireEvent.click(screen.getByLabelText('Reproduzir áudio'));
+
+    await act(async () => {
+      resolvePlay();
+      await Promise.resolve();
+    });
+
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Reproduzir áudio')).toBeInTheDocument();
+    expect(useAudioPlaybackStore.getState().activeUrl).toBeNull();
+  });
+
+  it('does not start another audio while a different attachment is still loading', async () => {
+    const play = vi.fn(() => new Promise<void>(() => undefined));
+    window.HTMLMediaElement.prototype.play = play;
+    window.HTMLMediaElement.prototype.pause = vi.fn();
+    window.HTMLMediaElement.prototype.load = vi.fn();
+
+    render(<MessageAudio attachments={mockAttachments} />);
+
+    fireEvent.click(screen.getAllByLabelText('Reproduzir áudio')[0]);
+    fireEvent.click(screen.getAllByLabelText('Reproduzir áudio')[1]);
+
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(useAudioPlaybackStore.getState().activeUrl).toBe('https://example.com/audio1.ogg');
   });
 });
