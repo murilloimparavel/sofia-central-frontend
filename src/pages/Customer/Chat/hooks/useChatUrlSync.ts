@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { CONVERSATION_SEGMENTS } from '@/components/chat/chat-sidebar/conversationSegmentsHelpers';
 import { chatLogger } from '@/utils/logger/chatLogger';
 import type { BaseFilter } from '@/types/core';
+import type { Conversation } from '@/types/chat/api';
 
 const UUID_V4_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -13,8 +14,8 @@ interface UseChatUrlSyncProps {
   selectedConversationId: string | number | null | undefined;
   conversationsCount: number;
   isConversationsLoaded: boolean;
-  getConversation: (id: string) => any;
-  loadSpecificConversation: (id: string) => Promise<any>;
+  getConversation: (id: string) => Conversation | null | undefined;
+  loadSpecificConversation: (id: string) => Promise<Conversation | null | undefined>;
   selectConversation: (id: string | null) => void;
   setMobileView: (view: 'list' | 'chat') => void;
   handleApplyFilters: (filters: BaseFilter[]) => Promise<void>;
