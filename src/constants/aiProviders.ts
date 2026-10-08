@@ -33,8 +33,19 @@ const OPENAI_COMPATIBLE_PROVIDERS = new Set([
   CUSTOM_OPENAI_PROVIDER,
 ]);
 
+// The inbox assist only calls chat/completions. OpenRouter speaks that wire
+// protocol, though the CRM's other AI features use additional endpoints.
+const INBOX_ASSIST_COMPATIBLE_PROVIDERS = new Set([
+  ...OPENAI_COMPATIBLE_PROVIDERS,
+  'openrouter',
+]);
+
 export function isOpenAICompatible(provider: string): boolean {
   return OPENAI_COMPATIBLE_PROVIDERS.has(provider);
+}
+
+export function isInboxAssistCompatible(provider: string): boolean {
+  return INBOX_ASSIST_COMPATIBLE_PROVIDERS.has(provider);
 }
 
 // The API returns only the last characters of a key, never the key itself.
@@ -55,6 +66,7 @@ interface ResolvableCredential {
   scope?: ApiKeyScope;
   is_active: boolean;
   openai_compatible?: boolean;
+  inbox_assist_compatible?: boolean;
   created_at?: string;
 }
 
@@ -77,7 +89,10 @@ export type CredentialResolution<T> =
 // `order(created_at: :asc)` of the Ruby side — array position is not an order.
 export function resolveCredential<T extends ResolvableCredential>(
   credentials: T[],
-  { openAICompatibleOnly = false }: { openAICompatibleOnly?: boolean } = {},
+  {
+    openAICompatibleOnly = false,
+    inboxAssistCompatibleOnly = false,
+  }: { openAICompatibleOnly?: boolean; inboxAssistCompatibleOnly?: boolean } = {},
 ): T | undefined {
   for (const scope of [...SCOPE_CHAIN].reverse()) {
     const candidates = credentials
@@ -85,8 +100,10 @@ export function resolveCredential<T extends ResolvableCredential>(
         credential =>
           credential.is_active &&
           (credential.scope ?? 'account') === scope &&
-          (!openAICompatibleOnly ||
-            (credential.openai_compatible ?? isOpenAICompatible(credential.provider))),
+          (inboxAssistCompatibleOnly
+            ? (credential.inbox_assist_compatible ?? isInboxAssistCompatible(credential.provider))
+            : !openAICompatibleOnly ||
+              (credential.openai_compatible ?? isOpenAICompatible(credential.provider))),
       )
       .sort(byCreatedAtAsc);
 
@@ -117,7 +134,11 @@ function byCreatedAtAsc(a: ResolvableCredential, b: ResolvableCredential): numbe
  */
 export function resolveCredentialState<T extends ResolvableCredential>(
   credentials: T[],
-  options: { openAICompatibleOnly?: boolean; legacyActive?: boolean } = {},
+  options: {
+    openAICompatibleOnly?: boolean;
+    inboxAssistCompatibleOnly?: boolean;
+    legacyActive?: boolean;
+  } = {},
 ): CredentialResolution<T> {
   const credential = resolveCredential(credentials, options);
   if (credential) {

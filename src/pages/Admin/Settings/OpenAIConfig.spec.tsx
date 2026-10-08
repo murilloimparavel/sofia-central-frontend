@@ -45,6 +45,7 @@ const EMPTY_CONFIG: Record<string, unknown> = {
   OPENAI_API_URL: '',
   OPENAI_API_SECRET: null,
   OPENAI_MODEL: '',
+  OPENROUTER_MODEL: 'openai/gpt-4.1-nano',
   OPENAI_ENABLE_AUDIO_TRANSCRIPTION: false,
   OPENAI_PROMPT_REPLY: '',
   OPENAI_PROMPT_SUMMARY: '',
@@ -94,6 +95,7 @@ describe('OpenAIConfig', () => {
     expect(screen.getByText('openai.connection.cardTitle')).toBeInTheDocument();
     expect(screen.getByLabelText('openai.connection.fields.apiUrl')).toBeInTheDocument();
     expect(screen.getByLabelText('openai.connection.fields.model')).toBeInTheDocument();
+    expect(screen.getByLabelText('openai.connection.fields.openrouterModel')).toBeInTheDocument();
     // EVO-2250: the credential moved to Settings > AI Credentials.
     expect(screen.queryByLabelText('openai.connection.fields.apiSecret')).not.toBeInTheDocument();
     expect(screen.getByText('openai.connection.credentialMoved')).toBeInTheDocument();
@@ -146,6 +148,26 @@ describe('OpenAIConfig', () => {
       expect(mockSaveConfig).toHaveBeenCalledWith('openai', expect.objectContaining({
         OPENAI_API_URL: 'https://api.openai.com/v1',
         OPENAI_MODEL: 'gpt-4o',
+      }));
+    });
+  });
+
+  it('saves the OpenRouter model separately from the OpenAI model', async () => {
+    await renderAndWait({
+      ...EMPTY_CONFIG,
+      OPENAI_MODEL: 'gpt-4o',
+      OPENROUTER_MODEL: 'anthropic/claude-sonnet',
+    });
+    mockSaveConfig.mockResolvedValue(EMPTY_CONFIG);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('openai.save'));
+    });
+
+    await waitFor(() => {
+      expect(mockSaveConfig).toHaveBeenCalledWith('openai', expect.objectContaining({
+        OPENAI_MODEL: 'gpt-4o',
+        OPENROUTER_MODEL: 'anthropic/claude-sonnet',
       }));
     });
   });

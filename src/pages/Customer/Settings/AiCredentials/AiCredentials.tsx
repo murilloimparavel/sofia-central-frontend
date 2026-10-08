@@ -24,6 +24,7 @@ import EmptyState from '@/components/base/EmptyState';
 import {
   AI_PROVIDERS,
   CUSTOM_OPENAI_PROVIDER,
+  isInboxAssistCompatible,
   isOpenAICompatible,
   maskKey,
   resolveCredentialState,
@@ -94,9 +95,8 @@ export default function AiCredentials() {
     [credentials],
   );
 
-  // Every AI feature of the CRM, mirroring Ai::ConsumerCompatibility. Agents
-  // reach any provider; the other four build OpenAI-shaped requests, so they
-  // resolve with the same compatibility filter the backend applies.
+  // Each feature mirrors Ai::ConsumerCompatibility. OpenRouter supports chat
+  // completions for the inbox assist, but not the transcription endpoint.
   // An installation that has not migrated resolves through the resolver's
   // legacy fallback, so AI works while the registry is empty. Only the server
   // (Ai::MigrationState) can tell that apart from "migrated and off": a
@@ -124,10 +124,14 @@ export default function AiCredentials() {
       openAICompatibleOnly: true,
       legacyActive,
     });
+    const inboxAssistOnly = resolveCredentialState(credentials, {
+      inboxAssistCompatibleOnly: true,
+      legacyActive,
+    });
 
     return [
       { key: 'aiAgents', resolution: resolveCredentialState(credentials, { legacyActive }) },
-      { key: 'inboxAssist', resolution: openAIOnly },
+      { key: 'inboxAssist', resolution: inboxAssistOnly },
       { key: 'audioTranscription', resolution: openAIOnly },
       { key: 'labelSuggestion', resolution: openAIOnly },
       { key: 'moderation', resolution: openAIOnly },
@@ -215,12 +219,22 @@ export default function AiCredentials() {
   // The backend derives openai_compatible; fall back to the local table so the
   // column still renders against an older core-service.
   const servesAllFeatures = useCallback(
-    (credential: ApiKey) => credential.openai_compatible ?? isOpenAICompatible(credential.provider),
+    (credential: ApiKey) => {
+      if (credential.openai_compatible ?? isOpenAICompatible(credential.provider)) return 'all';
+      if (credential.inbox_assist_compatible ?? isInboxAssistCompatible(credential.provider)) {
+        return 'inboxAssist';
+      }
+      return 'agentsOnly';
+    },
     [],
   );
 
   const draftIsIncompatible = useMemo(
     () => Boolean(draft.provider) && !isOpenAICompatible(draft.provider),
+    [draft.provider],
+  );
+  const draftSupportsInboxAssistOnly = useMemo(
+    () => isInboxAssistCompatible(draft.provider) && !isOpenAICompatible(draft.provider),
     [draft.provider],
   );
 
@@ -412,7 +426,7 @@ export default function AiCredentials() {
                 </td>
                 <td className="p-3 font-mono">{maskKey(credential.key_hint)}</td>
                 <td className="p-3">
-                  {servesAllFeatures(credential) ? t('serves.all') : t('serves.agentsOnly')}
+                  {t(`serves.${servesAllFeatures(credential)}`)}
                 </td>
                 <td className="p-3">
                   <Badge variant={credential.is_active ? 'default' : 'secondary'}>
@@ -638,7 +652,9 @@ export default function AiCredentials() {
             {draftIsIncompatible && (
               <p role="alert" className="flex gap-2 text-sm text-amber-600">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                {t('form.incompatibleWarning', { provider: providerLabel(draft.provider) })}
+                {draftSupportsInboxAssistOnly
+                  ? t('form.partialCompatibilityWarning')
+                  : t('form.incompatibleWarning', { provider: providerLabel(draft.provider) })}
               </p>
             )}
           </div>

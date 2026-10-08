@@ -74,6 +74,15 @@ const OPENAI_KEY: ApiKey = {
   updated_at: '2026-07-01T00:00:00Z',
 };
 
+const OPENROUTER_KEY: ApiKey = {
+  ...OPENAI_KEY,
+  id: 'key-openrouter',
+  name: 'OpenRouter',
+  provider: 'openrouter',
+  openai_compatible: false,
+  inbox_assist_compatible: true,
+};
+
 const ANTHROPIC_KEY: ApiKey = {
   id: 'key-anthropic',
   name: 'Testes',
@@ -632,6 +641,15 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
     await waitFor(() => expect(panel).toHaveTextContent('Testes'));
     expect(panel).toHaveTextContent('Chave da casa');
     expect(panel).toHaveTextContent('inUse.fromInstallation');
+  });
+
+  it('shows OpenRouter as the inbox-assist credential without treating it as universal', async () => {
+    mockRegistry([OPENROUTER_KEY, INSTALLATION_KEY]);
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('OpenRouter'));
+    expect(panel).toHaveTextContent('inUse.fromAccount');
   });
 });
 

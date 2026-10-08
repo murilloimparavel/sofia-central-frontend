@@ -134,6 +134,8 @@ export interface ApiKey {
   key_hint?: string;
   /** Providers speaking the OpenAI protocol serve every AI feature. */
   openai_compatible?: boolean;
+  /** Chat-completions support is narrower than support for every AI feature. */
+  inbox_assist_compatible?: boolean;
   /** Which link of the resolution chain the credential belongs to. */
   scope?: ApiKeyScope;
   created_at: string;

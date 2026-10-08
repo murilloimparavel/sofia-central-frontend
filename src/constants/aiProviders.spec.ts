@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCredential, resolveCredentialState } from './aiProviders';
+import { isInboxAssistCompatible, resolveCredential, resolveCredentialState } from './aiProviders';
 
 // EVO-2250 review, MÉDIO 15: this browser-side resolution is a mirror of
 // Ai::CredentialResolver, and it disagreed with it in two ways — it ordered by
@@ -18,6 +18,19 @@ const credential = (overrides: Partial<Parameters<typeof resolveCredential>[0][n
 });
 
 describe('resolveCredential — mirrors the Ruby resolver', () => {
+  it('resolves OpenRouter for inbox assist but not other OpenAI-compatible consumers', () => {
+    const openrouter = credential({
+      provider: 'openrouter',
+      openai_compatible: false,
+      inbox_assist_compatible: true,
+    });
+
+    expect(resolveCredential([openrouter], { inboxAssistCompatibleOnly: true })).toBe(openrouter);
+    expect(resolveCredential([openrouter], { openAICompatibleOnly: true })).toBeUndefined();
+    expect(isInboxAssistCompatible('openrouter')).toBe(true);
+    expect(isInboxAssistCompatible('anthropic')).toBe(false);
+  });
+
   it('picks the OLDEST active credential in a link, not the first in the array', () => {
     const newest = credential({ name: 'nova', created_at: '2026-07-20T00:00:00Z' });
     const oldest = credential({ name: 'antiga', created_at: '2026-01-05T00:00:00Z' });

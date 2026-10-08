@@ -27,7 +27,8 @@ import type { AdminConfigData } from '@/types/admin/adminConfig';
 function createOpenAISchema(_t: (key: string) => string) {
   return z.object({
     OPENAI_API_URL: z.string().optional(),
-      OPENAI_MODEL: z.string().optional(),
+    OPENAI_MODEL: z.string().optional(),
+    OPENROUTER_MODEL: z.string().optional(),
     OPENAI_ENABLE_AUDIO_TRANSCRIPTION: z.union([z.boolean(), z.string()]).optional(),
     OPENAI_PROMPT_REPLY: z.string().optional(),
     OPENAI_PROMPT_SUMMARY: z.string().optional(),
@@ -46,6 +47,7 @@ type OpenAIFormData = z.infer<ReturnType<typeof createOpenAISchema>>;
 const DEFAULTS: OpenAIFormData = {
   OPENAI_API_URL: '',
   OPENAI_MODEL: '',
+  OPENROUTER_MODEL: 'openai/gpt-4.1-nano',
   OPENAI_ENABLE_AUDIO_TRANSCRIPTION: false,
   OPENAI_PROMPT_REPLY: '',
   OPENAI_PROMPT_SUMMARY: '',
@@ -198,6 +200,23 @@ export default function OpenAIConfig() {
               />
               {errors.OPENAI_MODEL && (
                 <p className="text-xs text-destructive">{errors.OPENAI_MODEL.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="OPENROUTER_MODEL">
+                {t('openai.connection.fields.openrouterModel')}
+              </Label>
+              <Input
+                id="OPENROUTER_MODEL"
+                placeholder={t('openai.connection.placeholders.openrouterModel')}
+                {...register('OPENROUTER_MODEL')}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('openai.connection.openrouterModelHint')}
+              </p>
+              {errors.OPENROUTER_MODEL && (
+                <p className="text-xs text-destructive">{errors.OPENROUTER_MODEL.message}</p>
               )}
             </div>
 

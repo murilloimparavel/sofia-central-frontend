@@ -303,13 +303,16 @@
         "apiUrl": "URL da API",
         "apiSecret": "Chave de API",
         "model": "Modelo",
+        "openrouterModel": "Modelo do OpenRouter (Assist da caixa de entrada)",
         "audioTranscription": "Ativar Transcricao de Audio"
       },
       "placeholders": {
         "apiUrl": "https://api.openai.com/v1",
         "apiSecret": "Introduza a nova chave de API",
-        "model": "gpt-4o"
+        "model": "gpt-4o",
+        "openrouterModel": "openai/gpt-4.1-nano"
       },
+      "openrouterModelHint": "Use um ID como openai/gpt-4.1-nano ou anthropic/claude-sonnet. Valores copiados do seletor podem começar com openrouter/; esse prefixo é removido automaticamente. Nomes sem provedor recebem o prefixo openai/.",
       "credentialMoved": "A credencial de IA agora fica em Configurações > Credenciais de IA.",
       "goToCredentials": "Ir para Credenciais de IA"
     },
