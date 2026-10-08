@@ -61,7 +61,7 @@ export function useChatUrlSync({
 
     const filtersToApply = savedFilters || defaultFilters;
     handleApplyFilters(filtersToApply).catch(error => {
-      chatLogger.ui.warn('Sem permissão ou erro ao aplicar filtros iniciais:', error);
+      chatLogger.uiWarn('Sem permissão ou erro ao aplicar filtros iniciais:', { error });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [permissionsReady, canViewConversations]);
@@ -86,7 +86,7 @@ export function useChatUrlSync({
     }
 
     handleApplyFilters(badgeSegment.preset).catch(error => {
-      chatLogger.ui.warn('Erro ao aplicar filtro de segmento:', error);
+      chatLogger.uiWarn('Erro ao aplicar filtro de segmento:', { error });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [permissionsReady, segmentParam, canViewConversations]);
@@ -125,7 +125,7 @@ export function useChatUrlSync({
             targetConversation = await loadSpecificConversation(conversationIdStr);
             if (!targetConversation) return;
           } catch (error) {
-            chatLogger.ui.error('Erro ao carregar conversa específica da URL:', error);
+            chatLogger.uiError('Erro ao carregar conversa específica da URL:', { error });
             return;
           }
         }
