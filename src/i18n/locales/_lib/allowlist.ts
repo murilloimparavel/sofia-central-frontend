@@ -89,6 +89,8 @@ export const PER_FILE_ALLOWED: Record<string, Set<string>> = {
   'layout.json': new Set(['SOFIA Central']),
   'adminSettings.json': new Set([
     'Frontend Runtime', 'Google OAuth', 'Relay (Exim / Postfix / Qmail)',
+    // Provider/model identifier, not user-facing prose to translate.
+    'openai/gpt-4.1-nano',
   ]),
   'aiAgents.json': new Set([
     // kept as a product term — surrounding pt-BR copy embeds "Knowledge Base"
