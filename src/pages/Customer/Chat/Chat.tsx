@@ -71,7 +71,6 @@ const UUID_V4_REGEX =
 // evitam extremos inúteis: muito estreito corta nome/prévia, muito largo
 // esmaga a área de chat em telas médias.
 import { useSidebarResize } from './hooks/useSidebarResize';
-import { chatLogger } from '@/utils/logger/chatLogger';
 
 const Chat = () => {
   const { t } = useLanguage('chat');

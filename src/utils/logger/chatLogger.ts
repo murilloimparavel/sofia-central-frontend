@@ -73,6 +73,14 @@ class ChatLogger {
     this.log('debug', 'UI', message, context);
   }
 
+  uiWarn(message: string, context?: LogContext): void {
+    this.log('warn', 'UI', message, context);
+  }
+
+  uiError(message: string, context?: LogContext): void {
+    this.log('error', 'UI', message, context);
+  }
+
   // Performance & re-renders
   perf(message: string, context?: LogContext): void {
     this.log('debug', 'Perf', message, context);

@@ -5,16 +5,16 @@ import { chatService } from '@/services/chat/chatService';
 import { useAuthStore } from '@/store/authStore';
 import { useUnansweredConversationsStore } from '@/store/unansweredConversationsStore';
 import { extractMessagesData } from '@/utils/chat/responseHelpers';
-import { Attachment, Message, MessageSender, MessageTypeValue } from '@/types/chat/api';
+import { Attachment, Message, MessageSender } from '@/types/chat/api';
 import { useLanguage } from '@/hooks/useLanguage';
 
 import {
   MessagesState,
-  MessagesAction,
   initialMessagesState,
   messagesReducer,
 } from './MessagesContextReducer';
-import { chatLogger } from '@/utils/logger/chatLogger';
+
+const EMPTY_MESSAGES: Message[] = [];
 
 interface MessagesContextValue {
   state: MessagesState;
