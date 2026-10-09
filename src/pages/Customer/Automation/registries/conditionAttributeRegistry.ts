@@ -117,6 +117,13 @@ export const conditionAttributeRegistry: Record<string, ConditionAttributeDescri
     validFor: ['message'],
     i18nKey: 'form.fields.attributes.message_type',
   },
+  whatsapp_echo: {
+    attributeKey: 'whatsapp_echo',
+    dataType: 'boolean',
+    operators: fromType('boolean'),
+    validFor: ['message'],
+    i18nKey: 'form.fields.attributes.whatsapp_echo',
+  },
   name: {
     attributeKey: 'name',
     dataType: 'text_case_insensitive',
@@ -209,7 +216,8 @@ const eventContextMap: Record<AutomationEventType, EventContext[]> = {
 export function getAttributesForEvent(eventName: AutomationEventType): ConditionAttributeDescriptor[] {
   const allowedContexts = eventContextMap[eventName] ?? [];
   return Object.values(conditionAttributeRegistry).filter((descriptor) =>
-    descriptor.validFor.some((context) => allowedContexts.includes(context)),
+    descriptor.validFor.some((context) => allowedContexts.includes(context)) &&
+    (descriptor.attributeKey !== 'whatsapp_echo' || eventName === 'message_created'),
   );
 }
 

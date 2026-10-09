@@ -181,7 +181,8 @@ jobs:
             src/contexts/chat/ConversationsContext.spec.tsx \
             src/components/ai_agents/__tests__/ModelSelector.availableModels.spec.ts \
             src/components/ai_agents/__tests__/ModelSelector.retirement.spec.ts \
-            src/components/ai_agents/__tests__/ModelSelector.retiredValue.spec.tsx
+            src/components/ai_agents/__tests__/ModelSelector.retiredValue.spec.tsx \
+            src/pages/Customer/Automation/registries/conditionAttributeRegistry.spec.ts
 
   # Lint gate scoped to the files the PR touched.
   eslint:

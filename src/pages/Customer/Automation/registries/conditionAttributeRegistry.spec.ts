@@ -12,6 +12,7 @@ const BACKEND_CONDITION_KEYS = [
   'country_code',
   'status',
   'message_type',
+  'whatsapp_echo',
   'assignee_id',
   'team_id',
   'referer',
@@ -30,7 +31,7 @@ const BACKEND_CONDITION_KEYS = [
 ];
 
 describe('conditionAttributeRegistry', () => {
-  it('exposes all 20 backend condition attributes', () => {
+  it('exposes all 21 backend condition attributes', () => {
     const registryKeys = Object.keys(conditionAttributeRegistry).sort();
     expect(registryKeys).toEqual([...BACKEND_CONDITION_KEYS].sort());
   });
@@ -73,6 +74,12 @@ describe('conditionAttributeRegistry', () => {
     expect(keys).toContain('blocked');
     expect(keys).not.toContain('status');
     expect(keys).not.toContain('content');
+  });
+
+  it('surfaces WhatsApp echo only for message_created', () => {
+    expect(getAttributesForEvent('message_created').map((a) => a.attributeKey)).toContain('whatsapp_echo');
+    expect(getAttributesForEvent('conversation_created').map((a) => a.attributeKey)).not.toContain('whatsapp_echo');
+    expect(getAttributesForEvent('conversation_updated').map((a) => a.attributeKey)).not.toContain('whatsapp_echo');
   });
 
   it('pipeline_stage_updated event surfaces pipeline and conversation attributes', () => {

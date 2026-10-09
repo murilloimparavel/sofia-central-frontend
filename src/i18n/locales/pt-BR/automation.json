@@ -177,6 +177,7 @@
         "mail_subject": "Assunto do email",
         "content": "Conteúdo da mensagem",
         "message_type": "Tipo de mensagem",
+        "whatsapp_echo": "Eco externo do WhatsApp",
         "name": "Nome",
         "email": "Email",
         "phone_number": "Telefone",
