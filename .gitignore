@@ -12,6 +12,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.pnpm-store-local/
 dist
 dist-ssr
 storybook-static
@@ -30,6 +31,7 @@ storybook-static
 
 .yalc/
 yalc.lock
+.local-demo/
 
 # Workspace planning artifacts (not part of the application)
 _evo/
