@@ -24,34 +24,6 @@ for file in $(find "$HTML_DIR" -name '*.js' -type f); do
   [ -n "$VITE_EVOFLOW_API_URL" ] && sed -i "s|VITE_EVOFLOW_API_URL_PLACEHOLDER|${VITE_EVOFLOW_API_URL}|g" "$file"
 done
 
-# The assistant is hosted separately. Keep its address configurable at runtime,
-# but only allow HTTPS and inject only its origin into the browser's frame CSP.
-ASSISTANT_URL="${VITE_COMMERCIAL_ASSISTANT_URL:-}"
-ASSISTANT_ORIGIN=""
-if [ -n "$ASSISTANT_URL" ]; then
-  case "$ASSISTANT_URL" in
-    https://*) ;;
-    *) echo "VITE_COMMERCIAL_ASSISTANT_URL must use HTTPS." >&2; exit 1 ;;
-  esac
-  ASSISTANT_ORIGIN="$(printf '%s' "$ASSISTANT_URL" | sed -E 's#^(https://[^/]+).*$#\1#')"
-  case "$ASSISTANT_ORIGIN" in
-    https://*.*) ;;
-    *) echo "VITE_COMMERCIAL_ASSISTANT_URL must contain a valid HTTPS host." >&2; exit 1 ;;
-  esac
-  case "$ASSISTANT_ORIGIN" in
-    *[!A-Za-z0-9.:-]*) echo "VITE_COMMERCIAL_ASSISTANT_URL must use a plain HTTPS origin." >&2; exit 1 ;;
-  esac
-  case "$ASSISTANT_URL" in
-    "$ASSISTANT_ORIGIN"|"$ASSISTANT_ORIGIN"/) ;;
-    *) echo "VITE_COMMERCIAL_ASSISTANT_URL must be an origin without a path, query, or credentials." >&2; exit 1 ;;
-  esac
-fi
-
-for file in $(find "$HTML_DIR" -name '*.js' -type f); do
-  sed -i "s|VITE_COMMERCIAL_ASSISTANT_URL_PLACEHOLDER|${ASSISTANT_URL}|g" "$file"
-done
-sed -i "s|COMMERCIAL_ASSISTANT_ORIGIN_PLACEHOLDER|${ASSISTANT_ORIGIN}|g" "$NGINX_CONF"
-
 # Configure nginx CSP based on environment (default: development)
 # The CSP shipped in nginx.conf is the production default: img-src/media-src
 # allow 'https:' (external buckets) but no plain-http origin. Chat media served

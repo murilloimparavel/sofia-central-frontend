@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from 'react';
 import './CommercialAssistantPopup.css';
-
-const ASSISTANT_URL = import.meta.env.VITE_COMMERCIAL_ASSISTANT_URL || '';
+import CommercialAssistantPanel from './CommercialAssistantPanel';
 const POSITION_STORAGE_KEY = 'commercial-assistant-trigger-position';
 const DEFAULT_POSITION = { right: 88, bottom: 96 };
 const DOCK_EDGE = 28;
@@ -19,17 +18,6 @@ interface DragStart {
   bottom: number;
   moved: boolean;
   currentRight: number;
-}
-
-function getAssistantOrigin() {
-  if (!ASSISTANT_URL) return null;
-  try {
-    const url = new URL(ASSISTANT_URL);
-    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.origin === window.location.origin) return null;
-    return url.origin;
-  } catch {
-    return null;
-  }
 }
 
 function HeadsetIcon() {
@@ -50,7 +38,6 @@ function CloseIcon() {
   );
 }
 
-// Keep the assistant on a separate origin from the CRM when deploying; its frame needs its own API origin.
 interface CommercialAssistantPopupProps {
   initiallyOpen?: boolean;
 }
@@ -62,13 +49,11 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
   const [isDocked, setIsDocked] = useState(false);
   const [position, setPosition] = useState<TriggerPosition>(DEFAULT_POSITION);
   const [panelPosition, setPanelPosition] = useState<{ left: number; top: number } | null>(null);
-  const frameRef = useRef<HTMLIFrameElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const dragRef = useRef<DragStart | null>(null);
   const suppressClickRef = useRef(false);
-  const origin = getAssistantOrigin();
 
   const clampPosition = useCallback((next: TriggerPosition): TriggerPosition => {
     const button = buttonRef.current;
@@ -219,28 +204,15 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
 
     closeButtonRef.current?.focus();
 
-    const handleMessage = (event: MessageEvent) => {
-      if (
-        event.source === frameRef.current?.contentWindow &&
-        origin &&
-        event.origin === origin &&
-        event.data?.type === 'central-comercial:close'
-      ) {
-        close();
-      }
-    };
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') close();
     };
 
-    window.addEventListener('message', handleMessage);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('message', handleMessage);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [close, isOpen, origin]);
+  }, [close, isOpen]);
 
   return (
     <>
@@ -274,24 +246,7 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
               <CloseIcon />
             </button>
           </header>
-          {origin ? (
-            <iframe
-              key={ASSISTANT_URL}
-              ref={frameRef}
-              allow="clipboard-read; clipboard-write"
-              className="commercial-assistant-frame"
-              referrerPolicy="strict-origin-when-cross-origin"
-              // Keep same-origin APIs/storage working only after getAssistantOrigin
-              // verifies this is a separate origin from the CRM.
-              sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
-              src={ASSISTANT_URL}
-              title="Assistente comercial da Central de Reservas"
-            />
-          ) : (
-            <div className="commercial-assistant-config-error">
-              Configure um endereço HTTP ou HTTPS válido em VITE_COMMERCIAL_ASSISTANT_URL.
-            </div>
-          )}
+          <CommercialAssistantPanel />
         </section>
       )}
 

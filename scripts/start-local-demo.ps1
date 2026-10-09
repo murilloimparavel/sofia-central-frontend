@@ -14,7 +14,6 @@ if (-not $apiPort) {
 
 $env:VITE_AUTH_API_URL = 'http://127.0.0.1:4180'
 $env:VITE_API_URL = 'http://127.0.0.1:4180'
-$env:VITE_COMMERCIAL_ASSISTANT_URL = 'http://127.0.0.1:3001'
 npm run build
 if ($LASTEXITCODE -ne 0) { throw 'A compilação do frontend falhou.' }
 
