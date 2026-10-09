@@ -33,10 +33,29 @@
     const form=document.querySelector('#form'),status=document.querySelector('#status'),button=document.querySelector('#submit'),main=document.querySelector('main');
     const api='http://127.0.0.1:4180/api/v1';
     async function get(path,token){const r=await fetch(api+path,{headers:{Authorization:'Bearer '+token}});const j=await r.json();if(!r.ok)throw Error(j.message||'Falha ao carregar '+path);return j.data}
+    function node(tag,className='',text=''){
+      const element=document.createElement(tag);
+      if(className)element.className=className;
+      if(text!==undefined&&text!==null)element.textContent=String(text);
+      return element;
+    }
     function showPanel(user,channel,contact,conversation,messages){
       document.body.classList.add('panel');
-      main.innerHTML=`<header class="top"><img class="logo" src="/logo.svg" alt="Sofia" onerror="this.src='/logo.png'"><div class="top-right"><span><i class="dot"></i>Ambiente local</span><span>${user.name}</span><button class="logout" id="logout">Sair</button></div></header><div class="layout"><aside><section class="card"><h2>Caixa de entrada</h2><div class="channel"><div class="avatar">W</div><div><strong>${channel.name}</strong><div class="muted">Canal fictício · conectado</div></div></div></section><section class="card" style="margin-top:16px"><h2>Conversas <span class="pill">1 aberta</span></h2><div class="list"><div class="conversation"><div class="avatar">M</div><div class="summary"><strong>${contact.name}</strong><p>${messages[0]?.content||'Sem mensagens'}</p></div><span class="pill">1</span></div></div></section></aside><section class="card"><div class="chat-head"><div><strong>${contact.name}</strong><div class="muted">${contact.phone_number} · ${channel.name}</div></div><span class="pill">Conversa ${conversation.display_id}</span></div><div class="message">${messages[0]?.content||'Conversa de demonstração'}<div class="message-meta">Recebida · ${new Date(messages[0]?.created_at||Date.now()).toLocaleString('pt-BR')}</div></div><div class="contact"><strong>Contato de teste</strong><p style="margin:7px 0 0">${contact.name} · ${contact.email}<br>${contact.phone_number}</p></div><div class="checks"><span>✓ Login local</span><span>✓ Canal no SQLite</span><span>✓ Contato no SQLite</span><span>✓ Conversa e mensagem no SQLite</span></div><div class="notice">Conteúdo inteiramente fictício. Nenhuma API externa foi consultada.</div></section></div>`;
-      document.querySelector('#logout').onclick=()=>{sessionStorage.removeItem('sofia-local-demo-token');location.reload()};
+      const header=node('header','top'),logo=node('img','logo');logo.src='/logo.svg';logo.alt='Sofia';logo.onerror=()=>{logo.src='/logo.png'};
+      const topRight=node('div','top-right'),environment=node('span'),dot=node('i','dot');environment.append(dot,document.createTextNode('Ambiente local'));
+      const logout=node('button','logout','Sair');logout.id='logout';topRight.append(environment,node('span','',user.name),logout);header.append(logo,topRight);
+      const layout=node('div','layout'),aside=node('aside'),inboxCard=node('section','card'),channelRow=node('div','channel'),channelAvatar=node('div','avatar','W'),channelInfo=node('div');
+      inboxCard.append(node('h2','','Caixa de entrada'));channelInfo.append(node('strong','',channel.name),node('div','muted','Canal fictício · conectado'));channelRow.append(channelAvatar,channelInfo);inboxCard.append(channelRow);
+      const listCard=node('section','card');listCard.style.marginTop='16px';const listHeading=node('h2');listHeading.append(document.createTextNode('Conversas '),node('span','pill','1 aberta'));
+      const list=node('div','list'),conversationRow=node('div','conversation'),contactAvatar=node('div','avatar','M'),summary=node('div','summary');
+      summary.append(node('strong','',contact.name),node('p','',messages[0]?.content||'Sem mensagens'));conversationRow.append(contactAvatar,summary,node('span','pill','1'));list.append(conversationRow);listCard.append(listHeading,list);aside.append(inboxCard,listCard);
+      const chatCard=node('section','card'),chatHead=node('div','chat-head'),chatContact=node('div');chatContact.append(node('strong','',contact.name),node('div','muted',`${contact.phone_number} · ${channel.name}`));chatHead.append(chatContact,node('span','pill',`Conversa ${conversation.display_id}`));
+      const message=node('div','message');message.append(document.createTextNode(messages[0]?.content||'Conversa de demonstração'),node('div','message-meta',`Recebida · ${new Date(messages[0]?.created_at||Date.now()).toLocaleString('pt-BR')}`));
+      const contactCard=node('div','contact'),contactDetails=node('p');contactDetails.style.margin='7px 0 0';contactDetails.append(document.createTextNode(`${contact.name} · ${contact.email}`),document.createElement('br'),document.createTextNode(contact.phone_number));contactCard.append(node('strong','','Contato de teste'),contactDetails);
+      const checks=node('div','checks');for(const label of ['✓ Login local','✓ Canal no SQLite','✓ Contato no SQLite','✓ Conversa e mensagem no SQLite'])checks.append(node('span','',label));
+      chatCard.append(chatHead,message,contactCard,checks,node('div','notice','Conteúdo inteiramente fictício. Nenhuma API externa foi consultada.'));
+      layout.append(aside,chatCard);main.replaceChildren(header,layout);
+      logout.onclick=()=>{sessionStorage.removeItem('sofia-local-demo-token');location.reload()};
     }
     form.addEventListener('submit',async event=>{
       event.preventDefault();button.disabled=true;button.textContent='Validando…';status.className='status';status.textContent='';

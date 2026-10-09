@@ -118,7 +118,10 @@ const server = createServer(async (req, res) => {
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-  if (req.method === 'OPTIONS') return send(res, 204, {});
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, { 'Cache-Control': 'no-store', 'X-Local-Demo': 'true' });
+    return res.end();
+  }
 
   const url = new URL(req.url || '/', 'http://127.0.0.1');
   const route = url.pathname.replace(/^\/api\/v1/, '');
@@ -165,8 +168,11 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && route === '/user_tours') {
       const body = await readBody(req);
-      const tourKey = String(body.tour?.tour_key || 'welcome-tour');
-      const status = body.tour?.status === 'completed' ? 'completed' : 'skipped';
+      const tourKey = typeof body.tour?.tour_key === 'string' ? body.tour.tour_key.trim() : '';
+      const status = body.tour?.status;
+      if (!tourKey || tourKey.length > 200 || !['completed', 'skipped'].includes(status)) {
+        return send(res, 400, { success: false, message: 'tour_key e status completed ou skipped são obrigatórios.' });
+      }
       const completedAt = new Date().toISOString();
       db.prepare('INSERT INTO user_tours (tour_key,status,completed_at) VALUES (?,?,?) ON CONFLICT(tour_key) DO UPDATE SET status=excluded.status,completed_at=excluded.completed_at').run(tourKey, status, completedAt);
       return send(res, 200, { success: true, data: { id: tourKey, tour_key: tourKey, status, completed_at: completedAt } });

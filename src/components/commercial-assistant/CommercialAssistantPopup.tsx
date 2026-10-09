@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from 'react';
 import './CommercialAssistantPopup.css';
 
-const ASSISTANT_URL = import.meta.env.VITE_COMMERCIAL_ASSISTANT_URL || 'http://127.0.0.1:3001';
+const ASSISTANT_URL = import.meta.env.VITE_COMMERCIAL_ASSISTANT_URL || '';
 const POSITION_STORAGE_KEY = 'commercial-assistant-trigger-position';
 const DEFAULT_POSITION = { right: 88, bottom: 96 };
 const DOCK_EDGE = 28;
@@ -22,9 +22,11 @@ interface DragStart {
 }
 
 function getAssistantOrigin() {
+  if (!ASSISTANT_URL) return null;
   try {
-    const url = new URL(ASSISTANT_URL, window.location.origin);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : null;
+    const url = new URL(ASSISTANT_URL);
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.origin === window.location.origin) return null;
+    return url.origin;
   } catch {
     return null;
   }
@@ -62,6 +64,7 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
   const [panelPosition, setPanelPosition] = useState<{ left: number; top: number } | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const dragRef = useRef<DragStart | null>(null);
   const suppressClickRef = useRef(false);
@@ -214,6 +217,8 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
   useEffect(() => {
     if (!isOpen) return;
 
+    closeButtonRef.current?.focus();
+
     const handleMessage = (event: MessageEvent) => {
       if (
         event.source === frameRef.current?.contentWindow &&
@@ -243,6 +248,7 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
         <section
           aria-label="Assistente comercial"
           aria-modal="false"
+          id="commercial-assistant-dialog"
           className="commercial-assistant-panel"
           ref={panelRef}
           role="dialog"
@@ -261,6 +267,7 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
             <button
               aria-label="Fechar assistente comercial"
               className="commercial-assistant-close"
+              ref={closeButtonRef}
               onClick={close}
               type="button"
             >
@@ -274,6 +281,8 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
               allow="clipboard-read; clipboard-write"
               className="commercial-assistant-frame"
               referrerPolicy="strict-origin-when-cross-origin"
+              // Keep same-origin APIs/storage working only after getAssistantOrigin
+              // verifies this is a separate origin from the CRM.
               sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
               src={ASSISTANT_URL}
               title="Assistente comercial da Central de Reservas"
@@ -288,6 +297,7 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
 
       <button
         ref={buttonRef}
+        aria-controls={isOpen ? 'commercial-assistant-dialog' : undefined}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         aria-label={isOpen ? 'Assistente comercial aberto' : 'Abrir assistente comercial'}

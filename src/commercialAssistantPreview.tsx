@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import './commercialAssistantPreview.css';
-import CommercialAssistantPopup from './components/commercial-assistant/CommercialAssistantPopup';
+import CommercialAssistantPreview from './components/commercial-assistant/CommercialAssistantPreview';
 
 function showPreviewError(message: string) {
   const root = document.getElementById('root');
@@ -10,21 +10,6 @@ function showPreviewError(message: string) {
 
 window.addEventListener('error', (event) => showPreviewError(event.message || 'Erro JavaScript desconhecido.'));
 window.addEventListener('unhandledrejection', (event) => showPreviewError(String(event.reason)));
-
-function CommercialAssistantPreview() {
-  return (
-    <main className="assistant-preview-page">
-      <section className="assistant-preview-card">
-        <p className="assistant-preview-eyebrow">Prévia local</p>
-        <h1>Assistente comercial integrado</h1>
-        <p className="assistant-preview-description">
-          Use o botão no canto inferior direito para abrir o popup dentro do clone do CRM.
-        </p>
-      </section>
-      <CommercialAssistantPopup initiallyOpen />
-    </main>
-  );
-}
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Elemento raiz da prévia não encontrado.');
