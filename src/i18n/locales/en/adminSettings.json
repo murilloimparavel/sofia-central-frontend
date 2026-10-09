@@ -304,13 +304,16 @@
         "apiUrl": "API URL",
         "apiSecret": "API Key",
         "model": "Model",
+        "openrouterModel": "OpenRouter model (Inbox assist)",
         "audioTranscription": "Enable Audio Transcription"
       },
       "placeholders": {
         "apiUrl": "https://api.openai.com/v1",
         "apiSecret": "Enter new API key",
-        "model": "gpt-4o"
+        "model": "gpt-4o",
+        "openrouterModel": "openai/gpt-4.1-nano"
       },
+      "openrouterModelHint": "Use a model ID such as openai/gpt-4.1-nano or anthropic/claude-sonnet. Values copied from the provider selector may start with openrouter/; that prefix is removed automatically. Bare names get the openai/ prefix.",
       "credentialMoved": "The AI credential now lives in Settings > AI Credentials.",
       "goToCredentials": "Go to AI Credentials"
     },
