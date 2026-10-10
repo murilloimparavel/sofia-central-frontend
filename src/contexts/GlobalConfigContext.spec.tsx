@@ -9,6 +9,7 @@ import {
   clearSetupCache,
   GlobalConfig,
 } from './GlobalConfigContext';
+import { initClarity } from '@/utils/clarityUtils';
 
 // Mock setupService
 vi.mock('@/services/setup/setupService', () => ({
@@ -83,6 +84,23 @@ describe('GlobalConfigContext', () => {
       expect(parsed.recaptchaSiteKey).toBe('6Lc_test_key');
       expect(parsed.clarityProjectId).toBe('clarity_test_id');
     });
+
+    expect(initClarity).toHaveBeenCalledWith('clarity_test_id');
+  });
+
+  it('can suppress Clarity in an isolated compatibility shell', async () => {
+    mockApi.get.mockResolvedValueOnce({ data: { clarityProjectId: 'staging-test-id' } });
+
+    render(
+      <GlobalConfigProvider enableClarity={false}>
+        <ConfigDisplay />
+      </GlobalConfigProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('config')).toHaveTextContent('staging-test-id');
+    });
+    expect(initClarity).not.toHaveBeenCalled();
   });
 
   it('provides setupRequired and setupLoading fields', async () => {

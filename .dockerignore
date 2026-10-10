@@ -1,5 +1,7 @@
 node_modules
 dist
+dist-chrome109
+graphify-out
 .git
 .gitignore
 README.md

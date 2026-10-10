@@ -5,7 +5,7 @@ import notificationsService, { type Notification } from '@/services/notification
 import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalWebSocket } from '@/hooks/useGlobalWebSocket';
 import { playNotificationSound, getAudioSettings } from '@/utils/audioNotificationUtils';
-import i18n from '@/i18n/config';
+import i18n from '@/i18n/instance';
 
 interface NotificationsMeta {
   count: number;

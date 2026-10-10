@@ -1,5 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import NewChannel from './index';
 
 // NewChannel is a heavy orchestrator (channel form hook, submission hook, tours,
@@ -42,7 +43,18 @@ const { h, cap } = vi.hoisted(() => {
 
 const navigateMock = vi.fn();
 
-vi.mock('react-router-dom', () => ({ useNavigate: () => navigateMock }));
+function renderNewChannel(props: React.ComponentProps<typeof NewChannel> = {}) {
+  return render(
+    <MemoryRouter>
+      <NewChannel {...props} />
+    </MemoryRouter>,
+  );
+}
+
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router-dom')>()),
+  useNavigate: () => navigateMock,
+}));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({ t: (key: string) => key, currentLanguage: 'en' }),
@@ -157,7 +169,7 @@ beforeEach(() => {
 
 describe('NewChannel (EVO-2093)', () => {
   it('pre-selects the channel from initialChannelId (skips the channel grid)', () => {
-    render(<NewChannel initialChannelId="whatsapp" />);
+    renderNewChannel({ initialChannelId: 'whatsapp' });
     // The pre-select effect fires handleChannelSelect with the matched channel.
     expect(h.fns.handleChannelSelect).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'whatsapp' }),
@@ -166,7 +178,7 @@ describe('NewChannel (EVO-2093)', () => {
 
   it('shows the provider grid (not the channel grid) once a channel is selected', () => {
     h.state.selectedChannel = { id: 'whatsapp', type: 'whatsapp', name: 'WhatsApp', providers: [] };
-    render(<NewChannel initialChannelId="whatsapp" />);
+    renderNewChannel({ initialChannelId: 'whatsapp' });
     expect(screen.queryByTestId('channel-grid')).toBeNull();
     expect(screen.getByTestId('provider-selection')).toBeInTheDocument();
     // Effect must NOT re-select when a channel is already set.
@@ -180,7 +192,7 @@ describe('NewChannel (EVO-2093)', () => {
       name: 'WhatsApp',
       providers: [{ id: 'twilio' }, { id: 'evolution' }],
     };
-    render(<NewChannel />);
+    renderNewChannel();
 
     expect(cap.ps.isDisabled('twilio')).toBe(true);
     expect(cap.ps.isDisabled('evolution')).toBe(false);
@@ -194,14 +206,14 @@ describe('NewChannel (EVO-2093)', () => {
   });
 
   it('closes via onExit instead of navigating when embedded', () => {
-    render(<NewChannel onExit={vi.fn()} initialChannelId="whatsapp" />);
+    renderNewChannel({ onExit: vi.fn(), initialChannelId: 'whatsapp' });
     // Nowhere left to go back to (goBack -> false) leaves the flow.
     act(() => cap.breadcrumbOnBack?.());
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it('navigates to /channels when not embedded', () => {
-    render(<NewChannel />);
+    renderNewChannel();
     act(() => cap.breadcrumbOnBack?.());
     expect(navigateMock).toHaveBeenCalledWith('/channels');
   });
@@ -209,14 +221,14 @@ describe('NewChannel (EVO-2093)', () => {
   it('renders the generic footer band for a standard submit provider', () => {
     h.state.selectedChannel = { id: 'whatsapp', type: 'whatsapp', name: 'WhatsApp', providers: [{ id: 'evolution' }] };
     h.state.selectedProvider = { id: 'evolution', name: 'Evolution' };
-    render(<NewChannel />);
+    renderNewChannel();
     expect(screen.getByTestId('form-footer')).toBeInTheDocument();
   });
 
   it('omits the generic footer for owned redirect flows (Facebook renders its own action)', () => {
     h.state.selectedChannel = { id: 'facebook', type: 'facebook', name: 'Facebook' };
     h.state.selectedProvider = { id: 'facebook', name: 'Facebook' };
-    render(<NewChannel />);
+    renderNewChannel();
     expect(screen.queryByTestId('form-footer')).toBeNull();
   });
 });

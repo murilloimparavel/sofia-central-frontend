@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { validateToken } from './authService';
+import { login, validateToken } from './authService';
 import { useAuthStore } from '@/store/authStore';
+import type { LoginRequest } from '@/types/auth';
 
 const post = vi.fn();
 
@@ -42,5 +43,35 @@ describe('validateToken', () => {
 
     expect(post).toHaveBeenNthCalledWith(1, '/auth/refresh');
     expect(post).toHaveBeenNthCalledWith(2, '/auth/validate');
+  });
+});
+
+describe('login', () => {
+  beforeEach(() => {
+    post.mockReset();
+    localStorage.clear();
+    useAuthStore.setState({ accessToken: null, impersonation: null });
+  });
+
+  it('sends credentials, extracts the standard response envelope and stores the access token', async () => {
+    post.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          user: { id: 'user-1', name: 'Synthetic Agent', email: 'agent@example.test' },
+          token: { access_token: 'synthetic-access-token' },
+        },
+      },
+    });
+    const credentials: LoginRequest = {
+      email: 'agent@example.test',
+      password: 'synthetic-password',
+    };
+
+    const result = await login(credentials);
+
+    expect(post).toHaveBeenCalledWith('/auth/login', credentials);
+    expect(result.response.data.user.id).toBe('user-1');
+    expect(useAuthStore.getState().getAccessToken()).toBe('synthetic-access-token');
   });
 });

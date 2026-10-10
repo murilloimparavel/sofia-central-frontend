@@ -14,6 +14,11 @@ vi.mock('date-fns', () => ({
   formatDistanceToNow: () => '1 min ago',
 }));
 vi.mock('date-fns/locale', () => ({
+  enUS: {},
+  es: {},
+  fr: {},
+  it: {},
+  pt: {},
   ptBR: {},
 }));
 

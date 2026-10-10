@@ -1,5 +1,5 @@
 import { ChannelType } from '@/types/channels/providers';
-import i18n from '@/i18n/config';
+import i18n from '@/i18n/instance';
 
 // Function to get channel types with translations.
 //

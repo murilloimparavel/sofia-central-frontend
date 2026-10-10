@@ -204,4 +204,66 @@ describe('MessagesContext optimizations', () => {
     expect(messagesApi.getMessages('conv-2')).toHaveLength(1);
     expect(messagesApi.getMessages('conv-2')[0].id).toBe('m-pre');
   });
+
+  it('sends a text message with the JSON API contract and replaces the pending item', async () => {
+    const sentMessage: Message = {
+      ...sampleMessage('m-out-1', 3000),
+      content: 'Olá, como posso ajudar?',
+      message_type: 'outgoing',
+      sender: { id: 'user-1', name: 'Agent Test', type: 'agent' },
+    };
+    vi.mocked(chatService.sendMessage).mockResolvedValue(sentMessage);
+
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+
+    render(
+      <MessagesProvider>
+        <TestConsumer />
+      </MessagesProvider>,
+    );
+
+    await act(async () => {
+      await messagesApi.sendMessage('conv-1', 'Olá, como posso ajudar?');
+    });
+
+    expect(chatService.sendMessage).toHaveBeenCalledWith('conv-1', {
+      content: 'Olá, como posso ajudar?',
+      message_type: 'outgoing',
+      private: false,
+      canned_response_id: undefined,
+      content_attributes: undefined,
+      template_params: undefined,
+      echo_id: expect.any(String),
+    });
+    expect(messagesApi.getMessages('conv-1')).toEqual([sentMessage]);
+    expect(messagesApi.getMessages('conv-1')[0].status).toBe('sent');
+  });
+
+  it('marks the optimistic text message failed when the API rejects the send', async () => {
+    vi.mocked(chatService.sendMessage).mockRejectedValue(new Error('offline'));
+
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+
+    render(
+      <MessagesProvider>
+        <TestConsumer />
+      </MessagesProvider>,
+    );
+
+    await act(async () => {
+      await expect(messagesApi.sendMessage('conv-1', 'Mensagem de teste')).rejects.toThrow('offline');
+    });
+
+    const [failedMessage] = messagesApi.getMessages('conv-1');
+    expect(failedMessage.content).toBe('Mensagem de teste');
+    expect(failedMessage.status).toBe('failed');
+  });
 });

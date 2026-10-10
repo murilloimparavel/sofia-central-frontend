@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 import { ConversationFilter, ConversationListParams } from '@/types/chat/api';
 import { useAuthStore } from '@/store/authStore';
-import i18n from '@/i18n/config';
+import i18n from '@/i18n/instance';
 
 const ADDITIONAL_ATTRIBUTE_KEYS = [
   'browser_language',

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 
 import { Button } from '@evoapi/design-system/button';
 import {
@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { AudioRecordingData } from '@/hooks/chat/useAudioRecorder';
+import type { AudioRecordingData } from '@/hooks/chat/useAudioRecorder';
 import { useCannedResponses } from '@/hooks/chat/useCannedResponses';
 import { useMessageSignature } from '@/hooks/useMessageSignature';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -32,7 +32,8 @@ import ComposerPlusMenu from './ComposerPlusMenu';
 import MacrosButton from './MacrosButton';
 import ScheduleMessageModal from './ScheduleMessageModal';
 import NoteComposer from './NoteComposer';
-import AudioRecorder from '../audio';
+
+const AudioRecorder = React.lazy(() => import('../audio'));
 
 import { AIAssistanceButton } from '../ai-assistance';
 import { CannedResponsesList } from '../canned-responses';
@@ -552,7 +553,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         duration: 2000,
       },
     );
-  }, [t, hasCannedMedia, selectedFiles.length, selectedFilesAsDocuments]);
+  }, [t, hasCannedMedia, selectedFiles, selectedFilesAsDocuments]);
 
   // Handle media paste from clipboard (Ctrl+V / Cmd+V)
   useEffect(() => {
@@ -725,13 +726,22 @@ const MessageInput: React.FC<MessageInputProps> = ({
         {notesMode ? (
           <NoteComposer onSave={handleSaveNote} onExit={() => setNotesMode(false)} isSaving={isSavingNote} />
         ) : isRecordingAudio ? (
-          <AudioRecorder
-            onRecordingComplete={handleAudioRecordingComplete}
-            onRecordingCancel={handleAudioRecordingCancel}
-            disabled={isDisabled || isSending}
-            autoStart={true}
-            preferWhatsAppCloudFormat={isWhatsApp}
-          />
+          <Suspense
+            fallback={(
+              <div className="flex items-center gap-2 px-4 py-3" role="status" aria-live="polite">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                <span className="sr-only">{t('audioRecorder.loading')}</span>
+              </div>
+            )}
+          >
+            <AudioRecorder
+              onRecordingComplete={handleAudioRecordingComplete}
+              onRecordingCancel={handleAudioRecordingCancel}
+              disabled={isDisabled || isSending}
+              autoStart={true}
+              preferWhatsAppCloudFormat={isWhatsApp}
+            />
+          </Suspense>
         ) : (
           <div className="flex items-center gap-2 px-4 py-3 relative">
             {/* Overlay de bloqueio (status ≠ aberto) — cobre a barra inteira; SÓ

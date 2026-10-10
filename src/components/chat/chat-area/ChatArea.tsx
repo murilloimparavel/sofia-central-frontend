@@ -443,10 +443,10 @@ const ChatArea = ({
           onSendMessage={handleSendMessage}
           placeholder={
             isPendingConversation
-              ? t('chatArea.messageInput.pendingPlaceholder')
+              ? t('messageInput.pendingPlaceholder')
               : shouldShowRestrictionBanner
-              ? t('chatArea.messageInput.restrictedPlaceholder')
-              : t('chatArea.messageInput.defaultPlaceholder')
+              ? t('messageInput.restrictedPlaceholder')
+              : t('messageInput.defaultPlaceholder')
           }
           isDisabled={shouldShowRestrictionBanner}
           isPendingConversation={isPendingConversation}

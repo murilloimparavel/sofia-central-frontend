@@ -256,6 +256,7 @@
     "createLabelError": "Impossibile creare l'etichetta. Riprova."
   },
   "audioRecorder": {
+    "loading": "Caricamento del registratore audio...",
     "notSupported": "Registrazione audio non supportata in questo browser",
     "record": "Registra",
     "paused": "(in pausa)",
@@ -685,6 +686,7 @@
     }
   },
   "messageInput": {
+    "compatibilityTextOnly": "Modalità base: solo messaggi di testo.",
     "cannedResponse": {
       "manualAttachmentsRemoved": "Gli allegati manuali sono stati rimossi: la risposta rapida include già un contenuto multimediale.",
       "mediaBanner": "Questa risposta rapida include {{count}} file multimediali. Verranno inviati insieme al messaggio.",
@@ -701,6 +703,7 @@
       "saving": "Salvataggio..."
     },
     "emojiPicker": {
+      "loading": "Caricamento emoji...",
       "searchPlaceholder": "Cerca emoji..."
     },
     "filePreview": {
@@ -747,6 +750,7 @@
     },
     "replyPreview": {
       "replyingTo": "Rispondendo a {{name}}",
+      "cancel": "Annulla risposta",
       "userFallback": "Utente",
       "asPrivateNote": "(come nota privata)",
       "fileAttachment": "📎 {{fileType}}",

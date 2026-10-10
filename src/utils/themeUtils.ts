@@ -1,7 +1,7 @@
 // Função auxiliar para inicializar o tema antes do React montar
-export function initTheme() {
+export function initTheme(storageKey = 'theme') {
   // Verificar localStorage
-  const savedTheme = localStorage.getItem('theme');
+  const savedTheme = localStorage.getItem(storageKey);
   if (savedTheme === 'dark') {
     document.documentElement.classList.add('dark');
   } else if (savedTheme === 'light') {

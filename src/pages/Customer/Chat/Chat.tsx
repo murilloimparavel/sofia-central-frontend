@@ -31,7 +31,7 @@ import {
 } from '@evoapi/design-system/alert-dialog';
 
 import ErrorBoundary from '../../../components/ErrorBoundary';
-import { ChatTour } from '@/tours';
+import { ChatTour } from '@/tours/ChatTour';
 
 // Novos componentes refatorados
 import ChatSidebar from '@/components/chat/chat-sidebar/ChatSidebar';

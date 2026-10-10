@@ -5,13 +5,15 @@ import { useAppDataStore } from '@/store/appDataStore';
 import { useAuthStore } from '@/store/authStore';
 import { tourService } from '@/services/tours/tourService';
 import { useUnansweredConversationsStore } from '@/store/unansweredConversationsStore';
-import i18n from '@/i18n/config';
+import i18n from '@/i18n/instance';
 import LoadingScreen from '@/components/LoadingScreen';
 interface AppInitializerProps {
   children: React.ReactNode;
+  /** Optional lightweight shell for constrained browser profiles. */
+  initializingFallback?: React.ReactNode;
 }
 
-const AppInitializer: React.FC<AppInitializerProps> = ({ children }) => {
+const AppInitializer: React.FC<AppInitializerProps> = ({ children, initializingFallback }) => {
   const { t } = useLanguage('common');
   const { user, isLoading } = useAuth();
   const { account, initializeAppDataDeferred } = useAppDataStore();
@@ -167,13 +169,13 @@ const AppInitializer: React.FC<AppInitializerProps> = ({ children }) => {
 
   if (!isInitialized) {
     return (
-      <LoadingScreen fullScreen showLogo />
+      <>{initializingFallback ?? <LoadingScreen fullScreen showLogo />}</>
     );
   }
 
   if (initError) {
     return (
-      <LoadingScreen fullScreen showLogo />
+      <>{initializingFallback ?? <LoadingScreen fullScreen showLogo />}</>
     );
   }
 

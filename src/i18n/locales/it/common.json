@@ -140,6 +140,14 @@
       "toggle": "Cambia tema",
       "light": "Modalità chiara",
       "dark": "Modalità scura"
+    },
+    "setupRequired": {
+      "title": "Configurazione iniziale necessaria",
+      "description": "Questo profilo di compatibilità supporta gli account già configurati. Chiedi a un amministratore di completare la configurazione iniziale nell’app completa."
+    },
+    "apiNotConfigured": {
+      "title": "Il backend di compatibilità non è configurato",
+      "description": "Prima di usare questo profilo, imposta VITE_API_URL e VITE_AUTH_API_URL con indirizzi espliciti di un ambiente di test isolato. Non è stata avviata alcuna richiesta API."
     }
   },
   "cancel": "Annulla",
