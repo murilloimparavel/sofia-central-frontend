@@ -33,4 +33,17 @@ describe('MessageBubble forwarding action', () => {
     fireEvent.contextMenu(screen.getByText('Forwardable message'));
     expect(screen.getByRole('menuitem', { name: 'messages.messageBubble.contextMenu.forward' })).toBeInTheDocument();
   });
+
+  it('labels WhatsApp Business App echo messages as sent from WhatsApp', () => {
+    const echo = {
+      ...message,
+      message_type: MESSAGE_TYPE.OUTGOING,
+      content_attributes: { whatsapp_echo_message: true },
+      sender: { id: '', name: '', type: 'user' as const },
+    };
+
+    render(<MessageBubble message={echo} isOwn />);
+
+    expect(screen.getByText('messages.messageBubble.whatsappEcho')).toBeInTheDocument();
+  });
 });

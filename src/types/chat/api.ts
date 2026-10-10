@@ -199,6 +199,7 @@ export interface MessageContentAttributes extends Record<string, unknown> {
   in_reply_to_external_id?: string;
   is_reaction?: boolean;
   is_unsupported?: boolean;
+  whatsapp_echo_message?: boolean;
   deleted?: boolean;
   external_created_at?: number;
   external_error?: string;
