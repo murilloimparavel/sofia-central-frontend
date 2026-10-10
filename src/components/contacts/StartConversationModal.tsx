@@ -138,7 +138,7 @@ export default function StartConversationModal({
     async (inboxId: string, cloudInbox: boolean, isCancelled: () => boolean) => {
       setLoadingTemplates(true);
       try {
-        const response = await MessageTemplateService.getTemplates(inboxId);
+        const response = await MessageTemplateService.getTemplates(inboxId, { for_sending: true });
 
         if (isCancelled()) return;
 

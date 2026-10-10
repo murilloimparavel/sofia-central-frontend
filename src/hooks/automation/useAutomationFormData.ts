@@ -146,7 +146,7 @@ export function useAutomationFormData(): {
           const templatesResults = await Promise.allSettled(
             inboxesArray.map((inbox) =>
               messageTemplatesService
-                .getTemplates(String(inbox.id), { active: true, per_page: 200 })
+                .getTemplates(String(inbox.id), { active: true, for_sending: true, per_page: 200 })
                 .catch(() => null),
             ),
           );

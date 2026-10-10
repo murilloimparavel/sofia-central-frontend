@@ -467,7 +467,9 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({
                 <label className="block text-sm font-medium mb-2">
                   {t('settings.messageTemplates.form.templateType')}
                 </label>
-                <Select
+                {channelType === 'Channel::WhatsappCloud' ? (
+                  <Input value={formData.template_type || 'text'} readOnly aria-label={t('settings.messageTemplates.form.templateType')} />
+                ) : <Select
                   value={formData.template_type}
                   onValueChange={(value: string) =>
                     setFormData(prev => ({
@@ -486,7 +488,7 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({
                       </SelectItem>
                     ))}
                   </SelectContent>
-                </Select>
+                </Select>}
               </div>
             </div>
 
@@ -494,7 +496,7 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({
             {isStructured && channelConfig.supportsStructured && (
               <>
                 {/* Header */}
-                {channelConfig.supportsMedia && (
+                {(channelConfig.supportsMedia || channelConfig.supportsHeader) && (
                   <div className="grid grid-cols-3 gap-4">
                     <div className="col-span-1">
                       <label className="block text-sm font-medium mb-2">
@@ -522,15 +524,11 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({
                           <SelectItem value="TEXT">
                             {t('settings.messageTemplates.form.headerFormats.text')}
                           </SelectItem>
-                          <SelectItem value="IMAGE">
-                            {t('settings.messageTemplates.form.headerFormats.image')}
-                          </SelectItem>
-                          <SelectItem value="VIDEO">
-                            {t('settings.messageTemplates.form.headerFormats.video')}
-                          </SelectItem>
-                          <SelectItem value="DOCUMENT">
-                            {t('settings.messageTemplates.form.headerFormats.document')}
-                          </SelectItem>
+                          {channelConfig.supportsMedia && <>
+                            <SelectItem value="IMAGE">{t('settings.messageTemplates.form.headerFormats.image')}</SelectItem>
+                            <SelectItem value="VIDEO">{t('settings.messageTemplates.form.headerFormats.video')}</SelectItem>
+                            <SelectItem value="DOCUMENT">{t('settings.messageTemplates.form.headerFormats.document')}</SelectItem>
+                          </>}
                         </SelectContent>
                       </Select>
                     </div>
@@ -652,7 +650,7 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({
                         {button.type === 'PHONE_NUMBER' && (
                           <Input
                             value={button.phone_number || ''}
-                            onChange={e => updateButton(index, 'phoneNumber', e.target.value)}
+                            onChange={e => updateButton(index, 'phone_number', e.target.value)}
                             placeholder={t('settings.messageTemplates.form.phonePlaceholder')}
                           />
                         )}

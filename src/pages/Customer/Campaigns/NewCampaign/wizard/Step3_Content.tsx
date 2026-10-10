@@ -54,7 +54,7 @@ const Step3_Content = ({ data, onChange, onNext, onBack }: Step3Props) => {
     const fetchTemplates = async () => {
       setLoadingTemplates(true);
       try {
-        const response = await MessageTemplateService.getTemplates(data.inbox_id, { active: true });
+        const response = await MessageTemplateService.getTemplates(data.inbox_id, { active: true, for_sending: true });
         setTemplates(response.data || []);
       } catch (error) {
         console.error('Error fetching templates:', error);
