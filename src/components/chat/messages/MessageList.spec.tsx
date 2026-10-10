@@ -106,7 +106,7 @@ describe('MessageList auto-scroll (CRM-165)', () => {
 
   it('does not eagerly load older history when messages already overflow the viewport', () => {
     const initial = [makeMessage(), makeMessage()];
-    const { scroller, setMessages, onLoadMore } = renderList(initial);
+    const { setMessages, onLoadMore } = renderList(initial);
     setMessages([...initial, makeMessage()]);
 
     expect(onLoadMore).not.toHaveBeenCalled();
