@@ -8,6 +8,19 @@ import './i18n/config'; // Importar configuração do i18n
 import App from './App.tsx';
 import { initTheme } from './utils/themeUtils';
 import { initGA4 } from './utils/ga4Utils';
+import { recoverFromVitePreloadError } from './utils/chunkLoadRecovery';
+
+// A tab can remain open across a deployment while its lazy route chunks are
+// replaced. Reload once when Vite reports that an old chunk can no longer be
+// fetched; the session guard prevents an infinite reload loop if the new build
+// has the same problem.
+window.addEventListener('vite:preloadError', (event) => {
+  try {
+    recoverFromVitePreloadError(event, window.sessionStorage, () => window.location.reload());
+  } catch {
+    // Keep Vite's normal error handling if browser storage access is restricted.
+  }
+});
 
 // Inicialização do tema antes do React montar
 initTheme();
