@@ -31,8 +31,6 @@ storybook-static
 
 .yalc/
 yalc.lock
-.local-demo/
-
 # Workspace planning artifacts (not part of the application)
 _evo/
 _evo-output/

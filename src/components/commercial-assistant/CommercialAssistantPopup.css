@@ -111,6 +111,7 @@
 .ca-form input:not([type='checkbox']), .ca-form select { box-sizing: border-box; width: 100%; min-height: 2.5rem; padding: .5rem .625rem; color: var(--foreground, #172033); font: inherit; font-weight: 400; background: var(--background, #fff); border: 1px solid var(--border, #cbd5e1); border-radius: .5rem; }
 .ca-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
 .ca-child-ages { padding: .65rem; background: var(--muted, #f8fafc); border-radius: .625rem; }
+.ca-limit-note { display: block; color: var(--muted-foreground, #64748b); font-size: .6875rem; }
 .ca-filters { padding: .65rem; background: var(--muted, #f8fafc); border-radius: .625rem; }
 .ca-filters summary { cursor: pointer; font-weight: 600; }
 .ca-filters .ca-grid { margin-top: .75rem; }
