@@ -434,9 +434,12 @@ const ChatHeader = ({
   };
 
   return (
-    <div className="relative z-20 flex-shrink-0 p-3 md:p-4 border-b bg-background/95 backdrop-blur-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
+    <div
+      data-compat-chat-header
+      className="relative z-20 flex-shrink-0 p-3 md:p-4 border-b bg-background/95 backdrop-blur-sm"
+    >
+      <div data-compat-chat-header-layout className="flex items-center justify-between">
+        <div data-compat-chat-header-contact className="flex items-center gap-3 min-w-0">
           {/* Back button for mobile — the only way out of the conversation on mobile
               (the close X is desktop-only), so it needs an accessible name of its own. */}
           <Button variant="ghost" size="sm" className="md:hidden" onClick={onBackClick}>
@@ -491,6 +494,7 @@ const ChatHeader = ({
                       • {getStatusLabel(conversation.status, t)}
                     </span>
                     <span
+                      data-compat-chat-header-status
                       className="hidden md:inline"
                       style={{
                         background: meta.bg,
@@ -512,7 +516,7 @@ const ChatHeader = ({
           </div>
         </div>
         {/* Ações do chat */}
-        <div className="flex items-center gap-2">
+        <div data-compat-chat-header-actions className="flex items-center gap-2">
           {/* Botão de status: cor + próxima ação mudam conforme o status atual */}
           <ConversationStatusButton
             status={currentStatus}

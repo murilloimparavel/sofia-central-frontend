@@ -1,0 +1,233 @@
+/*
+ * This stylesheet is imported only by the isolated compatibility entry.
+ * Chromium 109.0.5414.0 reports CSS.supports() true for OKLCH and color-mix,
+ * but the color probe paints an OKLCH swatch almost black and does not enter
+ * `@supports not`. Feature queries alone are therefore unsafe here. Apply the
+ * explicit sRGB palette throughout this build; the modern entry never imports
+ * this stylesheet and retains the normal design-system palette.
+ */
+  :root {
+    color-scheme: light;
+    /* sRGB equivalents for Tailwind colors used by the chat interface. */
+    --color-amber-100: #fef3c6;
+    --color-amber-200: #fee685;
+    --color-amber-800: #973c00;
+    --color-amber-900: #7b3306;
+    --color-blue-50: #eff6ff;
+    --color-blue-100: #dbeafe;
+    --color-blue-200: #bedbff;
+    --color-blue-300: #8ec5ff;
+    --color-blue-400: #51a2ff;
+    --color-blue-500: #2b7fff;
+    --color-blue-600: #155dfc;
+    --color-blue-700: #1447e6;
+    --color-blue-900: #1c398e;
+    --color-cyan-500: #00b8db;
+    --color-gray-50: #f9fafb;
+    --color-gray-100: #f3f4f6;
+    --color-gray-200: #e5e7eb;
+    --color-gray-400: #99a1af;
+    --color-gray-500: #6a7282;
+    --color-gray-600: #4a5565;
+    --color-gray-700: #364153;
+    --color-gray-900: #101828;
+    --color-green-50: #f0fdf4;
+    --color-green-100: #dcfce7;
+    --color-green-200: #b9f8cf;
+    --color-green-400: #05df72;
+    --color-green-500: #00c950;
+    --color-green-600: #00a63e;
+    --color-green-700: #008236;
+    --color-green-800: #016630;
+    --color-green-900: #0d542b;
+    --color-orange-50: #fff7ed;
+    --color-orange-100: #ffedd4;
+    --color-orange-200: #ffd6a7;
+    --color-orange-300: #ffb86a;
+    --color-orange-500: #ff6900;
+    --color-orange-600: #f54900;
+    --color-orange-700: #ca3500;
+    --color-orange-800: #9f2d00;
+    --color-orange-900: #7e2a0c;
+    --color-orange-950: #441306;
+    --color-purple-50: #faf5ff;
+    --color-purple-100: #f3e8ff;
+    --color-purple-200: #e9d4ff;
+    --color-purple-400: #c27aff;
+    --color-purple-500: #ad46ff;
+    --color-purple-600: #9810fa;
+    --color-purple-700: #8200db;
+    --color-purple-900: #59168b;
+    --color-red-50: #fef2f2;
+    --color-red-100: #ffe2e2;
+    --color-red-200: #ffc9c9;
+    --color-red-500: #fb2c36;
+    --color-red-600: #e7000b;
+    --color-slate-50: #f8fafc;
+    --color-slate-200: #e2e8f0;
+    --color-slate-300: #cad5e2;
+    --color-slate-400: #90a1b9;
+    --color-slate-500: #62748e;
+    --color-slate-600: #45556c;
+    --color-slate-700: #314158;
+    --color-slate-800: #1d293d;
+    --color-yellow-50: #fefce8;
+    --color-yellow-200: #fff085;
+    --color-yellow-500: #f0b100;
+    --color-yellow-600: #d08700;
+    --color-yellow-700: #a65f00;
+    --color-yellow-800: #894b00;
+    --background: #ffffff;
+    --foreground: #171717;
+    --card: #ffffff;
+    --card-foreground: #171717;
+    --popover: #ffffff;
+    --popover-foreground: #171717;
+    --primary: #2563eb;
+    --primary-foreground: #ffffff;
+    --secondary: #f4f4f5;
+    --secondary-foreground: #27272a;
+    --muted: #f4f4f5;
+    --muted-foreground: #52525b;
+    --accent: #f4f4f5;
+    --accent-foreground: #27272a;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --border: #e4e4e7;
+    --input: #e4e4e7;
+    --ring: #2563eb;
+    --sidebar: #fafafa;
+    --sidebar-foreground: #171717;
+    --sidebar-primary: #2563eb;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f4f4f5;
+    --sidebar-accent-foreground: #27272a;
+    --sidebar-border: #e4e4e7;
+    --sidebar-ring: #2563eb;
+    --chart-1: #2563eb;
+    --chart-2: #16a34a;
+    --chart-3: #ea580c;
+    --chart-4: #9333ea;
+    --chart-5: #db2777;
+    --xy-attribution-background-color-default: rgba(255, 255, 255, 0.5);
+  }
+
+  :root.dark {
+    color-scheme: dark;
+    --background: #0b0f19;
+    --foreground: #f8fafc;
+    --card: #111827;
+    --card-foreground: #f8fafc;
+    --popover: #111827;
+    --popover-foreground: #f8fafc;
+    --primary: #2563eb;
+    --primary-foreground: #ffffff;
+    --secondary: #1f2937;
+    --secondary-foreground: #f3f4f6;
+    --muted: #1f2937;
+    --muted-foreground: #9ca3af;
+    --accent: #1f2937;
+    --accent-foreground: #f3f4f6;
+    --destructive: #b91c1c;
+    --destructive-foreground: #ffffff;
+    --border: #374151;
+    --input: #374151;
+    --ring: #60a5fa;
+    --sidebar: #111827;
+    --sidebar-foreground: #f8fafc;
+    --sidebar-primary: #3b82f6;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #1f2937;
+    --sidebar-accent-foreground: #f3f4f6;
+    --sidebar-border: #374151;
+    --sidebar-ring: #60a5fa;
+    --chart-1: #60a5fa;
+    --chart-2: #4ade80;
+    --chart-3: #fb923c;
+    --chart-4: #c084fc;
+    --chart-5: #f472b6;
+    --xy-attribution-background-color-default: rgba(17, 24, 39, 0.5);
+  }
+
+  /* The primary token is also used for text utilities. Keep those lighter
+     than the primary button fill so both dark-theme usages meet WCAG AA. */
+  :root.dark .text-primary,
+  :root.dark .hover\:text-primary:hover,
+  :root.dark [class~="dark:text-primary/90"] {
+    color: #60a5fa;
+  }
+
+  /* Tailwind emits a solid base color before its color-mix() enhancement.
+     Chrome 109 skips that enhancement, so preserve the intended soft fills
+     used by the conversation list and message surfaces. */
+  :root [class~="bg-primary/5"] { background-color: rgba(37, 99, 235, 0.05); }
+  :root [class~="bg-primary/10"] { background-color: rgba(37, 99, 235, 0.10); }
+  :root [class~="bg-primary/15"] { background-color: rgba(37, 99, 235, 0.15); }
+  :root [class~="bg-primary/20"] { background-color: rgba(37, 99, 235, 0.20); }
+  :root [class~="bg-primary/30"] { background-color: rgba(37, 99, 235, 0.30); }
+  :root [class~="bg-primary/40"] { background-color: rgba(37, 99, 235, 0.40); }
+  :root [class~="bg-muted/20"] { background-color: rgba(244, 244, 245, 0.20); }
+  :root [class~="bg-muted/30"] { background-color: rgba(244, 244, 245, 0.30); }
+  :root [class~="bg-muted/40"] { background-color: rgba(244, 244, 245, 0.40); }
+  :root [class~="bg-muted/50"] { background-color: rgba(244, 244, 245, 0.50); }
+  :root [class~="bg-muted/70"] { background-color: rgba(244, 244, 245, 0.70); }
+  :root [class~="bg-destructive/10"] { background-color: rgba(220, 38, 38, 0.10); }
+  :root [class~="from-primary/20"] { --tw-gradient-from: rgba(37, 99, 235, 0.20); }
+  :root [class~="via-background/95"] { --tw-gradient-via: rgba(255, 255, 255, 0.95); }
+  :root [class~="border-primary/20"] { border-color: rgba(37, 99, 235, 0.20); }
+  :root [class~="border-primary/30"] { border-color: rgba(37, 99, 235, 0.30); }
+  :root [class~="border-primary/40"] { border-color: rgba(37, 99, 235, 0.40); }
+  :root [class~="border-primary/50"] { border-color: rgba(37, 99, 235, 0.50); }
+  :root [class~="border-border/40"] { border-color: rgba(228, 228, 231, 0.40); }
+  :root [class~="border-border/50"] { border-color: rgba(228, 228, 231, 0.50); }
+  :root [class~="border-muted-foreground/20"] { border-color: rgba(82, 82, 91, 0.20); }
+
+  :root.dark [class~="bg-primary/5"] { background-color: rgba(96, 165, 250, 0.05); }
+  :root.dark [class~="bg-primary/10"] { background-color: rgba(96, 165, 250, 0.10); }
+  :root.dark [class~="bg-primary/15"] { background-color: rgba(96, 165, 250, 0.15); }
+  :root.dark [class~="bg-primary/20"] { background-color: rgba(96, 165, 250, 0.20); }
+  :root.dark [class~="bg-primary/30"] { background-color: rgba(96, 165, 250, 0.30); }
+  :root.dark [class~="bg-primary/40"] { background-color: rgba(96, 165, 250, 0.40); }
+  :root.dark [class~="dark:bg-primary/20"] { background-color: rgba(96, 165, 250, 0.20); }
+  :root.dark [class~="dark:bg-primary/15"] { background-color: rgba(96, 165, 250, 0.15); }
+  :root.dark [class~="dark:bg-primary/30"] { background-color: rgba(96, 165, 250, 0.30); }
+  :root.dark [class~="bg-muted/20"] { background-color: rgba(31, 41, 55, 0.20); }
+  :root.dark [class~="bg-muted/30"] { background-color: rgba(31, 41, 55, 0.30); }
+  :root.dark [class~="bg-muted/40"] { background-color: rgba(31, 41, 55, 0.40); }
+  :root.dark [class~="bg-muted/50"] { background-color: rgba(31, 41, 55, 0.50); }
+  :root.dark [class~="bg-muted/70"] { background-color: rgba(31, 41, 55, 0.70); }
+  :root.dark [class~="dark:bg-muted/50"] { background-color: rgba(31, 41, 55, 0.50); }
+  :root.dark [class~="bg-destructive/10"] { background-color: rgba(185, 28, 28, 0.10); }
+  :root.dark [class~="from-primary/20"] { --tw-gradient-from: rgba(96, 165, 250, 0.20); }
+  :root.dark [class~="via-background/95"] { --tw-gradient-via: rgba(11, 15, 25, 0.95); }
+  :root.dark [class~="border-primary/20"],
+  :root.dark [class~="border-primary/30"],
+  :root.dark [class~="border-primary/40"],
+  :root.dark [class~="border-primary/50"] { border-color: rgba(96, 165, 250, 0.30); }
+  :root.dark [class~="dark:border-primary/50"] { border-color: rgba(96, 165, 250, 0.50); }
+  :root.dark [class~="border-border/40"],
+  :root.dark [class~="border-border/50"] { border-color: rgba(55, 65, 81, 0.50); }
+  :root.dark [class~="border-muted-foreground/20"] { border-color: rgba(156, 163, 175, 0.20); }
+
+/* Keep the desktop conversation header readable in an 800px legacy viewport. */
+@media (min-width: 768px) and (max-width: 900px) {
+  html.chrome109-profile [data-compat-chat-header-layout] {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  html.chrome109-profile [data-compat-chat-header-contact] {
+    flex: 1 1 100%;
+  }
+
+  html.chrome109-profile [data-compat-chat-header-actions] {
+    margin-left: auto;
+  }
+
+  html.chrome109-profile [data-compat-chat-header-status] {
+    white-space: nowrap;
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+  }
+}

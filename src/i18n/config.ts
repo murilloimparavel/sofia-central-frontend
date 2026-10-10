@@ -1,5 +1,5 @@
-import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import i18n from './instance';
 
 import ptBRAuth from './locales/pt-BR/auth.json';
 import ptBRChangePassword from './locales/pt-BR/changePassword.json';

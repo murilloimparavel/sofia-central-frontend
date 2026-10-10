@@ -3,7 +3,7 @@ import axios, { AxiosError, AxiosInstance } from 'axios';
 import { extractData } from '@/utils/apiHelpers';
 import { wdebug } from '@/utils/widget/debug';
 import type { WidgetConfig, PreChatSubmissionData, WidgetMessage } from '@/types/settings';
-import i18n from '@/i18n/config';
+import i18n from '@/i18n/instance';
 
 // Use shared API client (baseURL = VITE_API_URL/api/v1 -> Evolution CRM)
 

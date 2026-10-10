@@ -133,7 +133,10 @@ export const clearSetupCache = () => {
   setupCacheListeners.forEach(listener => listener());
 };
 
-export const GlobalConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const GlobalConfigProvider: React.FC<{
+  children: React.ReactNode;
+  enableClarity?: boolean;
+}> = ({ children, enableClarity = true }) => {
   const [config, setConfig] = useState<GlobalConfig>(globalConfigCache || {});
   const [setupRequired, setSetupRequired] = useState<boolean>(setupRequiredCache ?? false);
   const [setupLoading, setSetupLoading] = useState<boolean>(setupRequiredCache === null);
@@ -148,7 +151,7 @@ export const GlobalConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
           setSetupRequired(isSetupRequired);
           setSetupLoading(false);
           // Initialize Clarity with backend-provided project ID
-          if (configData.clarityProjectId) {
+          if (enableClarity && configData.clarityProjectId) {
             initClarity(configData.clarityProjectId);
           }
         }
@@ -177,7 +180,7 @@ export const GlobalConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setupCacheListeners.delete(onCacheCleared);
       globalConfigListeners.delete(onGlobalConfigCleared);
     };
-  }, []);
+  }, [enableClarity]);
 
   const value = useMemo(
     () => ({ ...config, setupRequired, setupLoading }),

@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:chrome109": "tsc -b && vite build --config vite.chrome109.config.ts",
+    "mock:chrome109": "node scripts/chrome109-mock-api.mjs",
+    "probe:chrome109-colors": "node scripts/chrome109-color-probe.mjs",
+    "smoke:chrome109": "node scripts/chrome109-smoke.mjs",
     "lint": "eslint . --pass-on-unpruned-suppressions",
     "lint:fix": "eslint . --fix --prune-suppressions",
     "preview": "vite preview",

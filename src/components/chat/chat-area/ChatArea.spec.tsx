@@ -62,8 +62,16 @@ vi.mock('../empty-states', () => ({
 }));
 
 vi.mock('@/components/chat/message-input/MessageInput', () => ({
-  default: ({ onTypingStart, onTypingStop }: { onTypingStart?: () => void; onTypingStop?: () => void }) => (
-    <div data-testid="message-input">
+  default: ({
+    onTypingStart,
+    onTypingStop,
+    placeholder,
+  }: {
+    onTypingStart?: () => void;
+    onTypingStop?: () => void;
+    placeholder?: string;
+  }) => (
+    <div data-testid="message-input" data-placeholder={placeholder}>
       <button data-testid="typing-start" onClick={onTypingStart}>Start typing</button>
       <button data-testid="typing-stop" onClick={onTypingStop}>Stop typing</button>
     </div>
@@ -178,5 +186,26 @@ describe('ChatArea non-destructive render', () => {
     expect(screen.getByTestId('no-messages')).toBeInTheDocument();
     expect(screen.queryByTestId('message-skeleton')).not.toBeInTheDocument();
     expect(screen.queryByTestId('message-list')).not.toBeInTheDocument();
+  });
+
+  it('passes an existing chat translation key to the shared composer', () => {
+    mockMessagesContext.isMessagesLoading.mockReturnValue(false);
+    mockMessagesContext.getMessagesError.mockReturnValue(null);
+
+    render(
+      <ChatArea
+        selectedConversationId="42"
+        selectedConversation={null}
+        selectedMessages={[mockMessage]}
+        onSendMessage={vi.fn()}
+        onLoadMore={vi.fn()}
+        onRetryMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('message-input')).toHaveAttribute(
+      'data-placeholder',
+      'messageInput.defaultPlaceholder',
+    );
   });
 });

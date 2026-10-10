@@ -1,5 +1,5 @@
 import { parse, getHours, getMinutes, differenceInMinutes } from 'date-fns';
-import i18n from '@/i18n/config';
+import i18n from '@/i18n/instance';
 
 // Types
 export interface TimeSlot {

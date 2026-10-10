@@ -7,13 +7,24 @@ export interface DarkModeContextType {
   toggleTheme: () => void;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- contexts are shared with consumers by design.
 export const DarkModeContext = createContext<DarkModeContextType | undefined>(undefined);
 
-export function DarkModeProvider({ children }: { children: React.ReactNode }) {
+interface DarkModeProviderProps {
+  children: React.ReactNode;
+  storageKey?: string;
+  persistSystemTheme?: boolean;
+}
+
+export function DarkModeProvider({
+  children,
+  storageKey = 'theme',
+  persistSystemTheme = true,
+}: DarkModeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === 'undefined') return 'light';
 
-    const saved = localStorage.getItem('theme');
+    const saved = localStorage.getItem(storageKey);
     if (saved === 'light' || saved === 'dark') return saved;
 
     if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark';
@@ -28,22 +39,35 @@ export function DarkModeProvider({ children }: { children: React.ReactNode }) {
     // classList) — a classe 'dark' nunca seria removida nesse cenário.
     document.documentElement.classList.toggle('dark', theme === 'dark');
     document.documentElement.classList.toggle('light', theme === 'light');
-    localStorage.setItem('theme', theme);
   }, [theme]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    // Keep the modern CRM's existing persistence behavior. The compatibility
+    // profile opts out and stores only an explicit choice in its own key.
+    if (persistSystemTheme) localStorage.setItem(storageKey, theme);
+  }, [persistSystemTheme, storageKey, theme]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+    if (!mediaQuery) return;
 
     const handleChange = () => {
-      const saved = localStorage.getItem('theme');
+      const saved = localStorage.getItem(storageKey);
       if (saved !== 'light' && saved !== 'dark') {
         setTheme(mediaQuery.matches ? 'dark' : 'light');
       }
     };
 
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
+    // Safari/Chromium releases before MediaQueryList EventTarget support expose
+    // addListener/removeListener instead. Keep OS theme changes working there.
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, [storageKey]);
 
   const toggleTheme = () => {
     const root = document.documentElement;
@@ -52,7 +76,7 @@ export function DarkModeProvider({ children }: { children: React.ReactNode }) {
     const newTheme: Theme = theme === 'light' ? 'dark' : 'light';
     root.classList.toggle('dark', newTheme === 'dark');
     root.classList.toggle('light', newTheme === 'light');
-    localStorage.setItem('theme', newTheme);
+    localStorage.setItem(storageKey, newTheme);
     setTheme(newTheme);
 
     requestAnimationFrame(() => {

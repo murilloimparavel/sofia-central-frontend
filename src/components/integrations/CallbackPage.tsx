@@ -4,7 +4,7 @@ import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@evoapi/design-system';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
-import i18n from '@/i18n/config';
+import i18n from '@/i18n/instance';
 import { AppLogo } from '@/components/AppLogo';
 import { cn } from '@/lib/utils';
 import { getBrandIcon } from '@/components/BrandIcon';

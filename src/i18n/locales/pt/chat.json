@@ -256,6 +256,7 @@
     "createLabelError": "Não foi possível criar a etiqueta. Tente novamente."
   },
   "audioRecorder": {
+    "loading": "A carregar o gravador de áudio...",
     "notSupported": "Gravação de áudio não suportada neste navegador",
     "record": "Gravar",
     "paused": "(pausado)",
@@ -691,6 +692,7 @@
     }
   },
   "messageInput": {
+    "compatibilityTextOnly": "Modo básico: apenas mensagens de texto.",
     "cannedResponse": {
       "manualAttachmentsRemoved": "Os anexos manuais foram removidos: a resposta rápida já inclui multimédia.",
       "mediaBanner": "Esta resposta rápida inclui {{count}} ficheiro(s) multimédia. Serão enviados juntamente com a mensagem.",
@@ -707,6 +709,7 @@
       "saving": "A guardar..."
     },
     "emojiPicker": {
+      "loading": "A carregar emojis...",
       "searchPlaceholder": "Buscar emojis..."
     },
     "filePreview": {
@@ -756,6 +759,7 @@
     },
     "replyPreview": {
       "replyingTo": "Respondendo {{name}}",
+      "cancel": "Cancelar resposta",
       "userFallback": "Usuário",
       "asPrivateNote": "(como nota privada)",
       "fileAttachment": "📎 {{fileType}}",

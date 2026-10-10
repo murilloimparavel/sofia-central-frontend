@@ -1,5 +1,5 @@
 // CSAT Constants (matching Evolution patterns)
-import i18n from '@/i18n/config';
+import i18n from '@/i18n/instance';
 
 export interface CSATRating {
   key: string;

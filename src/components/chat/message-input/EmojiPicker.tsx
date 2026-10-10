@@ -3,7 +3,7 @@ import EmojiPickerReact, { EmojiClickData, Theme } from 'emoji-picker-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsDarkClass } from '@/hooks/chat/useIsDarkClass';
 
-interface EmojiPickerProps {
+export interface EmojiPickerProps {
   onEmojiSelect: (emoji: string) => void;
   onClose: () => void;
   isOpen: boolean;

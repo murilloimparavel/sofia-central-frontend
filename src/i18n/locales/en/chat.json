@@ -257,6 +257,7 @@
     "createLabelError": "Could not create label. Please try again."
   },
   "audioRecorder": {
+    "loading": "Loading audio recorder...",
     "notSupported": "Audio recording not supported in this browser",
     "record": "Record",
     "paused": "(paused)",
@@ -716,6 +717,7 @@
     }
   },
   "messageInput": {
+    "compatibilityTextOnly": "Basic mode: text messages only.",
     "cannedResponse": {
       "manualAttachmentsRemoved": "Manual attachments removed: the canned response already includes media.",
       "mediaBanner": "This canned response includes {{count}} media file(s). They will be sent with the message.",
@@ -732,6 +734,7 @@
       "saving": "Saving..."
     },
     "emojiPicker": {
+      "loading": "Loading emojis...",
       "searchPlaceholder": "Search emojis..."
     },
     "filePreview": {
@@ -778,6 +781,7 @@
     },
     "replyPreview": {
       "replyingTo": "Replying to {{name}}",
+      "cancel": "Cancel reply",
       "userFallback": "User",
       "asPrivateNote": "(as private note)",
       "fileAttachment": "📎 {{fileType}}",

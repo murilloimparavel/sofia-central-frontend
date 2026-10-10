@@ -3,14 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const postMock = vi.fn();
 const createMock = vi.fn(() => ({ post: postMock }));
 const changeLanguageMock = vi.fn().mockResolvedValue(undefined);
-const i18nMock = { language: 'en', changeLanguage: changeLanguageMock };
+const i18nMock = {
+  language: 'en',
+  changeLanguage: changeLanguageMock,
+  hasLanguageSomeTranslations: vi.fn(() => true),
+};
 
 vi.mock('axios', () => ({
   default: { create: createMock },
   create: createMock,
 }));
 
-vi.mock('@/i18n/config', () => ({
+vi.mock('@/i18n/instance', () => ({
   default: i18nMock,
 }));
 

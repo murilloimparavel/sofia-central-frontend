@@ -30,6 +30,18 @@ jobs:
       - name: Typecheck
         run: npx tsc -b
 
+      - name: Build modern browser profile
+        run: npm run build
+
+      # Keep the isolated legacy entry buildable on every PR. Reserved .invalid
+      # hosts prevent this compile-only check from ever targeting a real API.
+      - name: Build Chrome 109 compatibility profile
+        run: npm run build:chrome109
+        env:
+          VITE_API_URL: https://crm-api.compat.invalid
+          VITE_AUTH_API_URL: https://auth.compat.invalid
+          VITE_COMPAT_ALLOWED_API_HOSTS: crm-api.compat.invalid,auth.compat.invalid
+
       # Scoped, opt-in list: a spec earns a line here when it guards a behaviour
       # we do not want silently reverted, is fully mocked, and runs fast.
       #   - PermissionsContext / RoleDetail (EVO-2062): can() stays data-driven,
