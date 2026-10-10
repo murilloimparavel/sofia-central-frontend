@@ -137,6 +137,7 @@ const MessageList: React.FC<MessageListProps> = ({
   const conversationIdRef = useRef<string | null>(null);
   const hasInitialScrolled = useRef(false);
   const lastLoadTime = useRef(0); // ✅ Throttle do carregamento
+  const autoFillRequestedAtLength = useRef<number | null>(null);
   const isScrollLocked = useRef(false); // ✅ Bloquear scroll reset após inicial
 
   // 🎯 SCROLL POSITION SIMPLES (WhatsApp style)
@@ -218,6 +219,38 @@ const MessageList: React.FC<MessageListProps> = ({
       }
     }
   }, [isInitialLoading, messages.length]);
+
+  // If the first page does not fill the chat viewport, fetch older pages until
+  // there is enough history to scroll. Dense conversations keep the normal
+  // scroll-to-load behavior and do not trigger eager history requests.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (
+      !hasInitialScrolled.current ||
+      !container ||
+      container.clientHeight === 0 ||
+      isInitialLoading ||
+      isLoadingMore ||
+      !hasMoreMessages ||
+      messages.length === 0
+    ) return;
+
+    const pageLength = messages.length;
+    const frame = requestAnimationFrame(() => {
+      const currentContainer = scrollRef.current;
+      if (
+        !currentContainer ||
+        currentContainer.clientHeight === 0 ||
+        currentContainer.scrollHeight > currentContainer.clientHeight + 24 ||
+        autoFillRequestedAtLength.current === pageLength
+      ) return;
+
+      autoFillRequestedAtLength.current = pageLength;
+      onLoadMore();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [hasMoreMessages, isInitialLoading, isLoadingMore, messages.length, onLoadMore]);
 
   // 🎯 SCROLL ANCHOR: Manter posição na mensagem visível
   const anchorMessageIdRef = useRef<string | null>(null);

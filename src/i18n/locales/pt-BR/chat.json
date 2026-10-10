@@ -20,6 +20,7 @@
         "forward": "Encaminhar"
       },
       "userFallback": "Usuário",
+      "whatsappEcho": "Enviada pelo WhatsApp",
       "agent": {
         "badge": "Atendente",
         "fallback": "Atendente"

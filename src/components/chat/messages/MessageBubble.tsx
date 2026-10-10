@@ -506,6 +506,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               </div>
             )}
 
+            {message.content_attributes?.whatsapp_echo_message === true && (
+              <div className="mb-1 text-[10px] font-medium tracking-wide opacity-75">
+                {t('messages.messageBubble.whatsappEcho', 'Enviada pelo WhatsApp')}
+              </div>
+            )}
+
             {/* Indicador de mensagem privada */}
             {isPrivate && (
               <div className="flex items-center gap-1.5 mb-2 text-muted-foreground">
