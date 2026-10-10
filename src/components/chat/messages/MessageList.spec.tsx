@@ -73,7 +73,7 @@ const renderList = (messages: Message[]) => {
     scroller.scrollTop = options.top ?? 0;
   }) as unknown as typeof scroller.scrollTo;
   const setMessages = (next: Message[]) => view.rerender(<MessageList {...props} messages={next} />);
-  return { scroller, setMessages };
+  return { scroller, setMessages, onLoadMore: props.onLoadMore };
 };
 
 // Sets scrollTop and fires the handler so isNearBottomRef tracks the position.
@@ -92,6 +92,24 @@ describe('MessageList auto-scroll (CRM-165)', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('loads older history when the first page does not fill the viewport', () => {
+    const initial = [makeMessage(), makeMessage()];
+    const { scroller, setMessages, onLoadMore } = renderList(initial);
+    Object.defineProperty(scroller, 'scrollHeight', { value: 300, configurable: true });
+    Object.defineProperty(scroller, 'clientHeight', { value: 400, configurable: true });
+    setMessages([...initial, makeMessage()]);
+
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not eagerly load older history when messages already overflow the viewport', () => {
+    const initial = [makeMessage(), makeMessage()];
+    const { scroller, setMessages, onLoadMore } = renderList(initial);
+    setMessages([...initial, makeMessage()]);
+
+    expect(onLoadMore).not.toHaveBeenCalled();
   });
 
   it('scrolls to the end when a message arrives with the view near the bottom', () => {

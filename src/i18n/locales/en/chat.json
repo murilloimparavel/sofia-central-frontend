@@ -20,6 +20,7 @@
         "forward": "Forward"
       },
       "userFallback": "User",
+      "whatsappEcho": "Sent from WhatsApp",
       "agent": {
         "badge": "Team Member",
         "fallback": "Team Member"
