@@ -25,6 +25,7 @@ import { useDashboardApps } from '@/hooks/useDashboardApps';
 import { injectDashboardAppsIntoMenu } from '@/utils/injectDashboardApps';
 import { WelcomeTourModal } from '@/components/WelcomeTourModal';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import CommercialAssistantPopup from '@/components/commercial-assistant/CommercialAssistantPopup';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -151,6 +152,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
       {/* Tour */}
       <WelcomeTourModal />
+
+      {/* Floating commercial assistant for authenticated CRM pages */}
+      <CommercialAssistantPopup />
 
       {/* Logout Dialog */}
       <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>

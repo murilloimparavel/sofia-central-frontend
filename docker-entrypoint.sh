@@ -10,6 +10,7 @@ set -e
 # =============================================================================
 
 HTML_DIR="/usr/share/nginx/html"
+NGINX_CONF="/etc/nginx/conf.d/default.conf"
 
 # Replace VITE_* variables in all JS files
 # The build uses empty strings or defaults — we replace them at runtime
@@ -21,6 +22,7 @@ for file in $(find "$HTML_DIR" -name '*.js' -type f); do
   [ -n "$VITE_EVOAI_API_URL" ] && sed -i "s|VITE_EVOAI_API_URL_PLACEHOLDER|${VITE_EVOAI_API_URL}|g" "$file"
   [ -n "$VITE_AGENT_PROCESSOR_URL" ] && sed -i "s|VITE_AGENT_PROCESSOR_URL_PLACEHOLDER|${VITE_AGENT_PROCESSOR_URL}|g" "$file"
   [ -n "$VITE_EVOFLOW_API_URL" ] && sed -i "s|VITE_EVOFLOW_API_URL_PLACEHOLDER|${VITE_EVOFLOW_API_URL}|g" "$file"
+  [ -n "$VITE_SEARCH_API_URL" ] && sed -i "s|VITE_SEARCH_API_URL_PLACEHOLDER|${VITE_SEARCH_API_URL}|g" "$file"
 done
 
 # Configure nginx CSP based on environment (default: development)
@@ -32,7 +34,6 @@ done
 # All substitutions are anchored on the trailing ';' or guarded so a container
 # restart does not append the same source twice.
 APP_ENV="${VITE_APP_ENV:-development}"
-NGINX_CONF="/etc/nginx/conf.d/default.conf"
 
 if [ "$APP_ENV" = "development" ]; then
   # Development: allow localhost (any port) for API calls and for media served

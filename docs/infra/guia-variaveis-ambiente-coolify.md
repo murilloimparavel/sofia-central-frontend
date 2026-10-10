@@ -12,6 +12,7 @@ A imagem Docker é compilada com placeholders estáticos:
 - `VITE_AUTH_API_URL_PLACEHOLDER`
 - `VITE_EVOAI_API_URL_PLACEHOLDER`
 - `VITE_AGENT_PROCESSOR_URL_PLACEHOLDER`
+- `VITE_SEARCH_API_URL_PLACEHOLDER`
 - `VITE_WS_URL_PLACEHOLDER`
 
 No `entrypoint.sh` do container, o script executa substituições via `sed -i` nos arquivos compilados (`.js`), injetando os valores das variáveis de ambiente repassadas ao container.
@@ -35,6 +36,7 @@ Sempre manter e repassar o bloco completo de variáveis:
 -e VITE_AUTH_API_URL=https://api-crm.caldasindica.com \
 -e VITE_EVOAI_API_URL=https://api-crm.caldasindica.com \
 -e VITE_AGENT_PROCESSOR_URL=https://api-crm.caldasindica.com \
+-e VITE_SEARCH_API_URL=https://search-api.caldasindica.com \
 -e VITE_WS_URL=https://api-crm.caldasindica.com \
 -e COOLIFY_CONTAINER_NAME=evocrm_frontend-tzbydmxtjuilf4xq2gow9gcs \
 -e COOLIFY_RESOURCE_UUID=tzbydmxtjuilf4xq2gow9gcs \
