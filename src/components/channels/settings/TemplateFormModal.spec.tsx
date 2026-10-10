@@ -13,12 +13,13 @@ vi.mock('@/services/channels/messageTemplatesService', () => ({
   default: {
     transformToFrontendFormat: vi.fn(),
   },
-  usesStructuredComponents: (ct: string) => ct === 'Channel::Whatsapp',
+  usesStructuredComponents: (ct: string) => ['Channel::Whatsapp', 'Channel::WhatsappCloud'].includes(ct),
   getChannelTemplateConfig: (ct: string) => ({
-    supportsMedia: true,
+    supportsMedia: ct !== 'Channel::WhatsappCloud',
+    supportsHeader: ct === 'Channel::WhatsappCloud',
     supportsButtons: true,
-    supportsStructured: ct === 'Channel::Whatsapp',
-    categories: ['MARKETING', 'UTILITY', 'AUTHENTICATION'],
+    supportsStructured: ['Channel::Whatsapp', 'Channel::WhatsappCloud'].includes(ct),
+    categories: ct === 'Channel::WhatsappCloud' ? ['MARKETING', 'UTILITY'] : ['MARKETING', 'UTILITY', 'AUTHENTICATION'],
     templateTypes: ['text', 'interactive', 'media'],
   }),
 }));
@@ -61,6 +62,28 @@ import TemplateFormModal from './TemplateFormModal';
 beforeEach(() => vi.clearAllMocks());
 
 describe('TemplateFormModal', () => {
+  it('shows the Cloud text-header editor and excludes media and OTP category options', () => {
+    render(
+      <TemplateFormModal
+        isOpen
+        mode="create"
+        channelType="Channel::WhatsappCloud"
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    const headerFormat = screen
+      .getAllByTestId('ds-select')
+      .find(select => select.querySelector('option[value="TEXT"]')) as HTMLSelectElement | undefined;
+    expect(headerFormat).toBeTruthy();
+    fireEvent.change(headerFormat!, { target: { value: 'TEXT' } });
+    expect(screen.getByPlaceholderText('settings.messageTemplates.form.headerTextPlaceholder')).toBeInTheDocument();
+    expect(screen.queryByText('settings.messageTemplates.form.headerFormats.image')).not.toBeInTheDocument();
+    expect(screen.queryByText('settings.messageTemplates.form.headerFormats.video')).not.toBeInTheDocument();
+    expect(screen.queryByText('settings.messageTemplates.form.headerFormats.document')).not.toBeInTheDocument();
+    expect(screen.queryByText('settings.messageTemplates.form.categories.authentication')).not.toBeInTheDocument();
+  });
+
   it('renders the structured body editor for a WhatsApp channel and saves form data', () => {
     const onSave = vi.fn();
     render(

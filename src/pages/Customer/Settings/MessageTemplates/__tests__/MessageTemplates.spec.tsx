@@ -20,6 +20,13 @@ const h = vi.hoisted(() => ({
     transformToFrontendFormat: vi.fn(),
     transformToBackendFormat: vi.fn(),
   },
+  cloudService: {
+    list: vi.fn(),
+    targets: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    publish: vi.fn(),
+  },
 }));
 
 vi.mock('@/hooks/useLanguage', () => ({
@@ -39,6 +46,10 @@ vi.mock('@/services/messageTemplates/globalMessageTemplatesService', () => ({
   default: h.globalService,
   providerToChannelType: (p: string) => (p === 'email' ? 'Channel::Email' : 'Channel::Api'),
   inferTemplateProvider: () => 'generic',
+}));
+
+vi.mock('@/services/messageTemplates/whatsappCloudTemplateService', () => ({
+  default: h.cloudService,
 }));
 
 vi.mock('@/services/channels/messageTemplatesService', () => ({
@@ -121,11 +132,25 @@ beforeEach(() => {
   h.globalService.getTemplates.mockResolvedValue(stdResponse);
   h.channelService.getTemplates.mockResolvedValue(stdResponse);
   h.channelService.syncTemplates.mockResolvedValue([]);
+  h.cloudService.list.mockResolvedValue([]);
+  h.cloudService.targets.mockResolvedValue([]);
   h.globalService.createTemplate.mockResolvedValue({ id: 'new' });
   h.channelService.createTemplate.mockResolvedValue({ id: 'new' });
 });
 
 describe('MessageTemplates (unified screen)', () => {
+  it('opens the separate WhatsApp Cloud definition scope and loads definitions plus WABA targets', async () => {
+    h.cloudService.list.mockResolvedValue([{ id: 'def-1', name: 'reminder', language: 'pt_BR', category: 'UTILITY', content: 'Oi', components: [], variables: [], active: true, publications: [] }]);
+    h.cloudService.targets.mockResolvedValue([{ waba_id: 'waba-1', inboxes: [{ inbox_id: 'wa-1', name: 'WhatsApp Cloud', phone_number: '+5511999999999' }] }]);
+    render(<MessageTemplates />);
+    await screen.findByText('welcome');
+    fireEvent.change(screen.getByTestId('ds-select'), { target: { value: 'whatsapp-cloud' } });
+    expect(await screen.findByText('reminder')).toBeInTheDocument();
+    expect(h.cloudService.list).toHaveBeenCalled();
+    expect(h.cloudService.targets).toHaveBeenCalled();
+    expect(screen.getByText('WhatsApp Cloud · Definições')).toBeInTheDocument();
+  });
+
   it('defaults to Global scope and lists channel-less templates (no inbox arg)', async () => {
     render(<MessageTemplates />);
     expect(await screen.findByText('welcome')).toBeInTheDocument();

@@ -10,8 +10,18 @@ const apiMock = vi.hoisted(() => ({
 vi.mock('@/services/core/api', () => ({ default: apiMock }));
 
 import MessageTemplateService from '../messageTemplatesService';
+import { getChannelTemplateConfig } from '../messageTemplatesService';
 
 beforeEach(() => vi.clearAllMocks());
+
+it('limits WhatsApp Cloud templates to text headers, marketing/utility, and supported buttons', () => {
+  expect(getChannelTemplateConfig('Channel::WhatsappCloud')).toMatchObject({
+    supportsMedia: false,
+    supportsHeader: true,
+    supportsButtons: true,
+    categories: ['MARKETING', 'UTILITY'],
+  });
+});
 
 describe('channel MessageTemplateService — flat endpoint with inbox_id (EVO-1716)', () => {
   it('lists from /message_templates passing inbox_id so the backend resolves the channel', async () => {
@@ -92,6 +102,37 @@ describe('WhatsApp structured transforms round-trip', () => {
     const types = (out.components as Array<{ type: string }>).map(c => c.type);
     expect(types).toContain('BODY');
     expect(types).not.toContain('HEADER');
+  });
+
+  it('does not carry unsupported media fields into the Cloud template definition payload', () => {
+    const out = MessageTemplateService.transformToBackendFormat({
+      name: 'cloud_text', content: '', language: 'pt_BR', category: 'UTILITY',
+      template_type: 'media', headerFormat: 'VIDEO', headerText: 'unsupported',
+      bodyText: 'Olá', mediaUrl: 'https://example.test/video.mp4', mediaType: 'video',
+    }, 'Channel::WhatsappCloud');
+
+    expect(out.media_url).toBeUndefined();
+    expect(out.media_type).toBeUndefined();
+    expect(out.components?.some(component => component.format === 'VIDEO')).toBe(true);
+  });
+
+  it('preserves phone button numbers and omits fields from a different button type', () => {
+    const out = MessageTemplateService.transformToBackendFormat({
+      name: 'cloud_buttons', content: '', language: 'pt_BR', category: 'UTILITY',
+      bodyText: 'Ligue para nós', buttons: [
+        { type: 'PHONE_NUMBER', text: 'Ligar', phone_number: '+5511999999999', url: 'https://ignored.test' },
+      ],
+    }, 'Channel::WhatsappCloud');
+
+    expect(out.components?.find(component => component.type === 'BUTTONS')?.buttons).toEqual([
+      { type: 'PHONE_NUMBER', text: 'Ligar', phone_number: '+5511999999999' },
+    ]);
+
+    const edited = MessageTemplateService.transformToFrontendFormat({
+      name: 'cloud_buttons', content: 'Ligue para nós', language: 'pt_BR',
+      components: [{ type: 'BUTTONS', buttons: [{ type: 'PHONE_NUMBER', text: 'Ligar', phone_number: '+5511999999999' }] }],
+    }, 'Channel::WhatsappCloud');
+    expect(edited.buttons?.[0].phone_number).toBe('+5511999999999');
   });
 
   it('transformToBackendFormat keeps the declared example/source on the persisted variables', () => {

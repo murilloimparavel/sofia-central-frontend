@@ -114,7 +114,7 @@ export function SendMessagePanel({
 
     let cancelled = false;
     setLoadingTemplates(true);
-    MessageTemplateService.getTemplates(formData.inboxId, { active: true, per_page: -1 })
+    MessageTemplateService.getTemplates(formData.inboxId, { active: true, for_sending: true, per_page: -1 })
       .then(response => {
         if (!cancelled) setTemplates(Array.isArray(response.data) ? response.data : []);
       })

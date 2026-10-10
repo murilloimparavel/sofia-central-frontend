@@ -68,7 +68,7 @@ const MessageTemplateModal: React.FC<MessageTemplateModalProps> = ({
 
     const loadTemplates = async () => {
       try {
-        const response = await MessageTemplateService.getTemplates(inboxId);
+        const response = await MessageTemplateService.getTemplates(inboxId, { for_sending: true });
 
         if (cancelled) return;
 

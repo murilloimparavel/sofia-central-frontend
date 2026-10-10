@@ -46,6 +46,7 @@ export const getChannelTemplateConfig = (channelType: string) => {
     string,
     {
       supportsMedia: boolean;
+      supportsHeader?: boolean;
       supportsButtons: boolean;
       supportsStructured: boolean;
       categories: string[];
@@ -59,6 +60,16 @@ export const getChannelTemplateConfig = (channelType: string) => {
       supportsStructured: true,
       categories: ['MARKETING', 'UTILITY', 'AUTHENTICATION'],
       templateTypes: ['text', 'interactive', 'media'],
+    },
+    // Cloud templates use the Meta component contract. Media is intentionally
+    // hidden until its example-upload and send round-trip is implemented.
+    'Channel::WhatsappCloud': {
+      supportsMedia: false,
+      supportsHeader: true,
+      supportsButtons: true,
+      supportsStructured: true,
+      categories: ['MARKETING', 'UTILITY'],
+      templateTypes: ['text', 'interactive'],
     },
     'Channel::FacebookPage': {
       supportsMedia: true,
@@ -133,6 +144,7 @@ const MessageTemplateService = {
       query?: string;
       category?: string;
       active?: boolean;
+      for_sending?: boolean;
     },
   ): Promise<MessageTemplateResponse> {
     try {
@@ -286,8 +298,8 @@ const MessageTemplateService = {
         const buttons = templateData.buttons.map(button => ({
           type: button.type,
           text: button.text,
-          ...(button.url && { url: button.url }),
-          ...(button.phone_number && { phone_number: button.phone_number }),
+          ...(button.type === 'URL' && button.url && { url: button.url }),
+          ...(button.type === 'PHONE_NUMBER' && button.phone_number && { phone_number: button.phone_number }),
         }));
 
         components.push({
@@ -310,8 +322,8 @@ const MessageTemplateService = {
         template_type: templateData.template_type || 'interactive',
         components,
         variables: extractTemplateFormVariables(templateData),
-        ...(templateData.mediaUrl && { media_url: templateData.mediaUrl }),
-        ...(templateData.mediaType && { media_type: templateData.mediaType }),
+        ...(config.supportsMedia && templateData.mediaUrl && { media_url: templateData.mediaUrl }),
+        ...(config.supportsMedia && templateData.mediaType && { media_type: templateData.mediaType }),
         ...(templateData.settings && { settings: templateData.settings }),
         ...(templateData.metadata && { metadata: templateData.metadata }),
         active: templateData.active !== false,
@@ -388,7 +400,7 @@ const MessageTemplateService = {
                 type: btn.type,
                 text: btn.text,
                 url: btn.url,
-                phoneNumber: btn.phone_number,
+                  phone_number: btn.phone_number,
               })) || [];
             break;
         }
