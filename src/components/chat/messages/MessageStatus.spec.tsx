@@ -121,4 +121,31 @@ describe('MessageStatus — failed public message', () => {
     toastWarning.mock.calls[0][1].action.onClick();
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  it('does not offer retry for an uncertain Stays delivery', async () => {
+    const onRetry = vi.fn();
+    await clickIndicator(failedMessage('STAYS_DELIVERY_UNCERTAIN: Check the Stays thread before resending.'), onRetry);
+
+    expect(toastWarning).toHaveBeenCalledWith(
+      'messages.messageStatus.deliveryPendingTitle',
+      expect.objectContaining({
+        description: 'Check the Stays thread before resending.',
+      }),
+    );
+    expect(toastError).not.toHaveBeenCalled();
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it('does not offer blind retry after an unconfirmed API webhook delivery', async () => {
+    const onRetry = vi.fn();
+    await clickIndicator(failedMessage(
+      'WEBHOOK_DELIVERY_FAILED: O webhook não confirmou o envio. Verifique o canal antes de tentar novamente.',
+    ), onRetry);
+
+    expect(toastError).toHaveBeenCalledWith(
+      'messages.messageStatus.messageNotSent',
+      expect.objectContaining({ action: undefined }),
+    );
+    expect(onRetry).not.toHaveBeenCalled();
+  });
 });
