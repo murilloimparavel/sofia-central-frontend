@@ -23,13 +23,21 @@ vi.mock('@/hooks/useLanguage', () => ({
 }));
 
 import { WebSocketProvider, useWebSocketContext } from './WebSocketContext';
-import type { Contact } from '@/types/chat/api';
+import type { Contact, Message } from '@/types/chat/api';
 
 function RegisterExternalHandler({ onContactUpdated }: { onContactUpdated: (c: Contact) => void }) {
   const ws = useWebSocketContext();
   React.useEffect(() => {
     ws.registerHandlers({ onContactUpdated });
   }, [ws, onContactUpdated]);
+  return null;
+}
+
+function RegisterMessageHandler({ onMessageUpdated }: { onMessageUpdated: (m: Message) => void }) {
+  const ws = useWebSocketContext();
+  React.useEffect(() => {
+    ws.registerHandlers({ onMessageUpdated });
+  }, [ws, onMessageUpdated]);
   return null;
 }
 
@@ -97,5 +105,34 @@ describe('WebSocketContext contact.updated wiring', () => {
     capturedHandlers.onContactUpdated?.({ name: 'no id' } as unknown);
 
     expect(external).not.toHaveBeenCalled();
+  });
+});
+
+describe('WebSocketContext message status mapping', () => {
+  beforeEach(() => {
+    capturedHandlers = {};
+  });
+
+  it('preserves failed status for public API inbox messages', () => {
+    const onMessageUpdated = vi.fn();
+    render(
+      <WebSocketProvider>
+        <RegisterMessageHandler onMessageUpdated={onMessageUpdated} />
+      </WebSocketProvider>,
+    );
+
+    capturedHandlers.onMessageUpdated?.({
+      id: 'message-1',
+      conversation: { id: 'conversation-1' },
+      inbox_id: '2',
+      message_type: 1,
+      content: 'synthetic message',
+      status: 'failed',
+      private: false,
+      created_at: 1,
+      sender: { id: 'agent-1', name: 'Agent', type: 'user' },
+    });
+
+    expect(onMessageUpdated).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }));
   });
 });

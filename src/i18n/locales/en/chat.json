@@ -97,6 +97,8 @@
       "messageNotSent": "The message was not sent",
       "deliveryStatusUnavailable": "Delivery status unavailable - Click for more details",
       "statusUnavailableText": "Status unavailable",
+      "deliveryPendingText": "Delivery confirmation pending",
+      "deliveryPendingTitle": "Check delivery before trying again",
       "sendFailedText": "Send failed",
       "sendFailed": "Send failed - Click to see the reason",
       "tryAgain": "Try again",
