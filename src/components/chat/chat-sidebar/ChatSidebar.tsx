@@ -192,6 +192,7 @@ const ChatSidebar = ({
   const { rememberScrollPosition, captureBeforeSelection } = useConversationListScroll({
     containerRef: sidebarScrollRef,
     listVersion: conversations.state.conversations,
+    isVisible: mobileView === 'list',
     resetKey: JSON.stringify({
       filters: filters.state.activeFilters,
       showArchived,

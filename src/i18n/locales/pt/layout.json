@@ -101,7 +101,8 @@
     "agents": {
       "list": "Agentes de IA",
       "customTools": "Custom Tools",
-      "customMcps": "Custom MCPs"
+      "customMcps": "Custom MCPs",
+      "knowledge": "Base de conhecimento"
     },
     "settings": {
       "account": "Conta",

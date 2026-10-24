@@ -1,6 +1,6 @@
-import { Cpu, List, Wrench, type LucideIcon } from 'lucide-react';
+import { BookOpen, Cpu, List, Wrench, type LucideIcon } from 'lucide-react';
 
-export type AgentsTabKey = 'agents' | 'customTools' | 'customMcpServers';
+export type AgentsTabKey = 'agents' | 'customTools' | 'customMcpServers' | 'knowledge';
 
 export interface AgentsTabDefinition {
   key: AgentsTabKey;
@@ -40,6 +40,14 @@ export const AGENTS_TABS: AgentsTabDefinition[] = [
     subtitleKey: 'container.subtitles.customMcpServers',
     icon: Cpu,
   },
+  {
+    key: 'knowledge',
+    route: '/agents/knowledge',
+    resource: 'ai_knowledge',
+    labelKey: 'container.tabs.knowledge',
+    subtitleKey: 'container.subtitles.knowledge',
+    icon: BookOpen,
+  },
 ];
 
 /** Below 768px the 3 chips do not fit, so the bar scrolls instead of wrapping. */
@@ -59,7 +67,5 @@ type CanFn = (resource: string, action: string) => boolean;
 export const getAllowedAgentsTabs = (can: CanFn, isReady: boolean): AgentsTabDefinition[] =>
   isReady ? AGENTS_TABS.filter(tab => can(tab.resource, 'read')) : [];
 
-export const resolveFirstAllowedTab = (
-  can: CanFn,
-  isReady: boolean,
-): AgentsTabDefinition | null => getAllowedAgentsTabs(can, isReady)[0] ?? null;
+export const resolveFirstAllowedTab = (can: CanFn, isReady: boolean): AgentsTabDefinition | null =>
+  getAllowedAgentsTabs(can, isReady)[0] ?? null;

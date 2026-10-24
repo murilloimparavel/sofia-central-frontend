@@ -15,6 +15,7 @@ interface UseConversationListScrollOptions {
   containerRef: RefObject<HTMLDivElement | null>;
   listVersion: unknown;
   resetKey?: string;
+  isVisible?: boolean;
 }
 
 interface UseConversationListScrollResult {
@@ -31,6 +32,7 @@ export function useConversationListScroll({
   containerRef,
   listVersion,
   resetKey = '',
+  isVisible = true,
 }: UseConversationListScrollOptions): UseConversationListScrollResult {
   const lastScrollTopRef = useRef(0);
   const pendingSnapshotRef = useRef<ScrollSnapshot | null>(null);
@@ -62,7 +64,11 @@ export function useConversationListScroll({
 
   const rememberScrollPosition = useCallback(() => {
     const container = containerRef.current;
-    if (container) {
+    if (container && isVisible) {
+      // On mobile, hiding the sidebar while the chat is open can make the
+      // browser report scrollTop=0. Keep the captured position until the list
+      // is visible and its anchor has been restored.
+      if (pendingSnapshotRef.current && container.scrollTop === 0) return;
       const pendingTop = pendingRestoreTopRef.current;
       if (pendingTop != null && container.scrollTop === 0 &&
           container.scrollHeight - container.clientHeight < pendingTop) return;
@@ -73,7 +79,7 @@ export function useConversationListScroll({
       lastScrollTopRef.current = container.scrollTop;
       persistScrollTop(container.scrollTop);
     }
-  }, [containerRef, persistScrollTop]);
+  }, [containerRef, isVisible, persistScrollTop]);
 
   const captureBeforeSelection = useCallback(() => {
     const container = containerRef.current;
@@ -107,6 +113,10 @@ export function useConversationListScroll({
       pendingSnapshotRef.current = null;
       pendingRestoreTopRef.current = lastScrollTopRef.current;
     }
+
+    // A display:none list may have zero dimensions and a browser-reset
+    // scrollTop. Defer anchor/top restoration until it becomes visible.
+    if (!isVisible) return;
 
     const snapshot = pendingSnapshotRef.current;
     if (snapshot) {
@@ -150,7 +160,7 @@ export function useConversationListScroll({
       pendingRestoreTopRef.current = null;
       lastScrollTopRef.current = container.scrollTop;
     }
-  }, [containerRef, listVersion, persistScrollTop, readStoredScrollTop, resetKey]);
+  }, [containerRef, isVisible, listVersion, persistScrollTop, readStoredScrollTop, resetKey]);
 
   return { rememberScrollPosition, captureBeforeSelection };
 }
