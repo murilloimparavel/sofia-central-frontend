@@ -120,6 +120,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const richEditorRef = useRef<RichTextEditorRef>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const composerRootRef = useRef<HTMLDivElement>(null);
+  const replyFocusRef = useRef<Message | null>(null);
 
   // 🎯 EMOJI PICKER: Estado
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -210,19 +211,30 @@ const MessageInput: React.FC<MessageInputProps> = ({
   }, [showCannedResponses, cannedResponseQuery, searchCannedResponses]);
 
   useEffect(() => {
-    if (replyToMessage) {
-      setTimeout(() => {
-        richEditorRef.current?.focus();
-      }, 100);
+    if (!replyToMessage) {
+      replyFocusRef.current = null;
+      return;
     }
-  }, [replyToMessage]);
+
+    // A reply selected in the previous chat must not focus the new chat when
+    // the same reply object briefly remains in context during navigation.
+    if (replyFocusRef.current === replyToMessage) return;
+    replyFocusRef.current = replyToMessage;
+
+    const focusTimer = window.setTimeout(() => richEditorRef.current?.focus(), 100);
+    return () => window.clearTimeout(focusTimer);
+  }, [replyToMessage, conversationId]);
 
   useEffect(() => {
-    if (conversationId) {
-      setTimeout(() => {
-        richEditorRef.current?.focus();
-      }, 200);
-    }
+    if (
+      !conversationId ||
+      window.matchMedia?.('(min-width: 768px) and (hover: hover) and (pointer: fine)').matches === false
+    ) return;
+
+    // On touch screens, changing chats is primarily a reading action. A
+    // delayed focus may open the software keyboard and move the viewport.
+    const focusTimer = window.setTimeout(() => richEditorRef.current?.focus(), 200);
+    return () => window.clearTimeout(focusTimer);
   }, [conversationId]);
 
   // Gerenciar indicador de digitação
