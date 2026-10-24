@@ -3,6 +3,7 @@ import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { FacebookCommentModeration } from '@/types/channels/inbox';
 
 import { useLanguage } from '@/hooks/useLanguage';
+import { useEventCallback } from '@/hooks/chat/useEventCallback';
 
 import { Button } from '@evoapi/design-system/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@evoapi/design-system/avatar';
@@ -16,6 +17,7 @@ import SystemMessage from '@/components/chat/messages/SystemMessage';
 import ForwardMessagesDialog from '@/components/chat/messages/ForwardMessagesDialog';
 
 import { Message, MESSAGE_TYPE } from '@/types/chat/api';
+import { compareMessagesByTimestamp, normalizeMessageTimestamp } from '@/contexts/chat/messageTimestampUtils';
 
 interface PostData {
   id?: string;
@@ -69,47 +71,6 @@ interface MessageListProps {
   onDeleteMessage: (message: Message) => Promise<void>;
 }
 
-// Helper function para normalizar timestamp de mensagens (mesma lógica do MessagesContext)
-const normalizeMessageTimestamp = (message: Message): number => {
-  const createdAt = message.created_at;
-
-  // Se já é número (Unix timestamp em segundos), retornar direto
-  if (typeof createdAt === 'number') {
-    return createdAt;
-  }
-
-  // Se é string numérica, converter para número
-  if (typeof createdAt === 'string') {
-    // Tentar parse direto se for string numérica
-    const parsed = parseInt(createdAt, 10);
-    if (!isNaN(parsed) && parsed > 0) {
-      return parsed;
-    }
-
-    // Tentar parse como Date ISO string
-    const dateParsed = new Date(createdAt).getTime() / 1000;
-    if (!isNaN(dateParsed) && dateParsed > 0) {
-      return dateParsed;
-    }
-  }
-
-  // Fallback: usar timestamp atual (mensagem sem timestamp válido vai para o final)
-  return Date.now() / 1000;
-};
-
-const getMessageTimestamp = (message: Message): number => {
-  return normalizeMessageTimestamp(message);
-};
-
-// Igual ao MessagesContext: mensagens "em envio" (status progress) sempre por último
-const compareMessagesByTimestamp = (a: Message, b: Message): number => {
-  const aSending = a.status === 'progress';
-  const bSending = b.status === 'progress';
-  if (aSending && !bSending) return 1;
-  if (!aSending && bSending) return -1;
-  return getMessageTimestamp(a) - getMessageTimestamp(b);
-};
-
 const MessageList: React.FC<MessageListProps> = ({
   messages,
   hasMoreMessages,
@@ -127,6 +88,10 @@ const MessageList: React.FC<MessageListProps> = ({
   onDeleteMessage,
 }) => {
   const { t } = useLanguage('chat');
+  const retryMessage = useEventCallback(onRetryMessage);
+  const replyToMessage = useEventCallback(onReplyToMessage);
+  const copyMessage = useEventCallback(onCopyMessage);
+  const deleteMessage = useEventCallback(onDeleteMessage);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const isNearBottomRef = useRef(true);
@@ -174,6 +139,49 @@ const MessageList: React.FC<MessageListProps> = ({
     all.sort(compareMessagesByTimestamp);
     return all;
   }, [regularMessages, systemMessages]);
+
+  // Uma única indexação por atualização da timeline evita percorrer toda a
+  // conversa em cada balão que contém uma resposta.
+  const replyLookup = useMemo(() => {
+    const byId = new Map<string, Message>();
+    const bySourceId = new Map<string, Message>();
+    for (const message of messages) {
+      byId.set(String(message.id), message);
+      if (message.source_id) bySourceId.set(String(message.source_id), message);
+    }
+    return { byId, bySourceId };
+  }, [messages]);
+
+  // O agrupamento de comentários é independente do estado do scroll e dos
+  // diálogos. Reutilizar as threads evita reconstruir e ordenar os mapas a
+  // cada render local da lista.
+  const postThreads = useMemo(() => {
+    if (!isPostConversation) return null;
+    const roots: Message[] = [];
+    const replies = new Map<string, Message[]>();
+    const postMessagesById = new Map(regularMessages.map(message => [String(message.id), message]));
+    const postMessagesBySourceId = new Map(
+      regularMessages.filter(message => message.source_id).map(message => [String(message.source_id), message]),
+    );
+    for (const message of regularMessages) {
+      const replyToId = message.content_attributes?.in_reply_to;
+      const replyToExternalId = message.content_attributes?.in_reply_to_external_id;
+      const parent = (replyToId && postMessagesById.get(String(replyToId))) ||
+        (replyToExternalId && postMessagesBySourceId.get(String(replyToExternalId)));
+      if (parent) {
+        const siblings = replies.get(String(parent.id)) || [];
+        siblings.push(message);
+        replies.set(String(parent.id), siblings);
+      } else {
+        roots.push(message);
+      }
+    }
+    for (const siblings of replies.values()) siblings.sort(compareMessagesByTimestamp);
+    return {
+      replies,
+      ordered: [...roots, ...systemMessages].sort(compareMessagesByTimestamp),
+    };
+  }, [isPostConversation, regularMessages, systemMessages]);
 
   // 🔄 TRANSIÇÃO DE CONVERSA: Detectar mudança e resetar estado APENAS quando conversa realmente muda
   useEffect(() => {
@@ -443,57 +451,10 @@ const MessageList: React.FC<MessageListProps> = ({
           {(() => {
             // 🧵 Agrupar mensagens por thread para conversas de post (suporta respostas aninhadas)
             if (isPostConversation) {
-              // Encontrar mensagens raiz (sem in_reply_to ou in_reply_to_external_id) e suas respostas
-              const rootMessages: Message[] = [];
-              const replyMap = new Map<string, Message[]>();
-
-              // Criar mapa de source_id e ID para busca rápida
-              const sourceIdMap = new Map<string, Message>();
-              const idMap = new Map<string, Message>();
-              regularMessages.forEach(msg => {
-                if (msg.source_id) {
-                  sourceIdMap.set(msg.source_id, msg);
-                }
-                idMap.set(String(msg.id), msg);
-              });
-
-              regularMessages.forEach(msg => {
-                const replyToId = msg.content_attributes?.in_reply_to;
-                const replyToExternalId = msg.content_attributes?.in_reply_to_external_id;
-
-                // Tentar encontrar mensagem pai usando in_reply_to (ID interno) ou in_reply_to_external_id (source_id)
-                let parentMessage: Message | undefined;
-
-                // Primeiro tentar por ID interno
-                if (replyToId) {
-                  parentMessage = idMap.get(String(replyToId));
-                }
-
-                // Se não encontrou por ID interno, tentar por external_id (source_id) como fallback
-                if (!parentMessage && replyToExternalId) {
-                  parentMessage = sourceIdMap.get(String(replyToExternalId));
-                }
-
-                if (parentMessage) {
-                  const parentId = parentMessage.id;
-                  if (!replyMap.has(parentId)) {
-                    replyMap.set(parentId, []);
-                  }
-                  replyMap.get(parentId)!.push(msg);
-                } else {
-                  // Sem pai encontrado = mensagem raiz
-                  rootMessages.push(msg);
-                }
-              });
-
-              rootMessages.sort(compareMessagesByTimestamp);
-
               // Função recursiva para renderizar respostas aninhadas
               const renderReplies = (parentId: string, depth: number = 0): React.ReactNode[] => {
-                const replies = replyMap.get(parentId) || [];
+                const replies = postThreads?.replies.get(String(parentId)) || [];
                 if (replies.length === 0) return [];
-
-                replies.sort(compareMessagesByTimestamp);
 
                 return replies.map((reply, replyIndex) => {
                   const isOutgoingReply = reply.message_type === MESSAGE_TYPE.OUTGOING;
@@ -542,13 +503,15 @@ const MessageList: React.FC<MessageListProps> = ({
                           showTimestamp={isLastReply}
                           labels={labels}
                           allMessages={messages}
+                          replyMessageById={replyLookup.byId}
+                          replyMessageBySourceId={replyLookup.bySourceId}
                           isPostConversation={isPostConversation}
                           isThreadReply={true}
                           isFacebookStyle={true}
-                          onRetry={() => onRetryMessage(reply.id)}
-                          onReply={onReplyToMessage}
-                          onCopy={onCopyMessage}
-                          onDelete={onDeleteMessage}
+                          onRetryMessage={retryMessage}
+                          onReply={replyToMessage}
+                          onCopy={copyMessage}
+                          onDelete={deleteMessage}
                           onForward={setForwardMessage}
                           canForward={canForwardMessages}
                         />
@@ -565,7 +528,7 @@ const MessageList: React.FC<MessageListProps> = ({
                 });
               };
 
-              const allPostMessages = [...rootMessages, ...systemMessages].sort(compareMessagesByTimestamp);
+              const allPostMessages = postThreads?.ordered || [];
 
               // Renderizar mensagens agrupadas (estilo Facebook - tudo alinhado à esquerda)
               return allPostMessages.map((message) => {
@@ -627,13 +590,15 @@ const MessageList: React.FC<MessageListProps> = ({
                           showTimestamp={true}
                           labels={labels}
                           allMessages={messages}
+                          replyMessageById={replyLookup.byId}
+                          replyMessageBySourceId={replyLookup.bySourceId}
                           isPostConversation={isPostConversation}
                           isThreadRoot={true}
                           isFacebookStyle={true}
-                          onRetry={() => onRetryMessage(rootMessage.id)}
-                          onReply={onReplyToMessage}
-                          onCopy={onCopyMessage}
-                          onDelete={onDeleteMessage}
+                          onRetryMessage={retryMessage}
+                          onReply={replyToMessage}
+                          onCopy={copyMessage}
+                          onDelete={deleteMessage}
                           onForward={setForwardMessage}
                           canForward={canForwardMessages}
                         />
@@ -684,12 +649,14 @@ const MessageList: React.FC<MessageListProps> = ({
                     showTimestamp={true}
                     labels={labels}
                     allMessages={messages}
+                    replyMessageById={replyLookup.byId}
+                    replyMessageBySourceId={replyLookup.bySourceId}
                     isPostConversation={isPostConversation}
                     moderation={moderation}
-                    onRetry={() => onRetryMessage(message.id)}
-                    onReply={onReplyToMessage}
-                    onCopy={onCopyMessage}
-                    onDelete={onDeleteMessage}
+                    onRetryMessage={retryMessage}
+                    onReply={replyToMessage}
+                    onCopy={copyMessage}
+                    onDelete={deleteMessage}
                     onForward={setForwardMessage}
                     canForward={canForwardMessages}
                   />
