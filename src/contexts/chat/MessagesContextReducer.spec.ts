@@ -103,6 +103,49 @@ describe('MessagesContextReducer & timestampUtils', () => {
     expect(afterHttp.messageHistory.c1.oldestMessageId).toBe('older');
   });
 
+  it('refreshes pagination after an empty history receives a full page while preserving socket data', () => {
+    const empty = messagesReducer(initialMessagesState, {
+      type: 'MERGE_INITIAL_MESSAGES', payload: { conversationId: 'c1', messages: [] },
+    });
+    const fromSocket = { id: 'socket', status: 'sent', created_at: 300 } as Message;
+    const withSocket = messagesReducer(empty, {
+      type: 'ADD_MESSAGE', payload: { conversationId: 'c1', message: fromSocket },
+    });
+    const page = Array.from({ length: 20 }, (_, index) => ({
+      id: `message-${index}`, status: 'sent', created_at: index + 100,
+    } as Message));
+    const refreshed = messagesReducer(withSocket, {
+      type: 'MERGE_INITIAL_MESSAGES', payload: { conversationId: 'c1', messages: page },
+    });
+
+    expect(refreshed.messages.c1).toHaveLength(21);
+    expect(refreshed.messages.c1.at(-1)).toBe(fromSocket);
+    expect(refreshed.messageHistory.c1).toMatchObject({
+      hasMore: true, oldestMessageId: 'message-0', isLoadingMore: false,
+    });
+  });
+
+  it('uses the HTTP page cursor even when an older WebSocket message is already present', () => {
+    const empty = messagesReducer(initialMessagesState, {
+      type: 'MERGE_INITIAL_MESSAGES', payload: { conversationId: 'c1', messages: [] },
+    });
+    const withSocket = messagesReducer(empty, {
+      type: 'ADD_MESSAGE', payload: {
+        conversationId: 'c1', message: { id: 'socket', status: 'sent', created_at: 50 } as Message,
+      },
+    });
+    const page = Array.from({ length: 20 }, (_, index) => ({
+      id: `message-${index}`, status: 'sent', created_at: index + 100,
+    } as Message));
+    const refreshed = messagesReducer(withSocket, {
+      type: 'MERGE_INITIAL_MESSAGES', payload: { conversationId: 'c1', messages: page },
+    });
+
+    expect(refreshed.messages.c1[0].id).toBe('socket');
+    expect(refreshed.messageHistory.c1.oldestMessageId).toBe('message-0');
+    expect(refreshed.messageHistory.c1.hasMore).toBe(true);
+  });
+
   it('deduplicates overlapping historical pages and uses their true oldest item as cursor', () => {
     const initial = messagesReducer(initialMessagesState, {
       type: 'SET_MESSAGES',

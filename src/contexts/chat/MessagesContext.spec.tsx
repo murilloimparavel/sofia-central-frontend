@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { render, act, waitFor } from '@testing-library/react';
 import { MessagesProvider, useMessages } from './MessagesContext';
 import { messagesReducer } from './MessagesContextReducer';
 import { chatService } from '@/services/chat/chatService';
@@ -251,6 +251,164 @@ describe('MessagesContext optimizations', () => {
     await act(async () => { await messagesApi.loadMessages('empty'); });
     expect(chatService.getMessages).toHaveBeenCalledTimes(1);
     expect(messagesApi.getMessages('empty')).toHaveLength(0);
+  });
+
+  it('revalidates an expired empty history and recovers its first missed message', async () => {
+    let now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      vi.mocked(chatService.getMessages)
+        .mockResolvedValueOnce({ data: [], meta: { count: 0 } } as any)
+        .mockResolvedValueOnce({
+          data: [sampleMessage('first', 2000, 'empty')], meta: { count: 1 },
+        } as any);
+      let messagesApi!: ReturnType<typeof useMessages>;
+      function TestConsumer() {
+        messagesApi = useMessages();
+        return null;
+      }
+      render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+      await act(async () => { await messagesApi.loadMessages('empty'); });
+      now += 10_001;
+      await act(async () => { await messagesApi.loadMessages('empty'); });
+      await waitFor(() => expect(messagesApi.getMessages('empty').map(message => message.id))
+        .toEqual(['first']));
+
+      expect(chatService.getMessages).toHaveBeenNthCalledWith(2, 'empty');
+      expect(messagesApi.canLoadMore('empty')).toBe(false);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('revalidates an expired empty history even when only an optimistic message is cached', async () => {
+    let now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      vi.mocked(chatService.getMessages)
+        .mockResolvedValueOnce({ data: [], meta: { count: 0 } } as any)
+        .mockResolvedValueOnce({
+          data: [sampleMessage('first', 2000, 'empty')], meta: { count: 1 },
+        } as any);
+      let messagesApi!: ReturnType<typeof useMessages>;
+      function TestConsumer() {
+        messagesApi = useMessages();
+        return null;
+      }
+      render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+      await act(async () => { await messagesApi.loadMessages('empty'); });
+      await act(async () => {
+        messagesApi.addMessage('empty', {
+          ...sampleMessage('1234567890123', 2100, 'empty'), status: 'progress',
+        });
+      });
+      now += 10_001;
+      await act(async () => { await messagesApi.loadMessages('empty'); });
+      await waitFor(() => expect(messagesApi.getMessages('empty').some(message => message.id === 'first'))
+        .toBe(true));
+
+      expect(chatService.getMessages).toHaveBeenCalledTimes(2);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('forces an empty-history refresh before TTL after focus or reconnection', async () => {
+    let now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      vi.mocked(chatService.getMessages)
+        .mockResolvedValueOnce({ data: [], meta: { count: 0 } } as any)
+        .mockResolvedValueOnce({
+          data: [sampleMessage('first', 2000, 'empty')], meta: { count: 1 },
+        } as any);
+      let messagesApi!: ReturnType<typeof useMessages>;
+      function TestConsumer() {
+        messagesApi = useMessages();
+        return null;
+      }
+      render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+      await act(async () => { await messagesApi.loadMessages('empty'); });
+      now += 100;
+      await act(async () => { await messagesApi.syncConversationMessages('empty'); });
+      expect(chatService.getMessages).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await messagesApi.syncConversationMessages('empty', { force: true });
+      });
+      expect(chatService.getMessages).toHaveBeenCalledTimes(2);
+      expect(messagesApi.getMessages('empty').map(message => message.id)).toEqual(['first']);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('shares concurrent expired-empty revalidations without a duplicate GET', async () => {
+    let now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      let resolveRefresh!: (value: any) => void;
+      vi.mocked(chatService.getMessages)
+        .mockResolvedValueOnce({ data: [], meta: { count: 0 } } as any)
+        .mockImplementationOnce(() => new Promise(resolve => { resolveRefresh = resolve; }));
+      let messagesApi!: ReturnType<typeof useMessages>;
+      function TestConsumer() {
+        messagesApi = useMessages();
+        return null;
+      }
+      render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+      await act(async () => { await messagesApi.loadMessages('empty'); });
+      now += 10_001;
+      await act(async () => {
+        const first = messagesApi.syncConversationMessages('empty');
+        const second = messagesApi.syncConversationMessages('empty');
+        const reopen = messagesApi.loadMessages('empty');
+        expect(chatService.getMessages).toHaveBeenCalledTimes(2);
+        resolveRefresh({ data: [sampleMessage('first', 2000, 'empty')], meta: { count: 1 } });
+        await Promise.all([first, second, reopen]);
+      });
+
+      expect(messagesApi.getMessages('empty').map(message => message.id)).toEqual(['first']);
+      expect(vi.mocked(messagesReducer).mock.calls.filter(([, action]) =>
+        action.type === 'MERGE_INITIAL_MESSAGES')).toHaveLength(2);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('ignores a late empty-history refresh after the conversation is cleared', async () => {
+    let now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      let resolveRefresh!: (value: any) => void;
+      vi.mocked(chatService.getMessages)
+        .mockResolvedValueOnce({ data: [], meta: { count: 0 } } as any)
+        .mockImplementationOnce(() => new Promise(resolve => { resolveRefresh = resolve; }));
+      let messagesApi!: ReturnType<typeof useMessages>;
+      function TestConsumer() {
+        messagesApi = useMessages();
+        return null;
+      }
+      render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+      await act(async () => { await messagesApi.loadMessages('empty'); });
+      now += 10_001;
+      await act(async () => {
+        const refresh = messagesApi.syncConversationMessages('empty');
+        messagesApi.clearConversationMessages('empty');
+        resolveRefresh({ data: [sampleMessage('stale', 2000, 'empty')], meta: { count: 1 } });
+        await refresh;
+      });
+
+      expect(messagesApi.getMessages('empty')).toHaveLength(0);
+      expect(messagesApi.state.messageHistory.empty).toBeUndefined();
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('preserves a WebSocket message that arrives before the initial GET resolves', async () => {

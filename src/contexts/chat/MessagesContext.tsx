@@ -16,13 +16,14 @@ import {
 
 const EMPTY_MESSAGES: Message[] = [];
 const MAX_CACHED_CONVERSATIONS = 16;
+const EMPTY_HISTORY_REVALIDATION_MS = 10_000;
 
 interface MessagesContextValue {
   state: MessagesState;
 
   // Message actions
   loadMessages: (conversationId: string) => Promise<void>;
-  syncConversationMessages: (conversationId: string) => Promise<void>;
+  syncConversationMessages: (conversationId: string, options?: { force?: boolean }) => Promise<void>;
   prefetchMessages: (conversationId: string) => Promise<void>;
   loadMoreMessages: (conversationId: string) => Promise<void>;
   sendMessage: (
@@ -141,10 +142,11 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     return request;
   }, []);
 
-  // Busca somente as mensagens posteriores à última mensagem conhecida.
-  // Requisições idênticas são compartilhadas para evitar duplicação em voo.
+  // Busca mensagens posteriores ao último id persistido. Um histórico vazio já
+  // carregado precisa de um GET completo para recuperar a primeira mensagem
+  // caso o evento WebSocket tenha sido perdido.
   const syncConversationMessages = useCallback(
-    async (conversationId: string) => {
+    async (conversationId: string, options?: { force?: boolean }) => {
       const generation = cacheGenerationRef.current.get(conversationId) ?? 0;
       const currentMessages = state.messages[conversationId] || [];
       // Encontrar a última mensagem com ID persistido (ignora mensagens locais em progresso de envio)
@@ -152,25 +154,41 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         .reverse()
         .find(m => m.status !== 'progress' && m.id && !/^\d{13,}$/.test(m.id));
 
-      if (!lastPersistedMessage) return;
+      const hasEmptyCachedHistory = Boolean(state.messageHistory[conversationId]) &&
+        !lastPersistedMessage;
+      if (!lastPersistedMessage && !hasEmptyCachedHistory) return;
+      if (hasEmptyCachedHistory && !options?.force &&
+        Date.now() - (lastSyncedAtRef.current.get(conversationId) ?? 0) < EMPTY_HISTORY_REVALIDATION_MS) {
+        return;
+      }
 
-      const requestKey = `${conversationId}:${lastPersistedMessage.id}`;
+      const requestKey = `${conversationId}:${lastPersistedMessage?.id ?? '__empty__'}`;
       const existingRequest = syncRequestsRef.current.get(requestKey);
       if (existingRequest) return existingRequest;
 
       const request = (async () => {
         try {
-          const response = await chatService.getMessages(conversationId, {
-            after: lastPersistedMessage.id,
-          });
+          let fetchedMessages: Message[] | null;
+          if (lastPersistedMessage) {
+            const response = await chatService.getMessages(conversationId, {
+              after: lastPersistedMessage.id,
+            });
+            fetchedMessages = response ? extractMessagesData(response) : null;
+          } else {
+            fetchedMessages = await fetchInitialMessages(conversationId);
+          }
           if ((cacheGenerationRef.current.get(conversationId) ?? 0) !== generation) return;
-          if (!response) return;
+          if (!fetchedMessages) return;
 
-          const newMessages = extractMessagesData(response);
-          if (newMessages.length > 0) {
+          if (hasEmptyCachedHistory && fetchedMessages.length > 0) {
+            dispatch({
+              type: 'MERGE_INITIAL_MESSAGES',
+              payload: { conversationId, messages: fetchedMessages },
+            });
+          } else if (fetchedMessages.length > 0) {
             dispatch({
               type: 'MERGE_NEW_MESSAGES',
-              payload: { conversationId, messages: newMessages },
+              payload: { conversationId, messages: fetchedMessages },
             });
           }
           lastSyncedAtRef.current.set(conversationId, Date.now());
@@ -187,7 +205,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       touchConversation(conversationId);
       return request;
     },
-    [state.messages, touchConversation],
+    [state.messages, state.messageHistory, fetchInitialMessages, touchConversation],
   );
 
   // Message actions
@@ -198,12 +216,10 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       // ⚡ CACHE INSTANTÂNEO (0ms): Reutilizar cache local ao abrir uma conversa.
       // A UI renderiza imediatamente sem spinner. Se o cache for mais antigo que 10s,
       // reconcilia silenciosamente em segundo plano via `syncConversationMessages`.
-      const cachedMessages = state.messages[conversationId];
       if (state.messageHistory[conversationId]) {
         const lastSynced = lastSyncedAtRef.current.get(conversationId) || 0;
         const now = Date.now();
-        if (cachedMessages?.length && now - lastSynced > 10_000) {
-          lastSyncedAtRef.current.set(conversationId, now);
+        if (now - lastSynced > 10_000) {
           void syncConversationMessages(conversationId);
         }
         return;
@@ -260,7 +276,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         });
       }
     },
-    [state.messages, state.messagesLoading, state.messageHistory, syncConversationMessages, fetchInitialMessages, touchConversation, t],
+    [state.messagesLoading, state.messageHistory, syncConversationMessages, fetchInitialMessages, touchConversation, t],
   );
 
   // ⚡ PREFETCH: Carregar mensagens silenciosamente em background para que o clique seguinte seja 0ms

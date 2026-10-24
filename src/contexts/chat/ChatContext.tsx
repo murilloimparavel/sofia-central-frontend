@@ -97,7 +97,7 @@ function useChatIntegration() {
     const conversationId = conversations.state.selectedConversationId;
 
     if (isConnected && wasDisconnected && conversationId) {
-      void messages.syncConversationMessages(String(conversationId));
+      void messages.syncConversationMessages(String(conversationId), { force: true });
     }
 
     previousWebSocketConnectedRef.current = isConnected;
@@ -118,14 +118,14 @@ function useChatIntegration() {
     let disposed = false;
     let timer: number | undefined;
 
-    const syncIfVisible = () => {
+    const syncIfVisible = (force = false) => {
       if (!disposed && document.visibilityState === 'visible') {
-        void messagesRef.current.syncConversationMessages(String(conversationId));
+        void messagesRef.current.syncConversationMessages(String(conversationId), { force });
       }
     };
 
     const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible') syncIfVisible();
+      if (document.visibilityState === 'visible') syncIfVisible(true);
     };
 
     // Reconcilição imediata ao voltar para a conversa/aba; depois, apenas uma

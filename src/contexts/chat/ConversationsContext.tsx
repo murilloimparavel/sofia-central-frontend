@@ -32,7 +32,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   // Refs para evitar chamadas múltiplas simultâneas
   const loadingRef = useRef(false);
   const listRequestVersionRef = useRef(0);
-  const loadingSpecificRef = useRef<Set<string>>(new Set());
+  const specificRequestsRef = useRef<Map<string, Promise<Conversation | null>>>(new Map());
   const lastCleanupRef = useRef(0);
   const lastMarkedReadRef = useRef<Set<string>>(new Set());
   // The query that produced the current list, so load-more replays the SAME
@@ -165,81 +165,83 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   }, [state.conversationsPagination, state.conversationsLoading, loadConversations, t]);
 
   const loadSpecificConversation = useCallback(
-    async (conversationId: string): Promise<Conversation | null> => {
+    (conversationId: string): Promise<Conversation | null> => {
       const conversationKey = String(conversationId);
-      // 🔒 PROTEÇÃO: Evitar carregamentos simultâneos da mesma conversa
-      if (loadingSpecificRef.current.has(conversationKey)) {
-        return null;
-      }
+      // Deep link e seleção podem pedir a mesma conversa antes do primeiro GET
+      // terminar. Ambos precisam receber o resultado da mesma requisição.
+      const pending = specificRequestsRef.current.get(conversationKey);
+      if (pending) return pending;
 
       // 🔍 VERIFICAÇÃO: Se conversa já existe na lista atual
       const existingConversation = findConversationByAnyId(conversationKey);
 
       if (existingConversation) {
-        return existingConversation;
+        return Promise.resolve(existingConversation);
       }
 
-      // Marcar como sendo carregada
-      loadingSpecificRef.current.add(conversationKey);
+      const request = (async () => {
+        try {
+          const response = await chatService.getConversation(conversationKey);
 
-      try {
-        const response = await chatService.getConversation(conversationKey);
+          if (!response) {
+            return null;
+          }
 
-        if (!response) {
+          const envelope = response as unknown as {
+            data?: Conversation;
+          } & Partial<Conversation>;
+          const conversation = (envelope?.data?.id ? envelope.data : envelope) as unknown as Conversation;
+
+          // Validar se conversation é válida
+          if (!conversation || !conversation.id) {
+            return null;
+          }
+
+          // 🔒 DUPLA VERIFICAÇÃO: Verificar se combina com o filtro/query ativo da lista
+          const matchesCurrentView = doesConversationMatchQuery(
+            conversation,
+            currentQueryRef.current,
+            currentUser?.id,
+          );
+          const finalCheck = findConversationByAnyId(conversationKey);
+
+          if (!finalCheck) {
+            if (matchesCurrentView) {
+              dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
+            } else {
+              dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
+            }
+          } else {
+            if (matchesCurrentView) {
+              dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
+            } else {
+              dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationKey });
+              dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
+            }
+          }
+
+          return conversation;
+        } catch (error) {
+          console.error('❌ Erro ao carregar conversa específica:', error);
+
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : t('contexts.conversations.errors.loadConversation');
+
+          toast.error(t('contexts.conversations.errors.conversationNotFound'), {
+            description: errorMessage,
+          });
+
           return null;
         }
-
-        const envelope = response as unknown as {
-          data?: Conversation;
-        } & Partial<Conversation>;
-        const conversation = (envelope?.data?.id ? envelope.data : envelope) as unknown as Conversation;
-
-        // Validar se conversation é válida
-        if (!conversation || !conversation.id) {
-          return null;
+      })().finally(() => {
+        if (specificRequestsRef.current.get(conversationKey) === request) {
+          specificRequestsRef.current.delete(conversationKey);
         }
-
-        // 🔒 DUPLA VERIFICAÇÃO: Verificar se combina com o filtro/query ativo da lista
-        const matchesCurrentView = doesConversationMatchQuery(
-          conversation,
-          currentQueryRef.current,
-          currentUser?.id,
-        );
-        const finalCheck = findConversationByAnyId(conversationKey);
-
-        if (!finalCheck) {
-          if (matchesCurrentView) {
-            dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
-          } else {
-            dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
-          }
-        } else {
-          if (matchesCurrentView) {
-            dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
-          } else {
-            dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationKey });
-            dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
-          }
-        }
-
-        return conversation;
-      } catch (error) {
-        console.error('❌ Erro ao carregar conversa específica:', error);
-
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : t('contexts.conversations.errors.loadConversation');
-
-        toast.error(t('contexts.conversations.errors.conversationNotFound'), {
-          description: errorMessage,
-        });
-
-        return null;
-      } finally {
-        // 🧹 CLEANUP: Remover da lista de carregamento
-        loadingSpecificRef.current.delete(conversationKey);
-      }
+      });
+      specificRequestsRef.current.set(conversationKey, request);
+      return request;
     },
     [findConversationByAnyId, t, currentUser?.id],
   );

@@ -110,11 +110,12 @@ export function messagesReducer(state: MessagesState, action: MessagesAction): M
       const current = state.messages[conversationId] || [];
       const page = mergeMessages([], messages);
       const previousHistory = state.messageHistory[conversationId];
+      const merged = mergeMessages(current, page);
       return {
         ...state,
         messages: {
           ...state.messages,
-          [conversationId]: mergeMessages(current, page),
+          [conversationId]: merged,
         },
         messagesLoading: {
           ...state.messagesLoading,
@@ -126,9 +127,10 @@ export function messagesReducer(state: MessagesState, action: MessagesAction): M
         },
         messageHistory: {
           ...state.messageHistory,
-          [conversationId]: previousHistory ?? {
+          [conversationId]: previousHistory?.oldestMessageId ? previousHistory : {
             hasMore: messages.length >= 20,
-            oldestMessageId: oldestPersistedMessage(page)?.id ?? null,
+            oldestMessageId: oldestPersistedMessage(page)?.id ??
+              oldestPersistedMessage(merged)?.id ?? null,
             isLoadingMore: false,
           },
         },
