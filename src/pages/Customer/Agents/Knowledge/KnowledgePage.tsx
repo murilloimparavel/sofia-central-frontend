@@ -73,7 +73,8 @@ export default function KnowledgePage() {
     }
     setBusy(true);
     try {
-      const { id, can_edit: _canEdit, can_publish: _canPublish, ...payload } = editor;
+      const { id } = editor;
+      const payload = { title: editor.title, body: editor.body, content_type: editor.content_type, tags: editor.tags, source: editor.source, status: editor.status };
       if (id)
         await api.patch(`/knowledge_entries/${id}`, {
           ai_knowledge_entry: { ...payload, status: nextStatus },
