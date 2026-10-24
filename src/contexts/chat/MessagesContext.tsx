@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { createContext, useContext, useReducer, useCallback, useRef, useMemo } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useRef, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
 import { chatService } from '@/services/chat/chatService';
 import { useAuthStore } from '@/store/authStore';
@@ -15,6 +15,7 @@ import {
 } from './MessagesContextReducer';
 
 const EMPTY_MESSAGES: Message[] = [];
+const MAX_CACHED_CONVERSATIONS = 16;
 
 interface MessagesContextValue {
   state: MessagesState;
@@ -69,6 +70,7 @@ interface MessagesContextValue {
   replaceMessage: (conversationId: string, tempId: string, message: Message) => void;
   addPreviousMessages: (conversationId: string, previousMessages: Message[]) => void;
   clearConversationMessages: (conversationId: string) => void;
+  setActiveConversationId: (conversationId: string | null) => void;
 
   // Computed values
   getMessages: (conversationId: string) => Message[];
@@ -86,12 +88,64 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
 
   // 🔒 Cache & Sincronização: registro de timestamps de sincronização
   const lastSyncedAtRef = useRef<Map<string, number>>(new Map());
+  const initialRequestsRef = useRef<Map<string, Promise<Message[] | null>>>(new Map());
+  const committedInitialRequestsRef = useRef<WeakSet<Promise<Message[] | null>>>(new WeakSet());
+  const syncRequestsRef = useRef<Map<string, Promise<void>>>(new Map());
+  const cacheGenerationRef = useRef<Map<string, number>>(new Map());
+  const activeConversationIdRef = useRef<string | null>(null);
+  const recentConversationIdsRef = useRef<Map<string, number>>(new Map());
+  const recencyCounterRef = useRef(0);
+  const touchConversation = useCallback((conversationId: string) => {
+    recentConversationIdsRef.current.set(conversationId, ++recencyCounterRef.current);
+  }, []);
+  const setActiveConversationId = useCallback((conversationId: string | null) => {
+    activeConversationIdRef.current = conversationId;
+    if (conversationId) touchConversation(conversationId);
+  }, [touchConversation]);
+
+  useEffect(() => {
+    const ids = Object.keys(state.messages);
+    if (ids.length <= MAX_CACHED_CONVERSATIONS) return;
+    const candidates = ids
+      .filter(id => id !== activeConversationIdRef.current &&
+        !state.messagesLoading[id] &&
+        !state.messageHistory[id]?.isLoadingMore &&
+        !initialRequestsRef.current.has(id) &&
+        ![...syncRequestsRef.current.keys()].some(key => key.startsWith(`${id}:`)) &&
+        !state.messages[id].some(message => message.status === 'progress' || message.status === 'failed'))
+      .sort((a, b) => (recentConversationIdsRef.current.get(a) ?? 0) -
+        (recentConversationIdsRef.current.get(b) ?? 0));
+    const evicted = candidates.slice(0, ids.length - MAX_CACHED_CONVERSATIONS);
+    if (evicted.length === 0) return;
+    evicted.forEach(id => {
+      lastSyncedAtRef.current.delete(id);
+      recentConversationIdsRef.current.delete(id);
+    });
+    dispatch({ type: 'EVICT_CONVERSATIONS', payload: evicted });
+  }, [state.messages, state.messagesLoading, state.messageHistory]);
+
+  // Prefetch e abertura da mesma conversa compartilham a requisição inicial.
+  // O state de loading só muda após render, então sozinho não impede o duplo GET.
+  const fetchInitialMessages = useCallback((conversationId: string) => {
+    const pending = initialRequestsRef.current.get(conversationId);
+    if (pending) return pending;
+
+    const request = chatService.getMessages(conversationId)
+      .then(response => response ? extractMessagesData(response) : null)
+      .finally(() => {
+        if (initialRequestsRef.current.get(conversationId) === request) {
+          initialRequestsRef.current.delete(conversationId);
+        }
+      });
+    initialRequestsRef.current.set(conversationId, request);
+    return request;
+  }, []);
 
   // Busca somente as mensagens posteriores à última mensagem conhecida.
   // Requisições idênticas são compartilhadas para evitar duplicação em voo.
-  const syncRequestsRef = useRef<Map<string, Promise<void>>>(new Map());
   const syncConversationMessages = useCallback(
     async (conversationId: string) => {
+      const generation = cacheGenerationRef.current.get(conversationId) ?? 0;
       const currentMessages = state.messages[conversationId] || [];
       // Encontrar a última mensagem com ID persistido (ignora mensagens locais em progresso de envio)
       const lastPersistedMessage = [...currentMessages]
@@ -109,6 +163,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           const response = await chatService.getMessages(conversationId, {
             after: lastPersistedMessage.id,
           });
+          if ((cacheGenerationRef.current.get(conversationId) ?? 0) !== generation) return;
           if (!response) return;
 
           const newMessages = extractMessagesData(response);
@@ -121,28 +176,33 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           lastSyncedAtRef.current.set(conversationId, Date.now());
         } catch (error) {
           console.warn('Falha ao sincronizar mensagens da conversa:', error);
-        } finally {
+        }
+      })().finally(() => {
+        if (syncRequestsRef.current.get(requestKey) === request) {
           syncRequestsRef.current.delete(requestKey);
         }
-      })();
+      });
 
       syncRequestsRef.current.set(requestKey, request);
+      touchConversation(conversationId);
       return request;
     },
-    [state.messages],
+    [state.messages, touchConversation],
   );
 
   // Message actions
   const loadMessages = useCallback(
     async (conversationId: string) => {
+      touchConversation(conversationId);
+      const generation = cacheGenerationRef.current.get(conversationId) ?? 0;
       // ⚡ CACHE INSTANTÂNEO (0ms): Reutilizar cache local ao abrir uma conversa.
       // A UI renderiza imediatamente sem spinner. Se o cache for mais antigo que 10s,
       // reconcilia silenciosamente em segundo plano via `syncConversationMessages`.
       const cachedMessages = state.messages[conversationId];
-      if (cachedMessages && cachedMessages.length > 0) {
+      if (state.messageHistory[conversationId]) {
         const lastSynced = lastSyncedAtRef.current.get(conversationId) || 0;
         const now = Date.now();
-        if (now - lastSynced > 10_000) {
+        if (cachedMessages?.length && now - lastSynced > 10_000) {
           lastSyncedAtRef.current.set(conversationId, now);
           void syncConversationMessages(conversationId);
         }
@@ -157,32 +217,31 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_MESSAGES_LOADING', payload: { conversationId, loading: true } });
 
       try {
-        const response = await chatService.getMessages(conversationId);
+        const request = fetchInitialMessages(conversationId);
+        const fetchedMessages = await request;
+        if ((cacheGenerationRef.current.get(conversationId) ?? 0) !== generation) return;
 
         // Verificar se a resposta existe
-        if (!response) {
+        if (!fetchedMessages) {
           console.warn('API response is empty or malformed');
-          dispatch({
-            type: 'SET_MESSAGES',
-            payload: {
-              conversationId,
-              messages: [],
-            },
-          });
+          dispatch({ type: 'SET_MESSAGES_LOADING', payload: { conversationId, loading: false } });
           return;
         }
 
-        const messages = extractMessagesData(response);
+        // Prefetch e abertura podem aguardar o mesmo GET; só o primeiro reconcilia.
+        if (committedInitialRequestsRef.current.has(request)) return;
+        committedInitialRequestsRef.current.add(request);
 
         dispatch({
-          type: 'SET_MESSAGES',
+          type: 'MERGE_INITIAL_MESSAGES',
           payload: {
             conversationId,
-            messages,
+            messages: fetchedMessages,
           },
         });
         lastSyncedAtRef.current.set(conversationId, Date.now());
       } catch (error) {
+        if ((cacheGenerationRef.current.get(conversationId) ?? 0) !== generation) return;
         const errorMessage =
           error instanceof Error ? error.message : t('contexts.messages.errors.loadMessages');
         dispatch({
@@ -201,24 +260,27 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         });
       }
     },
-    [state.messages, state.messagesLoading, syncConversationMessages, t],
+    [state.messages, state.messagesLoading, state.messageHistory, syncConversationMessages, fetchInitialMessages, touchConversation, t],
   );
 
   // ⚡ PREFETCH: Carregar mensagens silenciosamente em background para que o clique seguinte seja 0ms
   const prefetchMessages = useCallback(
     async (conversationId: string) => {
-      const cached = state.messages[conversationId];
-      if ((cached && cached.length > 0) || state.messagesLoading[conversationId]) {
+      touchConversation(conversationId);
+      const generation = cacheGenerationRef.current.get(conversationId) ?? 0;
+      if (state.messageHistory[conversationId] || state.messagesLoading[conversationId]) {
         return;
       }
 
       try {
-        const response = await chatService.getMessages(conversationId);
-        if (response) {
-          const messages = extractMessagesData(response);
+        const request = fetchInitialMessages(conversationId);
+        const fetchedMessages = await request;
+        if ((cacheGenerationRef.current.get(conversationId) ?? 0) !== generation) return;
+        if (fetchedMessages && !committedInitialRequestsRef.current.has(request)) {
+          committedInitialRequestsRef.current.add(request);
           dispatch({
-            type: 'SET_MESSAGES',
-            payload: { conversationId, messages },
+            type: 'MERGE_INITIAL_MESSAGES',
+            payload: { conversationId, messages: fetchedMessages },
           });
           lastSyncedAtRef.current.set(conversationId, Date.now());
         }
@@ -226,11 +288,12 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         console.debug('[prefetchMessages] Silently caught:', err);
       }
     },
-    [state.messages, state.messagesLoading],
+    [state.messageHistory, state.messagesLoading, fetchInitialMessages, touchConversation],
   );
 
   const loadMoreMessages = useCallback(
     async (conversationId: string) => {
+      const generation = cacheGenerationRef.current.get(conversationId) ?? 0;
       const history = state.messageHistory[conversationId];
 
       // 🔒 PROTEÇÕES: Verificar se pode carregar mais
@@ -249,6 +312,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         const response = await chatService.getMessages(conversationId, {
           before: history.oldestMessageId!,
         });
+        if ((cacheGenerationRef.current.get(conversationId) ?? 0) !== generation) return;
 
         if (!response) {
           console.warn('Load More: API response is empty');
@@ -271,6 +335,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           },
         });
       } catch (error) {
+        if ((cacheGenerationRef.current.get(conversationId) ?? 0) !== generation) return;
         dispatch({
           type: 'SET_LOAD_MORE_LOADING',
           payload: { conversationId, loading: false },
@@ -591,38 +656,43 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
 
   // Direct state manipulation (for WebSocket integration)
   const setMessages = useCallback((conversationId: string, messages: Message[]) => {
+    touchConversation(conversationId);
     dispatch({
       type: 'SET_MESSAGES',
       payload: { conversationId, messages },
     });
-  }, []);
+  }, [touchConversation]);
 
   const addMessage = useCallback(
     (conversationId: string, message: Message) => {
+      touchConversation(conversationId);
       dispatch({
         type: 'ADD_MESSAGE',
         payload: { conversationId, message },
       });
     },
-    [],
+    [touchConversation],
   );
 
   const updateMessage = useCallback((conversationId: string, message: Message) => {
+    touchConversation(conversationId);
     dispatch({
       type: 'UPDATE_MESSAGE',
       payload: { conversationId, message },
     });
-  }, []);
+  }, [touchConversation]);
 
   const replaceMessage = useCallback((conversationId: string, tempId: string, message: Message) => {
+    touchConversation(conversationId);
     dispatch({
       type: 'REPLACE_MESSAGE',
       payload: { conversationId, tempId, message },
     });
-  }, []);
+  }, [touchConversation]);
 
   const addPreviousMessages = useCallback(
     (conversationId: string, previousMessages: Message[]) => {
+      touchConversation(conversationId);
       const currentMessages = state.messages[conversationId] || [];
       const allMessages = [...previousMessages, ...currentMessages];
 
@@ -631,10 +701,17 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         payload: { conversationId, messages: allMessages },
       });
     },
-    [state.messages],
+    [state.messages, touchConversation],
   );
 
   const clearConversationMessages = useCallback((conversationId: string) => {
+    lastSyncedAtRef.current.delete(conversationId);
+    recentConversationIdsRef.current.delete(conversationId);
+    cacheGenerationRef.current.set(conversationId, (cacheGenerationRef.current.get(conversationId) ?? 0) + 1);
+    initialRequestsRef.current.delete(conversationId);
+    for (const key of syncRequestsRef.current.keys()) {
+      if (key.startsWith(`${conversationId}:`)) syncRequestsRef.current.delete(key);
+    }
     dispatch({ type: 'CLEAR_CONVERSATION_MESSAGES', payload: conversationId });
   }, []);
 
@@ -699,6 +776,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       replaceMessage,
       addPreviousMessages,
       clearConversationMessages,
+      setActiveConversationId,
       getMessages,
       isMessagesLoading,
       getMessagesError,
@@ -725,6 +803,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       replaceMessage,
       addPreviousMessages,
       clearConversationMessages,
+      setActiveConversationId,
       getMessages,
       isMessagesLoading,
       getMessagesError,

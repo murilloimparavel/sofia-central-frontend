@@ -21,6 +21,7 @@ export interface MessagesState {
 
 export type MessagesAction =
   | { type: 'SET_MESSAGES'; payload: { conversationId: string; messages: Message[] } }
+  | { type: 'MERGE_INITIAL_MESSAGES'; payload: { conversationId: string; messages: Message[] } }
   | { type: 'SET_MESSAGES_LOADING'; payload: { conversationId: string; loading: boolean } }
   | { type: 'SET_MESSAGES_ERROR'; payload: { conversationId: string; error: string | null } }
   | { type: 'ADD_MESSAGE'; payload: { conversationId: string; message: Message } }
@@ -39,7 +40,30 @@ export type MessagesAction =
     }
   | { type: 'MERGE_NEW_MESSAGES'; payload: { conversationId: string; messages: Message[] } }
   | { type: 'SET_REPLY_TO_MESSAGE'; payload: Message | null }
-  | { type: 'CLEAR_CONVERSATION_MESSAGES'; payload: string };
+  | { type: 'CLEAR_CONVERSATION_MESSAGES'; payload: string }
+  | { type: 'EVICT_CONVERSATIONS'; payload: string[] };
+
+const mergeMessages = (current: Message[], incoming: Message[]): Message[] => {
+  // A resposta HTTP pode ter sido produzida antes de um evento WebSocket ou envio local.
+  // Preservar a versão já presente impede que uma resposta atrasada reverta esses eventos.
+  const byId = new Map<string, Message>();
+  incoming.forEach(message => byId.set(String(message.id), message));
+  current.forEach(message => byId.set(String(message.id), message));
+  incoming.forEach(message => {
+    if (!message.echo_id || message.status === 'progress') return;
+    for (const [id, candidate] of byId) {
+      if (candidate.status === 'progress' &&
+        (String(candidate.id) === String(message.echo_id) ||
+          String(candidate.echo_id) === String(message.echo_id))) {
+        byId.delete(id);
+      }
+    }
+  });
+  return [...byId.values()].sort(compareMessagesByTimestamp);
+};
+
+const oldestPersistedMessage = (messages: Message[]): Message | undefined =>
+  messages.filter(message => message.status !== 'progress').sort(compareMessagesByTimestamp)[0];
 
 export const initialMessagesState: MessagesState = {
   messages: {},
@@ -75,6 +99,36 @@ export function messagesReducer(state: MessagesState, action: MessagesAction): M
           [conversationId]: {
             hasMore: sortedMessages.length >= 20, // Evolution carrega 20 por vez
             oldestMessageId: sortedMessages.length > 0 ? sortedMessages[0].id : null,
+            isLoadingMore: false,
+          },
+        },
+      };
+    }
+
+    case 'MERGE_INITIAL_MESSAGES': {
+      const { conversationId, messages } = action.payload;
+      const current = state.messages[conversationId] || [];
+      const page = mergeMessages([], messages);
+      const previousHistory = state.messageHistory[conversationId];
+      return {
+        ...state,
+        messages: {
+          ...state.messages,
+          [conversationId]: mergeMessages(current, page),
+        },
+        messagesLoading: {
+          ...state.messagesLoading,
+          [conversationId]: false,
+        },
+        messagesError: {
+          ...state.messagesError,
+          [conversationId]: null,
+        },
+        messageHistory: {
+          ...state.messageHistory,
+          [conversationId]: previousHistory ?? {
+            hasMore: messages.length >= 20,
+            oldestMessageId: oldestPersistedMessage(page)?.id ?? null,
             isLoadingMore: false,
           },
         },
@@ -118,9 +172,12 @@ export function messagesReducer(state: MessagesState, action: MessagesAction): M
     case 'ADD_PREVIOUS_MESSAGES': {
       const { conversationId, messages: newMessages, hasMore } = action.payload;
       const currentMessages = state.messages[conversationId] || [];
-
-      // Adicionar mensagens antigas no início e ordenar por timestamp
-      const updatedMessages = [...newMessages, ...currentMessages].sort(compareMessagesByTimestamp);
+      const previousOldestId = state.messageHistory[conversationId]?.oldestMessageId;
+      const pageOldest = oldestPersistedMessage(newMessages);
+      const updatedMessages = mergeMessages(currentMessages, newMessages);
+      const oldestMessageId = pageOldest?.id ?? previousOldestId ?? null;
+      // Uma página inteiramente sobreposta não avança o cursor; não repetir a mesma busca.
+      const advanced = oldestMessageId !== previousOldestId;
 
       return {
         ...state,
@@ -131,8 +188,8 @@ export function messagesReducer(state: MessagesState, action: MessagesAction): M
         messageHistory: {
           ...state.messageHistory,
           [conversationId]: {
-            hasMore,
-            oldestMessageId: newMessages.length > 0 ? newMessages[0].id : null,
+            hasMore: hasMore && advanced,
+            oldestMessageId,
             isLoadingMore: false,
           },
         },
@@ -329,7 +386,24 @@ export function messagesReducer(state: MessagesState, action: MessagesAction): M
           ...state.messagesError,
           [action.payload]: null,
         },
+        messageHistory: Object.fromEntries(
+          Object.entries(state.messageHistory).filter(([id]) => id !== action.payload),
+        ),
       };
+
+    case 'EVICT_CONVERSATIONS': {
+      if (action.payload.length === 0) return state;
+      const evicted = new Set(action.payload);
+      const retain = <T,>(entries: Record<string, T>): Record<string, T> =>
+        Object.fromEntries(Object.entries(entries).filter(([id]) => !evicted.has(id)));
+      return {
+        ...state,
+        messages: retain(state.messages),
+        messagesLoading: retain(state.messagesLoading),
+        messagesError: retain(state.messagesError),
+        messageHistory: retain(state.messageHistory),
+      };
+    }
 
     default:
       return state;

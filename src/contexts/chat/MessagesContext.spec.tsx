@@ -3,6 +3,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { MessagesProvider, useMessages } from './MessagesContext';
+import { messagesReducer } from './MessagesContextReducer';
 import { chatService } from '@/services/chat/chatService';
 import type { Message } from '@/types/chat/api';
 
@@ -13,6 +14,11 @@ vi.mock('@/services/chat/chatService', () => ({
     sendMessageWithAttachments: vi.fn(),
   },
 }));
+
+vi.mock('./MessagesContextReducer', async importOriginal => {
+  const actual = await importOriginal<typeof import('./MessagesContextReducer')>();
+  return { ...actual, messagesReducer: vi.fn(actual.messagesReducer) };
+});
 
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
@@ -203,6 +209,115 @@ describe('MessagesContext optimizations', () => {
     expect(messagesApi.isMessagesLoading('conv-2')).toBe(false);
     expect(messagesApi.getMessages('conv-2')).toHaveLength(1);
     expect(messagesApi.getMessages('conv-2')[0].id).toBe('m-pre');
+  });
+
+  it('shares an in-flight prefetch with opening the same conversation', async () => {
+    let resolveRequest!: (value: any) => void;
+    vi.mocked(chatService.getMessages).mockImplementationOnce(
+      () => new Promise(resolve => { resolveRequest = resolve; }),
+    );
+
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+    await act(async () => {
+      const prefetch = messagesApi.prefetchMessages('conv-1');
+      const open = messagesApi.loadMessages('conv-1');
+      expect(chatService.getMessages).toHaveBeenCalledTimes(1);
+      resolveRequest({ data: [sampleMessage('m1', 1000)], meta: { count: 1 } });
+      await Promise.all([prefetch, open]);
+    });
+
+    expect(messagesApi.getMessages('conv-1')).toHaveLength(1);
+    expect(messagesApi.isMessagesLoading('conv-1')).toBe(false);
+    expect(vi.mocked(messagesReducer).mock.calls.filter(([, action]) =>
+      action.type === 'MERGE_INITIAL_MESSAGES')).toHaveLength(1);
+  });
+
+  it('reuses an empty cached history without a second GET', async () => {
+    vi.mocked(chatService.getMessages).mockResolvedValue({ data: [], meta: { count: 0 } } as any);
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+    await act(async () => { await messagesApi.loadMessages('empty'); });
+    await act(async () => { await messagesApi.loadMessages('empty'); });
+    expect(chatService.getMessages).toHaveBeenCalledTimes(1);
+    expect(messagesApi.getMessages('empty')).toHaveLength(0);
+  });
+
+  it('preserves a WebSocket message that arrives before the initial GET resolves', async () => {
+    let resolveRequest!: (value: any) => void;
+    vi.mocked(chatService.getMessages).mockImplementationOnce(
+      () => new Promise(resolve => { resolveRequest = resolve; }),
+    );
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+    await act(async () => {
+      const load = messagesApi.loadMessages('conv-1');
+      messagesApi.addMessage('conv-1', sampleMessage('socket', 3000));
+      resolveRequest({ data: [sampleMessage('older', 1000)], meta: { count: 1 } });
+      await load;
+    });
+
+    expect(messagesApi.getMessages('conv-1').map(message => message.id)).toEqual(['older', 'socket']);
+  });
+
+  it('does not restore a cleared conversation from an older in-flight GET', async () => {
+    let resolveRequest!: (value: any) => void;
+    vi.mocked(chatService.getMessages).mockImplementationOnce(
+      () => new Promise(resolve => { resolveRequest = resolve; }),
+    );
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+    await act(async () => {
+      const load = messagesApi.loadMessages('conv-1');
+      messagesApi.clearConversationMessages('conv-1');
+      resolveRequest({ data: [sampleMessage('stale', 1000)], meta: { count: 1 } });
+      await load;
+    });
+
+    expect(messagesApi.getMessages('conv-1')).toHaveLength(0);
+  });
+
+  it('evicts least recent cached conversations while preserving the active one', async () => {
+    vi.mocked(chatService.getMessages).mockImplementation(async (id: string) => ({
+      data: [sampleMessage(`message-${id}`, 1000, id)], meta: { count: 1 },
+    } as any));
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+    messagesApi.setActiveConversationId('conv-0');
+
+    for (let i = 0; i < 18; i++) {
+      await act(async () => { await messagesApi.prefetchMessages(`conv-${i}`); });
+    }
+
+    expect(messagesApi.getMessages('conv-0')).toHaveLength(1);
+    expect(messagesApi.getMessages('conv-1')).toHaveLength(0);
+    expect(messagesApi.getMessages('conv-17')).toHaveLength(1);
+    await act(async () => { await messagesApi.loadMessages('conv-1'); });
+    expect(chatService.getMessages).toHaveBeenCalledTimes(19);
   });
 
   it('sends a text message with the JSON API contract and replaces the pending item', async () => {
