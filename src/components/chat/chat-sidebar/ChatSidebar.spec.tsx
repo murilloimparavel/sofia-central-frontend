@@ -2,9 +2,7 @@ import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ChatSidebar from './ChatSidebar';
-import { pipelinesService } from '@/services/pipelines/pipelinesService';
-import chatService from '@/services/chat/chatService';
-import { toast } from 'sonner';
+import type { ConversationFilter } from '@/types/chat/api';
 
 vi.mock('@/services/pipelines/pipelinesService', () => ({
   pipelinesService: {
@@ -94,22 +92,6 @@ const makeConversation = (id = '42') =>
     timestamp: Date.now(),
     unread_count: 0,
   }) as never;
-
-const makePipeline = (
-  id: string,
-  stages: { id: string; name: string }[],
-  items: { id: string; item_id: string; stage_id: string; pipeline_id: string }[] = [],
-) => ({
-  id,
-  name: `Pipeline ${id}`,
-  pipeline_type: 'custom' as const,
-  visibility: 'public' as const,
-  is_active: true,
-  stages: stages.map(s => ({ ...s, color: '#000', position: 0, created_at: '', updated_at: '' })),
-  items,
-  created_at: '',
-  updated_at: '',
-});
 
 const mockConversation = makeConversation();
 
@@ -428,7 +410,7 @@ describe('ChatSidebar defensive scope filtering', () => {
           activeFilters: [
             { attribute_key: 'assignee_type', filter_operator: 'equal_to', values: ['unassigned'], query_operator: 'and' },
             { attribute_key: 'status', filter_operator: 'equal_to', values: ['open'], query_operator: 'and' },
-          ] as any,
+          ] as ConversationFilter[],
           isApplyingFilters: false,
         },
         applyFilters: vi.fn(),

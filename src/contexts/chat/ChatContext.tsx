@@ -57,6 +57,7 @@ function useChatIntegration() {
   const conversations = useConversationsOriginal();
   const filters = useFiltersOriginal();
   const websocket = useWebSocketContextOriginal();
+  const registerWebSocketHandlers = websocket.registerHandlers;
   const ui = useUIOriginal();
   const { saveState, loadState } = usePersistence();
   const { user: currentUser } = useAuth();
@@ -215,7 +216,7 @@ function useChatIntegration() {
 
   // Integrar WebSocket com outros contextos
   useEffect(() => {
-    websocket.registerHandlers({
+    registerWebSocketHandlers({
       onMessageCreated: (message: Message) => {
         if (!message || !message.id || !message.conversation_id) {
           console.warn('⚠️ WEBSOCKET: Mensagem inválida recebida, ignorando:', message);
@@ -794,7 +795,7 @@ function useChatIntegration() {
       },
     });
   }, [
-    websocket.registerHandlers,
+    registerWebSocketHandlers,
     shouldReloadMessageForMissingImageData,
   ]);
 
@@ -943,6 +944,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// These exported hooks intentionally share the provider module; Fast Refresh's
+// component-only export check does not apply to this context API.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useChatContext() {
   const context = useContext(ChatContext);
   if (context === undefined) {
@@ -966,35 +970,43 @@ export function useChatContext() {
 // quando outros contextos (ex: messages vs conversations) são atualizados.
 // ============================================================================
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useChatMessages() {
   return useMessagesOriginal();
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useChatConversations() {
   return useConversationsOriginal();
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useChatFilters() {
   return useFiltersOriginal();
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useChatUI() {
   return useUIOriginal();
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useChatWebSocket() {
   return useWebSocketContextOriginal();
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSelectedConversation(): Conversation | null {
   return useConversationsOriginal().selectedConversation;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSelectedConversationId(): string | null {
   const { state } = useConversationsOriginal();
   return state.selectedConversationId ? String(state.selectedConversationId) : null;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useIsConversationSelected(conversationId: string | number): boolean {
   const selectedId = useSelectedConversationId();
   return selectedId != null && String(selectedId) === String(conversationId);
