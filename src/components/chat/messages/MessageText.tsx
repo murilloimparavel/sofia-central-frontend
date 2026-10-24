@@ -78,6 +78,15 @@ const MessageText: React.FC<MessageTextProps> = ({
       safeContent.trim().startsWith('<html') ||
       safeContent.trim().startsWith('<HTML'));
 
+  // Keep hook order stable when a message switches between email HTML and
+  // regular text (for example, after its content arrives from the server).
+  const formatted = useMemo(
+    () => isIncomingEmail || isFullEmailDoc
+      ? null
+      : formatChatMessage(safeContent, { isPrivateNote }),
+    [safeContent, isPrivateNote, isIncomingEmail, isFullEmailDoc],
+  );
+
   if (isIncomingEmail || isFullEmailDoc) {
     const rawEmailHtml = isIncomingEmail
       ? contentAttributes?.email?.html_content?.full || ''
@@ -115,10 +124,7 @@ const MessageText: React.FC<MessageTextProps> = ({
   }
 
   // Format chat message with WhatsApp Markdown, URL linking, and preserved HTML structure
-  const { html: formattedHtml, detectedUrls } = useMemo(
-    () => formatChatMessage(safeContent, { isPrivateNote }),
-    [safeContent, isPrivateNote]
-  );
+  const { html: formattedHtml, detectedUrls } = formatted!;
 
   return (
     <div className="whitespace-pre-wrap break-words text-sm">
