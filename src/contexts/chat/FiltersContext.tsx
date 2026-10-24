@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { chatService } from '@/services/chat/chatService';
 import { extractConversationsData } from '@/utils/chat/responseHelpers';
@@ -103,6 +103,7 @@ const FiltersContext = createContext<FiltersContextValue | undefined>(undefined)
 export function FiltersProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage('chat');
   const [state, dispatch] = useReducer(filtersReducer, initialState);
+  const latestRequestRef = useRef(0);
 
   // Filter actions
   const setFilters = useCallback((filters: ConversationFilter[]) => {
@@ -115,6 +116,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
       onSuccess: (conversations: Conversation[], pagination: PaginationMeta, query?: ConversationsQuery) => void,
       onError: (error: string) => void,
     ) => {
+      const requestId = ++latestRequestRef.current;
       dispatch({ type: 'SET_APPLYING_FILTERS', payload: true });
 
       try {
@@ -122,6 +124,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           // Se não há filtros, carregar conversas normais
           const response = await chatService.getConversations();
           const { conversations, pagination } = extractConversationsData(response);
+          if (requestId !== latestRequestRef.current) return;
           onSuccess(conversations, pagination, { kind: 'list', params: {} });
           dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         } else if (shouldUseAdvancedFilters(filters)) {
@@ -129,6 +132,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           const filterRequest = convertFiltersToApiFormat(filters);
           const response = await chatService.filterConversations(filterRequest);
           const { conversations, pagination } = extractConversationsData(response);
+          if (requestId !== latestRequestRef.current) return;
           onSuccess(conversations, pagination, { kind: 'filter', request: filterRequest });
           dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         } else {
@@ -136,10 +140,12 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           const params = convertFiltersToUrlParams(filters);
           const response = await chatService.getConversations(params);
           const { conversations, pagination } = extractConversationsData(response);
+          if (requestId !== latestRequestRef.current) return;
           onSuccess(conversations, pagination, { kind: 'list', params });
           dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         }
       } catch (error) {
+        if (requestId !== latestRequestRef.current) return;
         const errorMessage =
           error instanceof Error ? error.message : t('contexts.filters.errors.applyFilters');
         onError(errorMessage);
@@ -147,7 +153,9 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           description: errorMessage,
         });
       } finally {
-        dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+        if (requestId === latestRequestRef.current) {
+          dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+        }
       }
     },
     [t],
@@ -159,6 +167,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
       onSuccess: (conversations: Conversation[], pagination: PaginationMeta, query?: ConversationsQuery) => void,
       onError: (error: string) => void,
     ) => {
+      const requestId = ++latestRequestRef.current;
       dispatch({ type: 'SET_SEARCH_TERM', payload: searchTerm });
 
       if (!searchTerm.trim()) {
@@ -170,13 +179,19 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           try {
             const response = await chatService.getConversations();
             const { conversations, pagination } = extractConversationsData(response);
+            if (requestId !== latestRequestRef.current) return;
             onSuccess(conversations, pagination, { kind: 'list', params: {} });
           } catch (error) {
+            if (requestId !== latestRequestRef.current) return;
             const errorMessage =
               error instanceof Error
                 ? error.message
                 : t('contexts.filters.errors.loadConversations');
             onError(errorMessage);
+          } finally {
+            if (requestId === latestRequestRef.current) {
+              dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+            }
           }
         }
         return;
@@ -198,6 +213,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
             };
             const response = await chatService.filterConversations(filterRequest);
             const { conversations, pagination } = extractConversationsData(response);
+            if (requestId !== latestRequestRef.current) return;
             onSuccess(conversations, pagination, { kind: 'filter', request: filterRequest });
             return;
           } else {
@@ -208,8 +224,10 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
 
         const response = await chatService.getConversations(finalParams);
         const { conversations, pagination } = extractConversationsData(response);
+        if (requestId !== latestRequestRef.current) return;
         onSuccess(conversations, pagination, { kind: 'list', params: finalParams });
       } catch (error) {
+        if (requestId !== latestRequestRef.current) return;
         const errorMessage =
           error instanceof Error ? error.message : t('contexts.filters.errors.search');
         onError(errorMessage);
@@ -217,7 +235,9 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           description: errorMessage,
         });
       } finally {
-        dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+        if (requestId === latestRequestRef.current) {
+          dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+        }
       }
     },
     [state.activeFilters, applyFilters, t],

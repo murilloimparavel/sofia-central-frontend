@@ -9,6 +9,7 @@ import { chatService } from '@/services/chat/chatService';
 vi.mock('@/services/chat/chatService', () => ({
   chatService: {
     getConversations: vi.fn(),
+    getConversation: vi.fn(),
     markConversationAsRead: vi.fn(),
   },
 }));
@@ -71,5 +72,83 @@ describe('ConversationsProvider basic operator flow', () => {
     expect(JSON.parse(localStorage.getItem('crm-chat-state') || '{}').readConversations[
       'conv-uuid-1'
     ]).toBe(true);
+  });
+
+  it('honors the last selection while an earlier conversation detail is loading', async () => {
+    const selected = {
+      id: 'conv-2',
+      uuid: 'conv-uuid-2',
+      status: 'open',
+      unread_count: 0,
+    } as Conversation;
+    vi.mocked(chatService.getConversations).mockResolvedValue({
+      data: [selected],
+      meta: { page: 1, page_size: 20, total: 1, total_pages: 1 },
+    } as never);
+    let resolveOldDetail!: (value: unknown) => void;
+    vi.mocked(chatService.getConversation).mockImplementationOnce(
+      () => new Promise(resolve => { resolveOldDetail = resolve; }) as never,
+    );
+
+    let conversations!: ReturnType<typeof useConversations>;
+    function Probe() {
+      conversations = useConversations();
+      return null;
+    }
+    render(<ConversationsProvider><Probe /></ConversationsProvider>);
+
+    await act(async () => {
+      await conversations.loadConversations({ status: 'open' });
+    });
+
+    let oldRequest!: Promise<void>;
+    await act(async () => {
+      oldRequest = conversations.selectConversation('conv-old');
+      await conversations.selectConversation('conv-uuid-2');
+    });
+    expect(conversations.state.selectedConversationId).toBe('conv-uuid-2');
+
+    await act(async () => {
+      resolveOldDetail({ data: { id: 'conv-old', uuid: 'conv-old', status: 'open' } });
+      await oldRequest;
+    });
+
+    expect(conversations.state.selectedConversationId).toBe('conv-uuid-2');
+    expect(conversations.selectedConversation?.id).toBe('conv-2');
+  });
+
+  it('does not let an older list request replace the selected filter result', async () => {
+    let resolveOldList!: (value: unknown) => void;
+    vi.mocked(chatService.getConversations).mockImplementationOnce(
+      () => new Promise(resolve => { resolveOldList = resolve; }) as never,
+    );
+
+    let conversations!: ReturnType<typeof useConversations>;
+    function Probe() {
+      conversations = useConversations();
+      return null;
+    }
+    render(<ConversationsProvider><Probe /></ConversationsProvider>);
+
+    let oldRequest!: Promise<void>;
+    await act(async () => {
+      oldRequest = conversations.loadConversations({ status: 'open' });
+    });
+    await act(async () => {
+      conversations.setConversations(
+        [{ id: 'filtered-1', status: 'resolved' } as Conversation],
+        { page: 1, page_size: 20, total: 1, total_pages: 1 },
+        { kind: 'list', params: { status: 'resolved' } },
+      );
+    });
+    await act(async () => {
+      resolveOldList({
+        data: [{ id: 'old-open-1', status: 'open' }],
+        meta: { page: 1, page_size: 20, total: 1, total_pages: 1 },
+      });
+      await oldRequest;
+    });
+
+    expect(conversations.state.conversations.map(item => item.id)).toEqual(['filtered-1']);
   });
 });

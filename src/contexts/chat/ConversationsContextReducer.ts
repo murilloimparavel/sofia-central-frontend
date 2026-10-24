@@ -221,6 +221,14 @@ export function conversationsReducer(
     }
 
     case 'SET_SELECTED_CONVERSATION_DATA':
+      // A resposta de um deep link pode chegar depois que o operador escolheu
+      // outra conversa. Ela não pode substituir os detalhes da seleção atual.
+      if (
+        !state.selectedConversationId ||
+        !matchesConversationId(action.payload, String(state.selectedConversationId))
+      ) {
+        return state;
+      }
       return {
         ...state,
         selectedConversationData: action.payload,

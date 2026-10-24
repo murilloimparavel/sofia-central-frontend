@@ -26,11 +26,13 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   const { t } = useLanguage('chat');
   const { user: currentUser } = useOptionalAuth() ?? {};
   const [state, dispatch] = useReducer(conversationsReducer, initialState);
+  const unreadCountsRef = useRef(state.unreadCounts);
+  unreadCountsRef.current = state.unreadCounts;
 
   // Refs para evitar chamadas múltiplas simultâneas
   const loadingRef = useRef(false);
+  const listRequestVersionRef = useRef(0);
   const loadingSpecificRef = useRef<Set<string>>(new Set());
-  const selectionLockRef = useRef(false);
   const lastCleanupRef = useRef(0);
   const lastMarkedReadRef = useRef<Set<string>>(new Set());
   // The query that produced the current list, so load-more replays the SAME
@@ -56,6 +58,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
       }
 
       loadingRef.current = true;
+      const requestVersion = ++listRequestVersionRef.current;
       dispatch({ type: 'SET_CONVERSATIONS_LOADING', payload: true });
 
       try {
@@ -67,6 +70,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           currentQueryRef.current = { kind: 'list', params: listParams };
         }
         const response = await chatService.getConversations(params);
+        if (requestVersion !== listRequestVersionRef.current) return;
 
         if (!response || !response.data) {
           dispatch({
@@ -94,6 +98,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           },
         });
       } catch (error) {
+        if (requestVersion !== listRequestVersionRef.current) return;
         console.error('Erro ao carregar conversas da API:', error);
 
         const errorMessage =
@@ -137,12 +142,15 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     // same request for the next page (loadConversations only knows GET).
     if (query.kind === 'filter') {
       loadingRef.current = true;
+      const requestVersion = ++listRequestVersionRef.current;
       dispatch({ type: 'SET_CONVERSATIONS_LOADING', payload: true });
       try {
         const response = await chatService.filterConversations({ ...query.request, page: nextPage });
+        if (requestVersion !== listRequestVersionRef.current) return;
         const { conversations, pagination: nextPagination } = extractConversationsData(response);
         dispatch({ type: 'APPEND_CONVERSATIONS', payload: { conversations, pagination: nextPagination } });
       } catch (error) {
+        if (requestVersion !== listRequestVersionRef.current) return;
         const errorMessage =
           error instanceof Error ? error.message : t('contexts.conversations.errors.loadConversations');
         dispatch({ type: 'SET_CONVERSATIONS_ERROR', payload: errorMessage });
@@ -238,6 +246,9 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
   const setConversations = useCallback(
     (conversations: Conversation[], pagination: PaginationMeta, query?: ConversationsQuery) => {
+      // Uma resposta de filtros/busca mais recente prevalece sobre qualquer GET
+      // da lista (inclusive paginação) que ainda esteja em andamento.
+      listRequestVersionRef.current += 1;
       if (query) {
         currentQueryRef.current = query;
       }
@@ -248,17 +259,11 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
   const selectConversation = useCallback(
     async (conversationId: string | null) => {
-      // 🔒 PROTEÇÃO: Evitar seleções simultâneas
-      if (selectionLockRef.current) {
-        return;
-      }
-
-      // Marcar seleção em andamento
-      selectionLockRef.current = true;
-
       const targetConversation = conversationId ? findConversationByAnyId(conversationId) : null;
       const canonicalConversationId = targetConversation?.uuid || targetConversation?.id || conversationId;
 
+      // A escolha mais recente deve aparecer imediatamente, mesmo quando a busca
+      // de detalhes de uma conversa anterior ainda está em andamento.
       dispatch({ type: 'SELECT_CONVERSATION', payload: canonicalConversationId });
 
       // 🔧 CARREGAR CONVERSA: Se não está na lista atual, carregar do backend
@@ -278,7 +283,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
         // 🎯 PERSISTIR: Marcar conversa como lida sem bloquear a abertura.
         // Apenas dispara se houver mensagens não lidas e se ainda não foi marcada nesta sessão
-        const unreadCount = targetConversation?.unread_count ?? state.unreadCounts[canonicalConversationId] ?? 0;
+        const unreadCount = targetConversation?.unread_count ?? unreadCountsRef.current[canonicalConversationId] ?? 0;
         const alreadyMarked = lastMarkedReadRef.current.has(canonicalConversationId);
 
         if (unreadCount > 0 && !alreadyMarked) {
@@ -313,10 +318,6 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         }
       }
 
-      // Liberar lock após um delay mínimo
-      setTimeout(() => {
-        selectionLockRef.current = false;
-      }, 50);
     },
     [findConversationByAnyId, loadSpecificConversation],
   );
@@ -949,7 +950,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     }
 
     toast.success(t('contexts.conversations.success.labelsAssigned'));
-  }, []);
+  }, [t]);
 
   // Computed values
   // 🔧 FIX: Manter conversa selecionada mesmo quando ela não está na lista filtrada
