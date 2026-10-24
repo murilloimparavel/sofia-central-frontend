@@ -9,6 +9,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { chatService } from '@/services/chat/chatService';
 import { conversationAPI } from '@/services/conversations/conversationService';
 import { useUnansweredConversationsStore } from '@/store/unansweredConversationsStore';
+import { useAppDataStore } from '@/store/appDataStore';
 
 import { toast } from 'sonner';
 
@@ -21,16 +22,24 @@ import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
 import { matchesConversationId } from '@/utils/chat/conversationMatcher';
 import { useOptionalAuth } from '@/contexts/AuthContext';
 import { doesConversationMatchQuery } from '@/utils/chat/conversationMatch';
+import {
+  evictConversationFromQueryCache,
+  invalidateConversationQueryCache,
+  patchUnreadInConversationQueryCache,
+  reconcileConversationQueryCache,
+} from '@/utils/chat/conversationQueryCache';
 
 export function ConversationsProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage('chat');
   const { user: currentUser } = useOptionalAuth() ?? {};
   const [state, dispatch] = useReducer(conversationsReducer, initialState);
+  const unreadCountsRef = useRef(state.unreadCounts);
+  unreadCountsRef.current = state.unreadCounts;
 
   // Refs para evitar chamadas múltiplas simultâneas
   const loadingRef = useRef(false);
-  const loadingSpecificRef = useRef<Set<string>>(new Set());
-  const selectionLockRef = useRef(false);
+  const listRequestVersionRef = useRef(0);
+  const specificRequestsRef = useRef<Map<string, Promise<Conversation | null>>>(new Map());
   const lastCleanupRef = useRef(0);
   const lastMarkedReadRef = useRef<Set<string>>(new Set());
   // The query that produced the current list, so load-more replays the SAME
@@ -56,6 +65,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
       }
 
       loadingRef.current = true;
+      const requestVersion = ++listRequestVersionRef.current;
       dispatch({ type: 'SET_CONVERSATIONS_LOADING', payload: true });
 
       try {
@@ -67,6 +77,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           currentQueryRef.current = { kind: 'list', params: listParams };
         }
         const response = await chatService.getConversations(params);
+        if (requestVersion !== listRequestVersionRef.current) return;
 
         if (!response || !response.data) {
           dispatch({
@@ -94,6 +105,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           },
         });
       } catch (error) {
+        if (requestVersion !== listRequestVersionRef.current) return;
         console.error('Erro ao carregar conversas da API:', error);
 
         const errorMessage =
@@ -137,12 +149,15 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     // same request for the next page (loadConversations only knows GET).
     if (query.kind === 'filter') {
       loadingRef.current = true;
+      const requestVersion = ++listRequestVersionRef.current;
       dispatch({ type: 'SET_CONVERSATIONS_LOADING', payload: true });
       try {
         const response = await chatService.filterConversations({ ...query.request, page: nextPage });
+        if (requestVersion !== listRequestVersionRef.current) return;
         const { conversations, pagination: nextPagination } = extractConversationsData(response);
         dispatch({ type: 'APPEND_CONVERSATIONS', payload: { conversations, pagination: nextPagination } });
       } catch (error) {
+        if (requestVersion !== listRequestVersionRef.current) return;
         const errorMessage =
           error instanceof Error ? error.message : t('contexts.conversations.errors.loadConversations');
         dispatch({ type: 'SET_CONVERSATIONS_ERROR', payload: errorMessage });
@@ -157,87 +172,99 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   }, [state.conversationsPagination, state.conversationsLoading, loadConversations, t]);
 
   const loadSpecificConversation = useCallback(
-    async (conversationId: string): Promise<Conversation | null> => {
+    (conversationId: string): Promise<Conversation | null> => {
       const conversationKey = String(conversationId);
-      // 🔒 PROTEÇÃO: Evitar carregamentos simultâneos da mesma conversa
-      if (loadingSpecificRef.current.has(conversationKey)) {
-        return null;
-      }
+      // Deep link e seleção podem pedir a mesma conversa antes do primeiro GET
+      // terminar. Ambos precisam receber o resultado da mesma requisição.
+      const pending = specificRequestsRef.current.get(conversationKey);
+      if (pending) return pending;
 
       // 🔍 VERIFICAÇÃO: Se conversa já existe na lista atual
       const existingConversation = findConversationByAnyId(conversationKey);
 
       if (existingConversation) {
-        return existingConversation;
+        return Promise.resolve(existingConversation);
       }
 
-      // Marcar como sendo carregada
-      loadingSpecificRef.current.add(conversationKey);
+      const request = (async () => {
+        try {
+          const response = await chatService.getConversation(conversationKey);
 
-      try {
-        const response = await chatService.getConversation(conversationKey);
+          if (!response) {
+            return null;
+          }
 
-        if (!response) {
+          const envelope = response as unknown as {
+            data?: Conversation;
+          } & Partial<Conversation>;
+          const conversation = (envelope?.data?.id ? envelope.data : envelope) as unknown as Conversation;
+
+          // Validar se conversation é válida
+          if (!conversation || !conversation.id) {
+            return null;
+          }
+
+          // 🔒 DUPLA VERIFICAÇÃO: Verificar se combina com o filtro/query ativo da lista
+          const matchesCurrentView = doesConversationMatchQuery(
+            conversation,
+            currentQueryRef.current,
+            currentUser?.id,
+          );
+          const finalCheck = findConversationByAnyId(conversationKey);
+
+          if (!finalCheck) {
+            if (matchesCurrentView) {
+              reconcileConversationQueryCache(conversation);
+              dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
+            } else {
+              dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
+            }
+          } else {
+            if (matchesCurrentView) {
+              reconcileConversationQueryCache(conversation);
+              dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
+            } else {
+              evictConversationFromQueryCache(conversationKey, {
+                query: currentQueryRef.current,
+                userId: currentUser?.id,
+                accountId: useAppDataStore.getState().account?.id,
+              });
+              dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationKey });
+              dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
+            }
+          }
+
+          return conversation;
+        } catch (error) {
+          console.error('❌ Erro ao carregar conversa específica:', error);
+
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : t('contexts.conversations.errors.loadConversation');
+
+          toast.error(t('contexts.conversations.errors.conversationNotFound'), {
+            description: errorMessage,
+          });
+
           return null;
         }
-
-        const envelope = response as unknown as {
-          data?: Conversation;
-        } & Partial<Conversation>;
-        const conversation = (envelope?.data?.id ? envelope.data : envelope) as unknown as Conversation;
-
-        // Validar se conversation é válida
-        if (!conversation || !conversation.id) {
-          return null;
+      })().finally(() => {
+        if (specificRequestsRef.current.get(conversationKey) === request) {
+          specificRequestsRef.current.delete(conversationKey);
         }
-
-        // 🔒 DUPLA VERIFICAÇÃO: Verificar se combina com o filtro/query ativo da lista
-        const matchesCurrentView = doesConversationMatchQuery(
-          conversation,
-          currentQueryRef.current,
-          currentUser?.id,
-        );
-        const finalCheck = findConversationByAnyId(conversationKey);
-
-        if (!finalCheck) {
-          if (matchesCurrentView) {
-            dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
-          } else {
-            dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
-          }
-        } else {
-          if (matchesCurrentView) {
-            dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
-          } else {
-            dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationKey });
-            dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
-          }
-        }
-
-        return conversation;
-      } catch (error) {
-        console.error('❌ Erro ao carregar conversa específica:', error);
-
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : t('contexts.conversations.errors.loadConversation');
-
-        toast.error(t('contexts.conversations.errors.conversationNotFound'), {
-          description: errorMessage,
-        });
-
-        return null;
-      } finally {
-        // 🧹 CLEANUP: Remover da lista de carregamento
-        loadingSpecificRef.current.delete(conversationKey);
-      }
+      });
+      specificRequestsRef.current.set(conversationKey, request);
+      return request;
     },
     [findConversationByAnyId, t, currentUser?.id],
   );
 
   const setConversations = useCallback(
     (conversations: Conversation[], pagination: PaginationMeta, query?: ConversationsQuery) => {
+      // Uma resposta de filtros/busca mais recente prevalece sobre qualquer GET
+      // da lista (inclusive paginação) que ainda esteja em andamento.
+      listRequestVersionRef.current += 1;
       if (query) {
         currentQueryRef.current = query;
       }
@@ -248,17 +275,11 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
   const selectConversation = useCallback(
     async (conversationId: string | null) => {
-      // 🔒 PROTEÇÃO: Evitar seleções simultâneas
-      if (selectionLockRef.current) {
-        return;
-      }
-
-      // Marcar seleção em andamento
-      selectionLockRef.current = true;
-
       const targetConversation = conversationId ? findConversationByAnyId(conversationId) : null;
       const canonicalConversationId = targetConversation?.uuid || targetConversation?.id || conversationId;
 
+      // A escolha mais recente deve aparecer imediatamente, mesmo quando a busca
+      // de detalhes de uma conversa anterior ainda está em andamento.
       dispatch({ type: 'SELECT_CONVERSATION', payload: canonicalConversationId });
 
       // 🔧 CARREGAR CONVERSA: Se não está na lista atual, carregar do backend
@@ -278,12 +299,13 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
         // 🎯 PERSISTIR: Marcar conversa como lida sem bloquear a abertura.
         // Apenas dispara se houver mensagens não lidas e se ainda não foi marcada nesta sessão
-        const unreadCount = targetConversation?.unread_count ?? state.unreadCounts[canonicalConversationId] ?? 0;
+        const unreadCount = targetConversation?.unread_count ?? unreadCountsRef.current[canonicalConversationId] ?? 0;
         const alreadyMarked = lastMarkedReadRef.current.has(canonicalConversationId);
 
         if (unreadCount > 0 && !alreadyMarked) {
           lastMarkedReadRef.current.add(canonicalConversationId);
           void chatService.markConversationAsRead(canonicalConversationId).then(() => {
+            patchUnreadInConversationQueryCache(canonicalConversationId, 0);
             // Atualizar estado local para garantir persistência
             dispatch({
               type: 'UPDATE_UNREAD_COUNT',
@@ -313,10 +335,6 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         }
       }
 
-      // Liberar lock após um delay mínimo
-      setTimeout(() => {
-        selectionLockRef.current = false;
-      }, 50);
     },
     [findConversationByAnyId, loadSpecificConversation],
   );
@@ -329,6 +347,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     ) => {
       try {
         const response = await chatService.updateConversationStatus(conversationId, status);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -369,6 +388,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string, onFilterReload?: () => Promise<void>) => {
       try {
         const response = await chatService.returnConversationToBot(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -407,6 +427,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     ) => {
       try {
         const response = await chatService.updateConversationPriority(conversationId, priority);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -445,6 +466,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string, onFilterReload?: () => Promise<void>) => {
       try {
         const response = await chatService.pinConversation(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -484,6 +506,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string, onFilterReload?: () => Promise<void>) => {
       try {
         const response = await chatService.unpinConversation(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -527,6 +550,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     ) => {
       try {
         const response = await chatService.archiveConversation(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -576,6 +600,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     ) => {
       try {
         const response = await chatService.unarchiveConversation(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -618,6 +643,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   );
 
   const updateContactInConversations = useCallback((updatedContact: Contact) => {
+    invalidateConversationQueryCache();
     dispatch({ type: 'UPDATE_CONTACT_IN_CONVERSATIONS', payload: updatedContact });
   }, []);
 
@@ -627,16 +653,23 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
       console.warn('updateConversation: Invalid conversation data', conversation);
       return;
     }
+    reconcileConversationQueryCache(conversation);
     dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
   }, []);
 
   const addConversation = useCallback((conversation: Conversation) => {
+    reconcileConversationQueryCache(conversation);
     dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
   }, []);
 
   const removeConversation = useCallback((conversationId: string) => {
+    evictConversationFromQueryCache(conversationId, {
+      query: currentQueryRef.current,
+      userId: currentUser?.id,
+      accountId: useAppDataStore.getState().account?.id,
+    });
     dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationId });
-  }, []);
+  }, [currentUser?.id]);
 
   const cleanupDuplicates = useCallback(() => {
     dispatch({ type: 'CLEANUP_DUPLICATES' });
@@ -663,6 +696,8 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
   const updateUnreadCount = useCallback(
     (conversationId: string, count: number) => {
+      unreadCountsRef.current = { ...unreadCountsRef.current, [conversationId]: count };
+      patchUnreadInConversationQueryCache(conversationId, count);
       dispatch({
         type: 'UPDATE_UNREAD_COUNT',
         payload: { conversationId, count },
@@ -674,27 +709,39 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
   const updateConversationLastActivity = useCallback(
     (conversationId: string, lastActivityAt: string) => {
+      const current = findConversationByAnyId(conversationId);
+      if (current) {
+        reconcileConversationQueryCache({ ...current, last_activity_at: lastActivityAt });
+      } else {
+        invalidateConversationQueryCache();
+      }
       dispatch({
         type: 'UPDATE_CONVERSATION_LAST_ACTIVITY',
         payload: { conversationId, lastActivityAt },
       });
     },
-    [],
+    [findConversationByAnyId],
   );
 
   const incrementUnreadCount = useCallback((conversationId: string) => {
+    const current = findConversationByAnyId(conversationId);
+    const currentCount = unreadCountsRef.current[conversationId] ?? current?.unread_count ?? 0;
+    unreadCountsRef.current = { ...unreadCountsRef.current, [conversationId]: currentCount + 1 };
+    patchUnreadInConversationQueryCache(conversationId, currentCount + 1);
     dispatch({
       type: 'INCREMENT_UNREAD_COUNT',
       payload: { conversationId },
     });
     useUnansweredConversationsStore.getState().fetch();
-  }, []);
+  }, [findConversationByAnyId]);
 
   const addHiddenConversation = useCallback((conversation: Conversation) => {
+    reconcileConversationQueryCache(conversation);
     dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
   }, []);
 
   const revealHiddenConversations = useCallback(() => {
+    invalidateConversationQueryCache();
     dispatch({ type: 'REVEAL_HIDDEN_CONVERSATIONS' });
   }, []);
 
@@ -703,6 +750,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string, options?: { silent?: boolean }) => {
       try {
         await conversationAPI.deleteConversation(conversationId);
+        invalidateConversationQueryCache();
 
         // Remove from local state
         dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationId });
@@ -736,6 +784,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
       try {
         lastMarkedReadRef.current.add(conversationId);
         await conversationAPI.markAsRead(conversationId);
+        patchUnreadInConversationQueryCache(conversationId, 0);
 
         dispatch({
           type: 'UPDATE_UNREAD_COUNT',
@@ -770,6 +819,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         await conversationAPI.markAsUnread(conversationId);
 
         const currentCount = state.unreadCounts[conversationId] || 0;
+        patchUnreadInConversationQueryCache(conversationId, Math.max(1, currentCount));
         dispatch({
           type: 'UPDATE_UNREAD_COUNT',
           payload: { conversationId, count: Math.max(1, currentCount) },
@@ -799,6 +849,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string) => {
       try {
         const updatedConversation = await conversationAPI.updateStatus(conversationId, 'resolved');
+        invalidateConversationQueryCache();
 
         // Update local state
         if (updatedConversation && updatedConversation.id) {
@@ -831,6 +882,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string) => {
       try {
         const updatedConversation = await conversationAPI.updateStatus(conversationId, 'pending');
+        invalidateConversationQueryCache();
 
         // Update local state
         if (updatedConversation && updatedConversation.id) {
@@ -864,6 +916,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           conversationId,
           assigneeId,
         );
+        invalidateConversationQueryCache();
         dispatch({
           type: 'UPDATE_CONVERSATION',
           payload: updatedConversation as unknown as Conversation,
@@ -900,6 +953,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           null,
           teamId,
         );
+        invalidateConversationQueryCache();
 
         // Update local state
         dispatch({
@@ -930,6 +984,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   const assignLabels = useCallback(async (conversationId: string, labels: string[]) => {
     try {
       await conversationAPI.addLabels(conversationId, labels);
+      invalidateConversationQueryCache();
     } catch (error) {
       console.error('Error assigning labels:', error);
       toast.error(t('contexts.conversations.errors.assignLabels'), {
@@ -949,7 +1004,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     }
 
     toast.success(t('contexts.conversations.success.labelsAssigned'));
-  }, []);
+  }, [t]);
 
   // Computed values
   // 🔧 FIX: Manter conversa selecionada mesmo quando ela não está na lista filtrada

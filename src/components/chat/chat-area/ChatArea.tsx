@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 
-import { useChatContext } from '@/contexts/chat/ChatContext';
+import { useChatMessages, useChatWebSocket } from '@/contexts/chat/ChatContext';
 
 import { useLanguage } from '@/hooks/useLanguage';
 import { useConversationModerations } from '@/hooks/chat/useConversationModerations';
@@ -89,7 +89,8 @@ const ChatArea = ({
   isPendingConversation = false,
 }: ChatAreaProps) => {
   const { t } = useLanguage('chat');
-  const { messages, websocket } = useChatContext();
+  const messages = useChatMessages();
+  const websocket = useChatWebSocket();
   const activeTypingConversationRef = useRef<string | null>(null);
 
   // Load moderations for this conversation
@@ -190,9 +191,7 @@ const ChatArea = ({
     [selectedConversationId, messages],
   );
 
-  const handleCancelReply = useCallback(() => {
-    messages.onCancelReply();
-  }, [messages]);
+  const handleCancelReply = messages.onCancelReply;
 
   // 🎯 MESSAGING WINDOW RESTRICTIONS: Verificar se pode responder (WhatsApp, Instagram, Messenger)
   // Usar can_reply do backend que já calcula se está dentro da janela de 24 horas

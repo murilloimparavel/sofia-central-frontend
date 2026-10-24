@@ -65,6 +65,21 @@ describe('ConversationsContext reducer', () => {
     expect(nextState.conversations).toBe(state.conversations);
   });
 
+  it('ignores details from a conversation that is no longer selected', () => {
+    const state = {
+      ...initialState,
+      selectedConversationId: 'new-selection',
+      selectedConversationData: makeConversation({ id: 'new-selection' }),
+    };
+
+    const nextState = conversationsReducer(state, {
+      type: 'SET_SELECTED_CONVERSATION_DATA',
+      payload: makeConversation({ id: 'old-selection' }),
+    });
+
+    expect(nextState).toBe(state);
+  });
+
   it('keeps selected conversation unread count at zero on UPDATE_CONVERSATION', () => {
     const state = {
       ...initialState,

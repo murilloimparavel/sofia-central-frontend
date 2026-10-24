@@ -14,7 +14,6 @@ import {
   Loader2,
   Smile,
   X,
-  Reply,
   PenLine,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,15 +24,17 @@ import { useMessageSignature } from '@/hooks/useMessageSignature';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/contexts/AuthContext';
 
-import FileUpload from './FileUpload';
 import FilePreview from './FilePreview';
-import EmojiPicker from './EmojiPicker';
+import ComposerFilePickers from './ComposerFilePickers';
 import ComposerPlusMenu from './ComposerPlusMenu';
 import MacrosButton from './MacrosButton';
-import ScheduleMessageModal from './ScheduleMessageModal';
 import NoteComposer from './NoteComposer';
+import ReplyPreview from './ReplyPreview';
 
 const AudioRecorder = React.lazy(() => import('../audio'));
+const EmojiPicker = React.lazy(() => import('./EmojiPicker'));
+const ScheduleMessageModal = React.lazy(() => import('./ScheduleMessageModal'));
+const MessageTemplateModal = React.lazy(() => import('../message-template/MessageTemplateModal'));
 
 import { AIAssistanceButton } from '../ai-assistance';
 import { CannedResponsesList } from '../canned-responses';
@@ -43,7 +44,6 @@ import { RichTextEditor, RichTextEditorRef } from '../rich-text-editor';
 import { Message } from '@/types/chat/api';
 import type { CannedResponse } from '@/types/knowledge';
 
-import { MessageTemplateModal } from '../message-template';
 import '../rich-text-editor/RichTextEditor.css';
 import { getModifierSymbol } from '@/utils/platform';
 import {
@@ -120,6 +120,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const richEditorRef = useRef<RichTextEditorRef>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const composerRootRef = useRef<HTMLDivElement>(null);
+  const replyFocusRef = useRef<Message | null>(null);
 
   // 🎯 EMOJI PICKER: Estado
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -210,19 +211,30 @@ const MessageInput: React.FC<MessageInputProps> = ({
   }, [showCannedResponses, cannedResponseQuery, searchCannedResponses]);
 
   useEffect(() => {
-    if (replyToMessage) {
-      setTimeout(() => {
-        richEditorRef.current?.focus();
-      }, 100);
+    if (!replyToMessage) {
+      replyFocusRef.current = null;
+      return;
     }
-  }, [replyToMessage]);
+
+    // A reply selected in the previous chat must not focus the new chat when
+    // the same reply object briefly remains in context during navigation.
+    if (replyFocusRef.current === replyToMessage) return;
+    replyFocusRef.current = replyToMessage;
+
+    const focusTimer = window.setTimeout(() => richEditorRef.current?.focus(), 100);
+    return () => window.clearTimeout(focusTimer);
+  }, [replyToMessage, conversationId]);
 
   useEffect(() => {
-    if (conversationId) {
-      setTimeout(() => {
-        richEditorRef.current?.focus();
-      }, 200);
-    }
+    if (
+      !conversationId ||
+      window.matchMedia?.('(min-width: 768px) and (hover: hover) and (pointer: fine)').matches === false
+    ) return;
+
+    // On touch screens, changing chats is primarily a reading action. A
+    // delayed focus may open the software keyboard and move the viewport.
+    const focusTimer = window.setTimeout(() => richEditorRef.current?.focus(), 200);
+    return () => window.clearTimeout(focusTimer);
   }, [conversationId]);
 
   // Gerenciar indicador de digitação
@@ -622,51 +634,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
     return 'Enviar (Enter)';
   }, [user?.ui_settings?.editor_message_key]);
 
-  // Componente de preview da resposta
-  const ReplyPreview = ({ message, onCancel }: { message: Message; onCancel: () => void }) => (
-    <div className="w-full border-t-0 border-x-0 border-b border-border bg-muted/50 px-4 py-3">
-      <div className="flex items-start gap-3">
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Reply className="h-4 w-4" />
-          <span className="font-medium">
-            {t('messageInput.replyPreview.replyingTo', {
-              name: message.sender?.name || t('messageInput.replyPreview.userFallback'),
-            })}
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 ml-auto hover:bg-destructive/20 hover:text-destructive"
-          onClick={onCancel}
-        >
-          <X className="h-3 w-3" />
-        </Button>
-      </div>
-      <div className="mt-2 pl-6">
-        <div className="text-sm text-muted-foreground bg-background border-l-2 border-primary/30 pl-3 py-1 rounded-r max-w-md">
-          {message.content ? (
-            <span className="line-clamp-2">{message.content}</span>
-          ) : message.attachments && message.attachments.length > 0 ? (
-            <span className="italic">
-              {t('messageInput.replyPreview.fileAttachment', {
-                fileType:
-                  message.attachments[0].file_type || t('messageInput.replyPreview.fileFallback'),
-              })}
-            </span>
-          ) : (
-            <span className="italic">{t('messageInput.replyPreview.noContent')}</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <>
       {/* Preview de resposta */}
       {replyToMessage && (
-        <ReplyPreview message={replyToMessage} onCancel={() => onCancelReply?.()} />
+        <ReplyPreview message={replyToMessage} onCancel={onCancelReply} />
       )}
 
       <div ref={composerRootRef} className="w-full border-t border-border bg-background relative">
@@ -783,11 +755,15 @@ const MessageInput: React.FC<MessageInputProps> = ({
               >
                 <Smile className="h-[22px] w-[22px] text-primary" strokeWidth={2.2} />
               </Button>
-              <EmojiPicker
-                isOpen={showEmojiPicker}
-                onEmojiSelect={handleEmojiSelect}
-                onClose={() => setShowEmojiPicker(false)}
-              />
+              {showEmojiPicker && (
+                <Suspense fallback={null}>
+                  <EmojiPicker
+                    isOpen={showEmojiPicker}
+                    onEmojiSelect={handleEmojiSelect}
+                    onClose={() => setShowEmojiPicker(false)}
+                  />
+                </Suspense>
+              )}
             </div>
 
             {/* Macros */}
@@ -866,47 +842,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
             {/* Hidden pickers driven by ComposerPlusMenu — one owns the global
                 drag&drop overlay (category "all") so drop UX stays unchanged;
                 the other two are click-only (menu-triggered) pickers. */}
-            <FileUpload
-              inputId="composer-file-input-all"
-              onFilesSelected={files => {
-                const documents = files.every(file =>
-                  /\.(pdf|docx?|xlsx?|pptx?|txt|csv|rtf)$/i.test(file.name) ||
-                  file.type.startsWith('image/') || file.type.startsWith('video/') ||
-                  file.type.startsWith('text/') || file.type === 'application/pdf' ||
-                  file.type.includes('officedocument') || file.type.includes('msword') ||
-                  file.type.includes('ms-excel') || file.type.includes('ms-powerpoint'),
-                );
-                handleFilesSelected(files, documents);
-              }}
-              maxFileSize={MAX_ATTACHMENT_SIZE_MB}
-              multiple={true}
-              category="all"
+            <ComposerFilePickers
+              onFilesSelected={handleFilesSelected}
               disabled={isDisabled || isSending || isPendingConversation || hasCannedMedia}
-            >
-              <></>
-            </FileUpload>
-            <FileUpload
-              inputId="composer-file-input-document"
-              onFilesSelected={files => handleFilesSelected(files, true)}
-              maxFileSize={MAX_ATTACHMENT_SIZE_MB}
-              multiple={true}
-              category="document"
-              enableGlobalDropZone={false}
-              disabled={isDisabled || isSending || isPendingConversation || hasCannedMedia}
-            >
-              <></>
-            </FileUpload>
-            <FileUpload
-              inputId="composer-file-input-media"
-              onFilesSelected={files => handleFilesSelected(files, false)}
-              maxFileSize={MAX_ATTACHMENT_SIZE_MB}
-              multiple={true}
-              category="media"
-              enableGlobalDropZone={false}
-              disabled={isDisabled || isSending || isPendingConversation || hasCannedMedia}
-            >
-              <></>
-            </FileUpload>
+            />
 
             {/* AI Assistance (sparkles) */}
             <AIAssistanceButton
@@ -961,24 +900,30 @@ const MessageInput: React.FC<MessageInputProps> = ({
       </div>
 
       {/* Message Templates Modal */}
-      <MessageTemplateModal
-        isOpen={showTemplatesModal}
-        onClose={() => setShowTemplatesModal(false)}
-        inboxId={inboxId}
-        channelType={channelType}
-        isWhatsAppCloud={isWhatsAppCloud}
-        onSend={handleSendTemplate}
-      />
+      {showTemplatesModal && (
+        <Suspense fallback={null}>
+          <MessageTemplateModal
+            isOpen={showTemplatesModal}
+            onClose={() => setShowTemplatesModal(false)}
+            inboxId={inboxId}
+            channelType={channelType}
+            isWhatsAppCloud={isWhatsAppCloud}
+            onSend={handleSendTemplate}
+          />
+        </Suspense>
+      )}
 
       {/* Schedule Message Modal */}
-      {conversationId && (
-        <ScheduleMessageModal
-          isOpen={showScheduleModal}
-          onClose={() => setShowScheduleModal(false)}
-          conversationId={conversationId}
-          channelType={channelType}
-          messageContent={currentEditorMessage}
-        />
+      {conversationId && showScheduleModal && (
+        <Suspense fallback={null}>
+          <ScheduleMessageModal
+            isOpen={showScheduleModal}
+            onClose={() => setShowScheduleModal(false)}
+            conversationId={conversationId}
+            channelType={channelType}
+            messageContent={currentEditorMessage}
+          />
+        </Suspense>
       )}
     </>
   );

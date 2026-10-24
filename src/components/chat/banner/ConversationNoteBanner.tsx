@@ -21,9 +21,9 @@ const ConversationNoteBanner: React.FC<ConversationNoteBannerProps> = ({ note, o
     <div
       style={{
         alignSelf: 'stretch',
-        background: '#FDF9EF',
-        borderBottom: '1px solid #f0e4c8',
-        borderTop: '3px solid #f3c34a',
+        background: 'var(--inbox-note-banner-surface)',
+        borderBottom: '1px solid var(--inbox-note-banner-border)',
+        borderTop: '3px solid var(--inbox-note-banner-accent)',
         padding: '12px 26px',
       }}
     >
@@ -33,7 +33,7 @@ const ConversationNoteBanner: React.FC<ConversationNoteBannerProps> = ({ note, o
           height="17"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#c99a1e"
+          stroke="var(--inbox-note-banner-icon)"
           strokeWidth={1.9}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -43,15 +43,15 @@ const ConversationNoteBanner: React.FC<ConversationNoteBannerProps> = ({ note, o
         </svg>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#a97e10', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--inbox-note-banner-heading)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
               {t('chatArea.noteBanner.title', 'Nota do atendimento')}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '0 0 auto' }}>
-              <span style={{ fontSize: 11.5, color: '#b39a55' }}>{note.sender?.name}</span>
+              <span style={{ fontSize: 11.5, color: 'var(--inbox-note-banner-author)' }}>{note.sender?.name}</span>
               <div
                 onClick={onHide}
                 title={t('chatArea.noteBanner.hide', 'Ocultar')}
-                style={{ cursor: 'pointer', color: '#bda75c', display: 'flex' }}
+                style={{ cursor: 'pointer', color: 'var(--inbox-note-banner-control)', display: 'flex' }}
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
                   <line x1="6" y1="6" x2="18" y2="18" />
@@ -60,7 +60,7 @@ const ConversationNoteBanner: React.FC<ConversationNoteBannerProps> = ({ note, o
               </div>
             </div>
           </div>
-          <div style={{ fontSize: 14, color: '#5c4f2e', lineHeight: 1.45, marginTop: 4 }}>{note.content}</div>
+          <div style={{ fontSize: 14, color: 'var(--inbox-note-banner-text)', lineHeight: 1.45, marginTop: 4 }}>{note.content}</div>
         </div>
       </div>
     </div>

@@ -42,7 +42,7 @@ const mockConversation: Conversation = {
     content: 'Última mensagem enviada',
     message_type: 'incoming',
     created_at: 1700000000,
-  } as any,
+  } as unknown as Conversation['last_non_activity_message'],
   messages: [
     {
       id: 1,
@@ -59,6 +59,36 @@ const mockConversation: Conversation = {
 };
 
 describe('ConversationCard component', () => {
+  it('updates the preview when message content changes without a new message id', () => {
+    const props = {
+      isSelected: false,
+      isBulkSelected: false,
+      selectionMode: false,
+      unreadCount: 0,
+      onSelect: vi.fn(),
+      onToggleSelect: vi.fn(),
+      onStartSelection: vi.fn(),
+      onPin: vi.fn(),
+      onUnpin: vi.fn(),
+      onArchive: vi.fn(),
+      onUnarchive: vi.fn(),
+      onDelete: vi.fn(),
+      t: (key: string) => key,
+    };
+    const view = render(<ConversationCard {...props} conversation={mockConversation} />);
+    const updatedConversation = {
+      ...mockConversation,
+      last_non_activity_message: {
+        ...mockConversation.last_non_activity_message,
+        content: 'Prévia editada',
+      },
+    } as Conversation;
+
+    view.rerender(<ConversationCard {...props} conversation={updatedConversation} />);
+
+    expect(screen.getByText('Prévia editada')).toBeInTheDocument();
+  });
+
   it('renders conversation details correctly', () => {
     render(
       <ConversationCard

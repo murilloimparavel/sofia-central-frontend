@@ -24,3 +24,7 @@ export const EVENT_NAMES = [
 ] as const;
 
 export type EvoFlowEventName = (typeof EVENT_NAMES)[number];
+
+export function isCanonicalEvent(eventName: string): eventName is EvoFlowEventName {
+  return (EVENT_NAMES as readonly string[]).includes(eventName);
+}

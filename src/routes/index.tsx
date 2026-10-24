@@ -10,83 +10,95 @@ import { PluginRoutes, type PluginRoute as PluginRouteType } from '@/plugin-host
 
 import MainLayout from '@/components/layout/MainLayout';
 
+// Mantém o layout da rota visível enquanto seu conteúdo é carregado sob demanda.
+function withRouteSuspense<P extends object>(Page: React.ComponentType<P>) {
+  return (props: P) => (
+    <Suspense fallback={<div className="flex items-center justify-center h-full">Carregando...</div>}>
+      <Page {...props} />
+    </Suspense>
+  );
+}
+
 // Páginas públicas
-import Auth from '@/pages/Auth';
-import EmailConfirmation from '@/components/auth/EmailConfirmation';
-import ResetPassword from '@/components/auth/ResetPassword';
-import InstagramCallback from '@/pages/InstagramCallback';
-import GoogleCallback from '@/pages/GoogleCallback';
-import GoogleCalendarCallback from '@/pages/GoogleCalendarCallback';
-import GoogleSheetsCallback from '@/pages/GoogleSheetsCallback';
-import GitHubCallback from '@/pages/GitHubCallback';
-import NotionCallback from '@/pages/NotionCallback';
-import StripeCallback from '@/pages/StripeCallback';
-import LinearCallback from '@/pages/LinearCallback';
-import MondayCallback from '@/pages/MondayCallback';
-import AtlassianCallback from '@/pages/AtlassianCallback';
-import MicrosoftCallback from '@/pages/MicrosoftCallback';
-import SurveyResponse from '@/pages/Public/Survey/SurveyResponse';
-import PublicChatPage from '@/pages/Public/Chat/ChatPage';
-import FormPage from '@/pages/Public/Form/FormPage';
+const Auth = withRouteSuspense(React.lazy(() => import('@/pages/Auth')));
+const EmailConfirmation = withRouteSuspense(React.lazy(() => import('@/components/auth/EmailConfirmation')));
+const ResetPassword = withRouteSuspense(React.lazy(() => import('@/components/auth/ResetPassword')));
+const InstagramCallback = withRouteSuspense(React.lazy(() => import('@/pages/InstagramCallback')));
+const GoogleCallback = withRouteSuspense(React.lazy(() => import('@/pages/GoogleCallback')));
+const GoogleCalendarCallback = withRouteSuspense(React.lazy(() => import('@/pages/GoogleCalendarCallback')));
+const GoogleSheetsCallback = withRouteSuspense(React.lazy(() => import('@/pages/GoogleSheetsCallback')));
+const GitHubCallback = withRouteSuspense(React.lazy(() => import('@/pages/GitHubCallback')));
+const NotionCallback = withRouteSuspense(React.lazy(() => import('@/pages/NotionCallback')));
+const StripeCallback = withRouteSuspense(React.lazy(() => import('@/pages/StripeCallback')));
+const LinearCallback = withRouteSuspense(React.lazy(() => import('@/pages/LinearCallback')));
+const MondayCallback = withRouteSuspense(React.lazy(() => import('@/pages/MondayCallback')));
+const AtlassianCallback = withRouteSuspense(React.lazy(() => import('@/pages/AtlassianCallback')));
+const MicrosoftCallback = withRouteSuspense(React.lazy(() => import('@/pages/MicrosoftCallback')));
+const SurveyResponse = withRouteSuspense(React.lazy(() => import('@/pages/Public/Survey/SurveyResponse')));
+const PublicChatPage = withRouteSuspense(React.lazy(() => import('@/pages/Public/Chat/ChatPage')));
+const FormPage = withRouteSuspense(React.lazy(() => import('@/pages/Public/Form/FormPage')));
 
 // Páginas customer
-import Dashboard from '@/pages/Customer/Dashboard';
-import Agents from '@/pages/Customer/Agents';
-import AgentsIndexRedirect from '@/components/agents/AgentsIndexRedirect';
-import AgentEditPage from '@/pages/Customer/Agents/Agent/AgentEditPage';
-import MCPServers from '@/pages/Customer/Agents/MCPServers';
-import CustomMCPServers from '@/pages/Customer/Agents/CustomMCPServers';
-import Tools from '@/pages/Customer/Agents/Tools';
-import CustomTools from '@/pages/Customer/Agents/CustomTools';
-import Contacts from '@/pages/Customer/Contacts';
-import ScheduledActions from '@/pages/Customer/Contacts/ScheduledActions';
-import { Channels, ChannelSettings, NewChannel } from '@/pages/Customer/Channels';
+const Dashboard = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Dashboard')));
+const Agents = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Agents')));
+const AgentsIndexRedirect = withRouteSuspense(React.lazy(() => import('@/components/agents/AgentsIndexRedirect')));
+const AgentEditPage = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Agents/Agent/AgentEditPage')));
+const MCPServers = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Agents/MCPServers')));
+const CustomMCPServers = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Agents/CustomMCPServers')));
+const Tools = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Agents/Tools')));
+const CustomTools = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Agents/CustomTools')));
+const Contacts = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Contacts')));
+const ScheduledActions = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Contacts/ScheduledActions')));
+const Channels = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Channels').then(module => ({ default: module.Channels }))));
+const ChannelSettings = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Channels').then(module => ({ default: module.ChannelSettings }))));
+const NewChannel = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Channels').then(module => ({ default: module.NewChannel }))));
 const ChatPage = React.lazy(() => import('@/pages/Customer/Chat/ChatPage'));
 
-import Automation from '../pages/Customer/Automation';
-import AutomationForm from '../pages/Customer/Automation/AutomationForm';
+const Automation = withRouteSuspense(React.lazy(() => import('../pages/Customer/Automation')));
+const AutomationForm = withRouteSuspense(React.lazy(() => import('../pages/Customer/Automation/AutomationForm')));
 // import AutomationFlowEditor from '../pages/Customer/Automation/AutomationFlowEditor';
-import Pipelines from '@/pages/Customer/Pipelines/Pipelines';
-import PipelineKanban from '@/pages/Customer/Pipelines/PipelineKanban';
-import PipelineFormPage from '@/pages/Customer/Pipelines/PipelineFormPage';
-import { AccountSettings } from '@/pages/Customer/Settings/Account';
-import Teams from '@/pages/Customer/Settings/Teams/Teams';
-import { AddUsers } from '@/pages/Customer/Settings/Teams';
-import Users from '@/pages/Customer/Settings/Users';
-import Labels from '@/pages/Customer/Settings/Labels';
-import CustomAttributes from '@/pages/Customer/Settings/CustomAttributes';
-import Segments from '@/pages/Customer/Settings/Segments/Segments';
-import SegmentCreateEdit from '@/pages/Customer/Settings/Segments/SegmentCreateEdit';
-import Journey from '@/pages/Customer/Journey/Journey';
-import JourneyFlowEditor from '@/pages/Customer/Journey/JourneyFlowEditor';
-import Campaigns from '@/pages/Customer/Campaigns/Campaigns';
-import NewCampaign from '@/pages/Customer/Campaigns/NewCampaign/NewCampaign';
-import CannedResponses from '@/pages/Customer/Settings/CannedResponses';
-import AiCredentials from '@/pages/Customer/Settings/AiCredentials';
-import IntegrationCredentials from '@/pages/Customer/Settings/IntegrationCredentials';
-import MessageTemplates from '@/pages/Customer/Settings/MessageTemplates';
-import { Macros } from '@/pages/Customer/Settings/Macros';
-import Products, { ProductsImport } from '@/pages/Customer/Settings/Products';
-import CrmForms from '@/pages/Customer/Settings/CrmForms';
-import ChatPages from '@/pages/Customer/Settings/ChatPages';
-import Templates from '@/pages/Customer/Settings/Templates/Templates';
-import { Integrations } from '@/pages/Customer/Settings/Integrations';
-import EmailTemplateEditor from '@/pages/Customer/Settings/EmailTemplateEditor';
-import WebhooksPage from '../pages/Customer/Settings/Integrations/WebhooksPage';
-import OAuthAppsPage from '../pages/Customer/Settings/Integrations/OAuthAppsPage';
-import DashboardAppsPage from '../pages/Customer/Settings/Integrations/DashboardAppsPage';
-import AccessTokens from '../pages/Customer/Settings/AccessTokens/AccessTokens';
-import SlackIntegrationPage from '../pages/Customer/Settings/Integrations/SlackIntegrationPage';
-import OpenAIPage from '../pages/Customer/Settings/Integrations/OpenAIPage';
-import BMSPage from '../pages/Customer/Settings/Integrations/BMSPage';
-import LeadSquaredPage from '../pages/Customer/Settings/Integrations/LeadSquaredPage';
-import HubSpotPage from '../pages/Customer/Settings/Integrations/HubSpotPage';
-import ShopifyPage from '../pages/Customer/Settings/Integrations/ShopifyPage';
-import LinearPage from '../pages/Customer/Settings/Integrations/LinearPage';
-import DashboardAppPage from '../pages/Customer/DashboardApp';
+const Pipelines = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Pipelines/Pipelines')));
+const PipelineKanban = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Pipelines/PipelineKanban')));
+const PipelineFormPage = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Pipelines/PipelineFormPage')));
+const AccountSettings = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Account').then(module => ({ default: module.AccountSettings }))));
+const Teams = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Teams/Teams')));
+const AddUsers = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Teams').then(module => ({ default: module.AddUsers }))));
+const Users = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Users')));
+const Labels = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Labels')));
+const CustomAttributes = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/CustomAttributes')));
+const Segments = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Segments/Segments')));
+const SegmentCreateEdit = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Segments/SegmentCreateEdit')));
+const Journey = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Journey/Journey')));
+const JourneyFlowEditor = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Journey/JourneyFlowEditor')));
+const Campaigns = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Campaigns/Campaigns')));
+const NewCampaign = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Campaigns/NewCampaign/NewCampaign')));
+const CannedResponses = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/CannedResponses')));
+const AiCredentials = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/AiCredentials')));
+const IntegrationCredentials = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/IntegrationCredentials')));
+const MessageTemplates = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/MessageTemplates')));
+const Macros = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Macros').then(module => ({ default: module.Macros }))));
+const Products = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Products')));
+const ProductsImport = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Products').then(module => ({ default: module.ProductsImport }))));
+const CrmForms = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/CrmForms')));
+const ChatPages = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/ChatPages')));
+const Templates = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Templates/Templates')));
+const Integrations = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/Integrations').then(module => ({ default: module.Integrations }))));
+const EmailTemplateEditor = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Settings/EmailTemplateEditor')));
+const WebhooksPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/WebhooksPage')));
+const OAuthAppsPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/OAuthAppsPage')));
+const DashboardAppsPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/DashboardAppsPage')));
+const AccessTokens = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/AccessTokens/AccessTokens')));
+const SlackIntegrationPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/SlackIntegrationPage')));
+const OpenAIPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/OpenAIPage')));
+const BMSPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/BMSPage')));
+const LeadSquaredPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/LeadSquaredPage')));
+const HubSpotPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/HubSpotPage')));
+const ShopifyPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/ShopifyPage')));
+const LinearPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/Settings/Integrations/LinearPage')));
+const DashboardAppPage = withRouteSuspense(React.lazy(() => import('../pages/Customer/DashboardApp')));
 
 // Páginas admin
-import AdminSettingsLayout from '@/pages/Admin/Settings';
+const AdminSettingsLayout = withRouteSuspense(React.lazy(() => import('@/pages/Admin/Settings')));
 const RolesList = React.lazy(() => import('@/pages/Admin/Roles/RolesList'));
 const RoleDetail = React.lazy(() => import('@/pages/Admin/Roles/RoleDetail'));
 const SmtpConfig = React.lazy(() => import('@/pages/Admin/Settings/SmtpConfig'));
@@ -97,26 +109,26 @@ const IntegrationsConfig = React.lazy(() => import('@/pages/Admin/Settings/Integ
 const EvolutionHubConfig = React.lazy(() => import('@/pages/Admin/Settings/EvolutionHubConfig'));
 
 // Página de tutoriais
-import Tutorials from '@/pages/Customer/Tutorials';
+const Tutorials = withRouteSuspense(React.lazy(() => import('@/pages/Customer/Tutorials')));
 
 // Páginas compartilhadas
-import Documentation from '@/pages/Shared/Documentation';
-import Marketplace from '@/pages/Shared/Marketplace';
-import Profile from '@/pages/Shared/Profile';
+const Documentation = withRouteSuspense(React.lazy(() => import('@/pages/Shared/Documentation')));
+const Marketplace = withRouteSuspense(React.lazy(() => import('@/pages/Shared/Marketplace')));
+const Profile = withRouteSuspense(React.lazy(() => import('@/pages/Shared/Profile')));
 
 // Página de setup inicial
-import Setup from '@/pages/Setup/Setup';
-import OnboardingPage from '@/pages/Setup/OnboardingPage';
+const Setup = withRouteSuspense(React.lazy(() => import('@/pages/Setup/Setup')));
+const OnboardingPage = withRouteSuspense(React.lazy(() => import('@/pages/Setup/OnboardingPage')));
 
 // Outras páginas
-import NotFound from '@/pages/NotFound';
-import Unauthorized from '@/pages/Unauthorized';
-import Widget from '@/pages/Widget';
-import AsanaCallback from '@/pages/AsanaCallback';
-import HubSpotCallback from '@/pages/HubSpotCallback';
-import PayPalCallback from '@/pages/PayPalCallback';
-import CanvaCallback from '@/pages/CanvaCallback';
-import SupabaseCallback from '@/pages/SupabaseCallback';
+const NotFound = withRouteSuspense(React.lazy(() => import('@/pages/NotFound')));
+const Unauthorized = withRouteSuspense(React.lazy(() => import('@/pages/Unauthorized')));
+const Widget = withRouteSuspense(React.lazy(() => import('@/pages/Widget')));
+const AsanaCallback = withRouteSuspense(React.lazy(() => import('@/pages/AsanaCallback')));
+const HubSpotCallback = withRouteSuspense(React.lazy(() => import('@/pages/HubSpotCallback')));
+const PayPalCallback = withRouteSuspense(React.lazy(() => import('@/pages/PayPalCallback')));
+const CanvaCallback = withRouteSuspense(React.lazy(() => import('@/pages/CanvaCallback')));
+const SupabaseCallback = withRouteSuspense(React.lazy(() => import('@/pages/SupabaseCallback')));
 // import ChangePassword from '../pages/ChangePassword';
 
 const ChatRouteElement = (

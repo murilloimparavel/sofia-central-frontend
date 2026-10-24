@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Button } from '@evoapi/design-system/button';
 import {
   ArrowLeft,
@@ -34,7 +34,6 @@ import { STATUS_META, STATUS_META_LIGHT } from './statusMeta';
 import { isPhoneBearingChannel } from '@/utils/channelUtils';
 import { formatContactPhone } from '@/utils/contact/formatContactPhone';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useChatContext } from '@/contexts/chat/ChatContext';
 import { pipelinesService } from '@/services/pipelines/pipelinesService';
 import chatService from '@/services/chat/chatService';
 import { toast } from 'sonner';
@@ -45,8 +44,7 @@ interface ChatHeaderProps {
   onBackClick: () => void;
   onCloseConversation: () => void;
   onContactSidebarOpen: () => void;
-  onMarkAsRead: (conversation: Conversation) => void;
-  onMarkAsUnread: (conversation: Conversation) => void;
+  onConversationUpdated: (conversation: Conversation) => void;
   onMarkAsOpen: (conversation: Conversation) => void;
   onMarkAsResolved: (conversation: Conversation) => void;
   onPostpone: (conversation: Conversation) => void;
@@ -55,14 +53,9 @@ interface ChatHeaderProps {
     conversation: Conversation,
     priority: 'low' | 'medium' | 'high' | 'urgent' | null,
   ) => void;
-  onPinConversation: (conversation: Conversation) => void;
-  onUnpinConversation: (conversation: Conversation) => void;
-  onArchiveConversation: (conversation: Conversation) => void;
-  onUnarchiveConversation: (conversation: Conversation) => void;
   onAssignAgent: (conversation: Conversation) => void;
   onAssignTeam: (conversation: Conversation) => void;
   onAssignTag: (conversation: Conversation) => void;
-  onDeleteConversation: (conversation: Conversation) => void;
   unreadCount: number;
 }
 
@@ -75,6 +68,7 @@ const ChatHeader = ({
   onBackClick,
   onCloseConversation,
   onContactSidebarOpen,
+  onConversationUpdated,
   onMarkAsOpen,
   onMarkAsResolved,
   onPostpone,
@@ -85,7 +79,6 @@ const ChatHeader = ({
   onAssignTag,
 }: ChatHeaderProps) => {
   const { t } = useLanguage('chat');
-  const chatContext = useChatContext();
   const currentStatus = conversation.status;
 
   const inboxName = conversation.inbox?.name || '';
@@ -162,13 +155,13 @@ const ChatHeader = ({
       const raw = badgeResult.value;
       const envelope = raw as unknown as { data?: Conversation } | null;
       const updated: Conversation | null = envelope?.data ?? (raw as unknown as Conversation);
-      if (updated) chatContext.conversations.updateConversation(updated);
+      if (updated) onConversationUpdated(updated);
     }
 
     if (pipelinesResult.status === 'fulfilled' && isMountedRef.current) {
       setConvPipelineData({ pipelines: pipelinesResult.value });
     }
-  }, [conversation.id, chatContext]);
+  }, [conversation.id, onConversationUpdated]);
 
   const handlePipelineStageSelect = useCallback(
     async (pipeline: Pipeline, stage: PipelineStage) => {
@@ -545,4 +538,4 @@ const ChatHeader = ({
   );
 };
 
-export default ChatHeader;
+export default memo(ChatHeader);

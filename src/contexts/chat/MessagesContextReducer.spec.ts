@@ -68,7 +68,7 @@ describe('MessagesContextReducer & timestampUtils', () => {
       content: 'Upload',
       status: 'sent',
       created_at: 1000,
-      attachments: [{ id: 'att-1' } as any],
+      attachments: [{ id: 'att-1' } as Message['attachments'][number]],
     } as Message;
 
     const replacedState = messagesReducer(stateWithPending, {
@@ -79,5 +79,112 @@ describe('MessagesContextReducer & timestampUtils', () => {
     expect(replacedState.messages['c1']).toHaveLength(1);
     expect(replacedState.messages['c1'][0].id).toBe('real-1');
     expect(replacedState.messages['c1'][0].attachments).toHaveLength(1);
+  });
+
+  it('merges a delayed initial response without losing WebSocket or optimistic messages', () => {
+    const fromSocket = { id: 'socket', status: 'sent', created_at: 300 } as Message;
+    const optimistic = { id: '1234567890123', status: 'progress', created_at: 400 } as Message;
+    const current = messagesReducer(messagesReducer(initialMessagesState, {
+      type: 'ADD_MESSAGE', payload: { conversationId: 'c1', message: fromSocket },
+    }), {
+      type: 'ADD_MESSAGE', payload: { conversationId: 'c1', message: optimistic },
+    });
+
+    const afterHttp = messagesReducer(current, {
+      type: 'MERGE_INITIAL_MESSAGES',
+      payload: { conversationId: 'c1', messages: [
+        { id: 'older', status: 'sent', created_at: 100 } as Message,
+        { ...fromSocket, content: 'stale snapshot' },
+      ] },
+    });
+
+    expect(afterHttp.messages.c1.map(message => message.id)).toEqual(['older', 'socket', '1234567890123']);
+    expect(afterHttp.messages.c1[1]).toBe(fromSocket);
+    expect(afterHttp.messageHistory.c1.oldestMessageId).toBe('older');
+  });
+
+  it('refreshes pagination after an empty history receives a full page while preserving socket data', () => {
+    const empty = messagesReducer(initialMessagesState, {
+      type: 'MERGE_INITIAL_MESSAGES', payload: { conversationId: 'c1', messages: [] },
+    });
+    const fromSocket = { id: 'socket', status: 'sent', created_at: 300 } as Message;
+    const withSocket = messagesReducer(empty, {
+      type: 'ADD_MESSAGE', payload: { conversationId: 'c1', message: fromSocket },
+    });
+    const page = Array.from({ length: 20 }, (_, index) => ({
+      id: `message-${index}`, status: 'sent', created_at: index + 100,
+    } as Message));
+    const refreshed = messagesReducer(withSocket, {
+      type: 'MERGE_INITIAL_MESSAGES', payload: { conversationId: 'c1', messages: page },
+    });
+
+    expect(refreshed.messages.c1).toHaveLength(21);
+    expect(refreshed.messages.c1.at(-1)).toBe(fromSocket);
+    expect(refreshed.messageHistory.c1).toMatchObject({
+      hasMore: true, oldestMessageId: 'message-0', isLoadingMore: false,
+    });
+  });
+
+  it('uses the HTTP page cursor even when an older WebSocket message is already present', () => {
+    const empty = messagesReducer(initialMessagesState, {
+      type: 'MERGE_INITIAL_MESSAGES', payload: { conversationId: 'c1', messages: [] },
+    });
+    const withSocket = messagesReducer(empty, {
+      type: 'ADD_MESSAGE', payload: {
+        conversationId: 'c1', message: { id: 'socket', status: 'sent', created_at: 50 } as Message,
+      },
+    });
+    const page = Array.from({ length: 20 }, (_, index) => ({
+      id: `message-${index}`, status: 'sent', created_at: index + 100,
+    } as Message));
+    const refreshed = messagesReducer(withSocket, {
+      type: 'MERGE_INITIAL_MESSAGES', payload: { conversationId: 'c1', messages: page },
+    });
+
+    expect(refreshed.messages.c1[0].id).toBe('socket');
+    expect(refreshed.messageHistory.c1.oldestMessageId).toBe('message-0');
+    expect(refreshed.messageHistory.c1.hasMore).toBe(true);
+  });
+
+  it('deduplicates overlapping historical pages and uses their true oldest item as cursor', () => {
+    const initial = messagesReducer(initialMessagesState, {
+      type: 'SET_MESSAGES',
+      payload: { conversationId: 'c1', messages: [
+        { id: 'middle', status: 'sent', created_at: 200 } as Message,
+        { id: 'latest', status: 'sent', created_at: 300 } as Message,
+      ] },
+    });
+    const next = messagesReducer(initial, {
+      type: 'ADD_PREVIOUS_MESSAGES',
+      payload: { conversationId: 'c1', messages: [
+        { id: 'middle', status: 'sent', created_at: 200 } as Message,
+        { id: 'oldest', status: 'sent', created_at: 100 } as Message,
+      ], hasMore: true },
+    });
+
+    expect(next.messages.c1.map(message => message.id)).toEqual(['oldest', 'middle', 'latest']);
+    expect(next.messageHistory.c1.oldestMessageId).toBe('oldest');
+    expect(next.messageHistory.c1.hasMore).toBe(true);
+
+    const repeated = messagesReducer(next, {
+      type: 'ADD_PREVIOUS_MESSAGES',
+      payload: { conversationId: 'c1', messages: [
+        { id: 'middle', status: 'sent', created_at: 200 } as Message,
+        { id: 'oldest', status: 'sent', created_at: 100 } as Message,
+      ], hasMore: true },
+    });
+    expect(repeated.messages.c1).toHaveLength(3);
+    expect(repeated.messageHistory.c1.hasMore).toBe(false);
+    expect(repeated.messageHistory.c1.oldestMessageId).toBe('oldest');
+  });
+
+  it('removes every cache index when evicting inactive conversations', () => {
+    const loaded = messagesReducer(initialMessagesState, {
+      type: 'SET_MESSAGES', payload: { conversationId: 'old', messages: [] },
+    });
+    const evicted = messagesReducer(loaded, { type: 'EVICT_CONVERSATIONS', payload: ['old'] });
+    expect(evicted.messages.old).toBeUndefined();
+    expect(evicted.messageHistory.old).toBeUndefined();
+    expect(evicted.messagesLoading.old).toBeUndefined();
   });
 });

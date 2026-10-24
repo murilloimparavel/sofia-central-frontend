@@ -83,6 +83,15 @@ const scrollTo = (scroller: HTMLElement, top: number) => {
 };
 
 describe('MessageList auto-scroll (CRM-165)', () => {
+  it('orders ISO timestamps chronologically in the timeline', () => {
+    const newer = makeMessage({ created_at: '2026-10-23T11:00:00Z' });
+    const older = makeMessage({ created_at: '2025-10-23T11:00:00Z' });
+    const { scroller } = renderList([newer, older]);
+
+    expect(Array.from(scroller.querySelectorAll('[data-message-id]')).map(node => node.getAttribute('data-message-id')))
+      .toEqual([older.id, newer.id]);
+  });
+
   beforeEach(() => {
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
       cb(0);
