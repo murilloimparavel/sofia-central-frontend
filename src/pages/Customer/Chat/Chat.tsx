@@ -96,12 +96,18 @@ const Chat = () => {
   // 🔒 RACE CONDITION FIX: Ref para rastrear última conversa carregada
   const lastLoadedConversationRef = useRef<string | null>(null);
 
-  // 🔒 NAVEGAÇÃO MANUAL: Ref para evitar URL sync após ações manuais
-  const isManualNavigationRef = useRef<boolean>(false);
+  // Ignore only the URL echo of a manual navigation. An unrelated browser
+  // navigation must still be synchronized, even if it happens immediately.
+  const manualNavigationRef = useRef<{
+    fromRouteId: string | undefined;
+    targetRouteId: string | undefined;
+  } | null>(null);
 
-  // 🔒 URL SYNC CONTROL: Ref para controlar execução de sincronização
-  const urlSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastUrlSyncRef = useRef<string | null>(null);
+  // Invalidates an in-flight deep-link request as soon as the URL or a manual
+  // selection changes. A slow response must never reopen an old conversation.
+  const urlSyncVersionRef = useRef(0);
+  const currentRouteIdRef = useRef(conversationId);
+  currentRouteIdRef.current = conversationId;
 
   const selectedConvIdRef = useRef<string | null>(conversations.state.selectedConversationId ?? null);
   const setActiveConversationId = messages.setActiveConversationId;
@@ -125,7 +131,9 @@ const Chat = () => {
 
   // Estados locais simplificados
   const [searchInput, setSearchInput] = useState('');
-  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>(
+    () => (conversationId && UUID_V4_REGEX.test(conversationId) ? 'chat' : 'list'),
+  );
   const [isContactSidebarOpen, setIsContactSidebarOpen] = useState(false);
 
   // Coluna de conversas redimensionável via hook atomizado
@@ -152,14 +160,6 @@ const Chat = () => {
   const filterHandlers = useFilterHandlers();
 
   // 🚀 MEMOIZAÇÃO: Computar valores derivados apenas quando necessário
-  const conversationsCount = useMemo(
-    () => conversations.state.conversations.length,
-    [conversations.state.conversations.length],
-  );
-  const isConversationsLoaded = useMemo(
-    () => !conversations.state.conversationsLoading,
-    [conversations.state.conversationsLoading],
-  );
   const selectedConversationIdStr = useMemo(
     () =>
       conversations.state.selectedConversationId
@@ -360,98 +360,93 @@ const Chat = () => {
     return () => clearTimeout(timer);
   }, [conversations.state.selectedConversationId, conversations.state.conversations, messages]);
 
-  // Sincronizar conversa selecionada com URL com debounce
+  // A route change switches the mobile pane before any network request settles.
   useEffect(() => {
-    // 🔒 PROTEÇÃO: Ignorar URL sync durante navegação manual
-    if (isManualNavigationRef.current) {
-      return;
+    setMobileView(conversationId && UUID_V4_REGEX.test(conversationId) ? 'chat' : 'list');
+  }, [conversationId]);
+
+  // Synchronize only when the URL or selection changes. List refreshes must not
+  // restart a specific-conversation request while it is still in flight.
+  useEffect(() => {
+    let cancelled = false;
+    const manualNavigation = manualNavigationRef.current;
+    if (manualNavigation?.targetRouteId === conversationId) {
+      // The router caught up with our own selection; it needs no second select.
+      manualNavigationRef.current = null;
+      return () => {
+        cancelled = true;
+      };
     }
-
-    // 🚀 DEBOUNCE: Limpar timeout anterior se existir
-    if (urlSyncTimeoutRef.current) {
-      clearTimeout(urlSyncTimeoutRef.current);
+    if (manualNavigation?.fromRouteId === conversationId) {
+      // Selection changed before the router committed our navigation.
+      return () => {
+        cancelled = true;
+      };
     }
+    // A different URL came from browser history or another external action.
+    manualNavigationRef.current = null;
 
-    // Criar key única para esta execução
-    const syncKey = `${conversationId || 'null'}-${
-      conversations.state.selectedConversationId || 'null'
-    }`;
+    const syncVersion = ++urlSyncVersionRef.current;
+    const selectionAtStart = selectedConvIdRef.current;
+    const isCurrent = () =>
+      !cancelled &&
+      urlSyncVersionRef.current === syncVersion &&
+      currentRouteIdRef.current === conversationId &&
+      selectedConvIdRef.current === selectionAtStart;
 
-    // 🔒 PROTEÇÃO: Evitar múltiplas execuções para a mesma configuração
-    // MAS permitir nova tentativa quando conversas são carregadas pela primeira vez
-    const shouldSkip = lastUrlSyncRef.current === syncKey && conversationsCount === 0;
-    if (shouldSkip) {
-      return;
-    }
+    const syncUrlWithConversation = async () => {
+      if (conversationId) {
+        const conversationIdStr = String(conversationId);
 
-    lastUrlSyncRef.current = syncKey;
+        // Accept only canonical UUIDs in deep links.
+        if (!UUID_V4_REGEX.test(conversationIdStr)) {
+          navigate('/conversations', { replace: true });
+          return;
+        }
 
-    urlSyncTimeoutRef.current = setTimeout(async () => {
-      const syncUrlWithConversation = async () => {
-        if (conversationId) {
-          // 🔧 FIX: Normalizar conversationId da URL para string
-          const conversationIdStr = String(conversationId);
+        // Do not block a deep link while the whole conversation list loads.
+        let targetConversation = conversations.getConversation(conversationIdStr);
 
-          // Aceitar apenas UUID canônico na URL.
-          if (!UUID_V4_REGEX.test(conversationIdStr)) {
-            navigate('/conversations', { replace: true });
-            return;
-          }
-
-          // 🚀 PARALELO: Não bloquear o deep link aguardando a lista inteira de conversas!
-          // Se a conversa já está na lista local, usa; caso contrário, busca direto da API em paralelo.
-
-          // 🔍 VERIFICAR: Se conversa UUID existe na lista carregada
-          let targetConversation = conversations.getConversation(conversationIdStr);
-
-          if (!targetConversation) {
-            try {
-              // 🔄 FALLBACK: Tentar carregar conversa específica da API
-              targetConversation = await conversations.loadSpecificConversation(conversationIdStr);
-
-              if (!targetConversation) {
-                return;
-              }
-            } catch (error) {
-              console.error('❌ Erro ao carregar conversa específica:', error);
+        if (!targetConversation) {
+          try {
+            targetConversation = await conversations.loadSpecificConversation(conversationIdStr);
+            if (!isCurrent()) return;
+            if (!targetConversation) {
+              setMobileView('list');
+              navigate('/conversations', { replace: true });
               return;
             }
-          }
-
-          const canonicalConversationId = String(targetConversation.uuid || targetConversation.id);
-          const currentSelectedStr = String(conversations.state.selectedConversationId);
-
-          // ✅ PROTEÇÃO: Se já está selecionada corretamente, não fazer nada
-          if (canonicalConversationId === currentSelectedStr) {
+          } catch (error) {
+            if (isCurrent()) {
+              console.error('❌ Erro ao carregar conversa específica:', error);
+              setMobileView('list');
+              navigate('/conversations', { replace: true });
+            }
             return;
           }
-
-          // ✅ SELECIONAR: Conversa existe e não está selecionada
-          conversations.selectConversation(canonicalConversationId);
-          setMobileView('chat');
-        } else if (!conversationId && conversations.state.selectedConversationId) {
-          // Se não há conversationId na URL mas há uma selecionada, limpar seleção
-          conversations.selectConversation(null);
-          setMobileView('list');
         }
-      };
 
-      await syncUrlWithConversation();
-    }, 100); // Debounce de 100ms
+        if (!isCurrent()) return;
+        const canonicalConversationId = String(targetConversation.uuid || targetConversation.id);
+        const currentSelectedStr = String(conversations.state.selectedConversationId);
 
-    // Cleanup no unmount
-    return () => {
-      if (urlSyncTimeoutRef.current) {
-        clearTimeout(urlSyncTimeoutRef.current);
+        if (canonicalConversationId === currentSelectedStr) return;
+
+        conversations.selectConversation(canonicalConversationId);
+        setMobileView('chat');
+      } else if (conversations.state.selectedConversationId && isCurrent()) {
+        conversations.selectConversation(null);
+        setMobileView('list');
       }
     };
+
+    void syncUrlWithConversation();
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    conversationId,
-    selectedConversationIdStr, // 🚀 OTIMIZADO: Usar valor memoizado
-    isConversationsLoaded, // 🚀 OTIMIZADO: Usar valor memoizado
-    conversationsCount, // 🚀 OTIMIZADO: Usar valor memoizado
-  ]);
+  }, [conversationId, selectedConversationIdStr]);
 
   const handleSendMessage = async ({
     content,
@@ -522,14 +517,16 @@ const Chat = () => {
   // UX decision: after resolve/delete, drop to the unselected list rather than
   // auto-advancing to the next conversation. Intentional — mirrors the delete flow.
   const clearSelectionAndGoToList = useCallback(async () => {
-    isManualNavigationRef.current = true;
+    manualNavigationRef.current = {
+      fromRouteId: currentRouteIdRef.current,
+      targetRouteId: undefined,
+    };
+    const navigationVersion = ++urlSyncVersionRef.current;
     await conversations.selectConversation(null);
+    if (urlSyncVersionRef.current !== navigationVersion) return;
     setMobileView('list');
     setIsContactSidebarOpen(false);
     navigate('/conversations', { replace: true });
-    setTimeout(() => {
-      isManualNavigationRef.current = false;
-    }, 100);
   }, [conversations, navigate]);
 
   const handleMarkAsResolved = useCallback(
@@ -847,8 +844,11 @@ const Chat = () => {
 
     setSelectedConversationIds(previous => previous.size === 0 ? previous : new Set());
 
-    // 🔒 MARCAR NAVEGAÇÃO MANUAL para evitar URL sync
-    isManualNavigationRef.current = true;
+    manualNavigationRef.current = {
+      fromRouteId: currentRouteIdRef.current,
+      targetRouteId: conversationIdStr,
+    };
+    urlSyncVersionRef.current += 1;
 
     // 🔧 SEMPRE PASSAR STRING para evitar type mismatch
     conversations.selectConversation(conversationIdStr);
@@ -857,10 +857,6 @@ const Chat = () => {
     // Atualizar URL para incluir o ID da conversa
     navigate(`/conversations/${conversationIdStr}`, { replace: true });
 
-    // 🔒 RESET flag após navegação
-    setTimeout(() => {
-      isManualNavigationRef.current = false;
-    }, 100);
   };
 
   // Message events can render Chat while the sidebar's inputs have not changed.
@@ -891,6 +887,12 @@ const Chat = () => {
   const headerAssignAgent = useEventCallback(handleAssignAgent);
   const headerAssignTeam = useEventCallback(handleAssignTeam);
   const headerAssignTag = useEventCallback(handleAssignTag);
+
+  // While a different deep link loads, do not display the previous contact's
+  // messages under the new URL. The existing empty pane remains in place.
+  const selectedConversationMatchesRoute =
+    Boolean(conversationId && UUID_V4_REGEX.test(conversationId) && selectedConversation) &&
+    String(selectedConversation?.uuid || selectedConversation?.id).toLowerCase() === conversationId?.toLowerCase();
 
   return (
     <ErrorBoundary>
@@ -951,7 +953,7 @@ const Chat = () => {
           flex-1 min-w-0 flex-col h-full min-h-0 max-h-full overflow-hidden
         `}
         >
-          {selectedConversation ? (
+          {selectedConversation && selectedConversationMatchesRoute ? (
             <>
               {/* Chat Header */}
               <ChatHeader
