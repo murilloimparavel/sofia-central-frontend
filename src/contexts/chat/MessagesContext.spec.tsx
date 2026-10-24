@@ -12,6 +12,7 @@ vi.mock('@/services/chat/chatService', () => ({
     getMessages: vi.fn(),
     sendMessage: vi.fn(),
     sendMessageWithAttachments: vi.fn(),
+    deleteMessage: vi.fn(),
   },
 }));
 
@@ -476,6 +477,141 @@ describe('MessagesContext optimizations', () => {
     expect(messagesApi.getMessages('conv-17')).toHaveLength(1);
     await act(async () => { await messagesApi.loadMessages('conv-1'); });
     expect(chatService.getMessages).toHaveBeenCalledTimes(19);
+  });
+
+  it('evicts an oversized inactive history without dropping the active history', async () => {
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+    await act(async () => {
+      messagesApi.setActiveConversationId('active');
+      messagesApi.setMessages('active', [sampleMessage('active-message', 1, 'active')]);
+      messagesApi.setMessages('large', Array.from({ length: 2_001 }, (_, i) =>
+        sampleMessage(`large-${i}`, i + 1, 'large')));
+    });
+
+    expect(messagesApi.getMessages('active').map(message => message.id)).toEqual(['active-message']);
+    expect(messagesApi.getMessages('large')).toHaveLength(0);
+    expect(messagesApi.state.messageHistory.large).toBeUndefined();
+  });
+
+  it('bounds inactive history bytes and prunes a previously active history on navigation', async () => {
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+    const largeContent = 'x'.repeat(2_200_000);
+
+    await act(async () => {
+      messagesApi.setActiveConversationId('first');
+      messagesApi.setMessages('first', [{ ...sampleMessage('first', 1, 'first'), content: largeContent }]);
+      messagesApi.setMessages('second', [{ ...sampleMessage('second', 2, 'second'), content: largeContent }]);
+    });
+    expect(messagesApi.getMessages('first')).toHaveLength(1);
+    expect(messagesApi.getMessages('second')).toHaveLength(1);
+
+    await act(async () => { messagesApi.setActiveConversationId('second'); });
+    expect(messagesApi.getMessages('first')).toHaveLength(1);
+
+    await act(async () => { messagesApi.setActiveConversationId(null); });
+    expect(messagesApi.getMessages('first')).toHaveLength(0);
+    expect(messagesApi.getMessages('second')).toHaveLength(1);
+  });
+
+  it('retains the destination cache through the null cleanup between conversations', async () => {
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+    const largeContent = 'x'.repeat(2_200_000);
+    await act(async () => {
+      // B é o item menos recente: a poda síncrona antiga o removeria no null.
+      messagesApi.setMessages('B', [{ ...sampleMessage('B', 1, 'B'), content: largeContent }]);
+      messagesApi.setActiveConversationId('A');
+      messagesApi.setMessages('A', [{ ...sampleMessage('A', 2, 'A'), content: largeContent }]);
+    });
+
+    await act(async () => {
+      messagesApi.setActiveConversationId(null);
+      messagesApi.setActiveConversationId('B');
+    });
+    expect(messagesApi.getMessages('B').map(message => message.id)).toEqual(['B']);
+    await act(async () => { await messagesApi.loadMessages('B'); });
+    expect(chatService.getMessages).not.toHaveBeenCalledWith('B');
+  });
+
+  it('keeps failed messages and an in-flight sync while the inactive cache exceeds its budget', async () => {
+    let resolveSync!: (value: any) => void;
+    vi.mocked(chatService.getMessages).mockImplementationOnce(() =>
+      new Promise(resolve => { resolveSync = resolve; }));
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+
+    await act(async () => {
+      messagesApi.setActiveConversationId('working');
+      messagesApi.setMessages('working', Array.from({ length: 2_001 }, (_, i) =>
+        sampleMessage(`working-${i}`, i + 1, 'working')));
+      messagesApi.setMessages('failed', [{ ...sampleMessage('failed', 1, 'failed'), status: 'failed' }]);
+    });
+
+    let sync!: Promise<void>;
+    await act(async () => {
+      sync = messagesApi.syncConversationMessages('working');
+      messagesApi.setActiveConversationId('failed');
+    });
+    expect(messagesApi.getMessages('working')).toHaveLength(2_001);
+    expect(messagesApi.getMessages('failed')[0].status).toBe('failed');
+
+    await act(async () => {
+      messagesApi.setActiveConversationId(null);
+      resolveSync({ data: [], meta: { count: 0 } });
+      await sync;
+    });
+    expect(messagesApi.getMessages('working')).toHaveLength(0);
+    expect(messagesApi.getMessages('failed')[0].status).toBe('failed');
+  });
+
+  it('does not evict a conversation while its delete request is in flight', async () => {
+    let resolveDelete!: (value: Message) => void;
+    vi.mocked(chatService.deleteMessage).mockImplementationOnce(() =>
+      new Promise(resolve => { resolveDelete = resolve; }));
+    let messagesApi!: ReturnType<typeof useMessages>;
+    function TestConsumer() {
+      messagesApi = useMessages();
+      return null;
+    }
+    render(<MessagesProvider><TestConsumer /></MessagesProvider>);
+    const history = Array.from({ length: 2_001 }, (_, i) =>
+      sampleMessage(`working-${i}`, i + 1, 'working'));
+    await act(async () => {
+      messagesApi.setActiveConversationId('working');
+      messagesApi.setMessages('working', history);
+    });
+
+    let deletion!: Promise<void>;
+    await act(async () => {
+      deletion = messagesApi.onDeleteMessage('working', history[0]);
+      messagesApi.setActiveConversationId(null);
+    });
+    expect(messagesApi.getMessages('working')).toHaveLength(2_001);
+
+    await act(async () => {
+      resolveDelete({ ...history[0], content: '' });
+      await deletion;
+    });
+    expect(messagesApi.getMessages('working')).toHaveLength(0);
   });
 
   it('sends a text message with the JSON API contract and replaces the pending item', async () => {

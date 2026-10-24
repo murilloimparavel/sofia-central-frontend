@@ -16,6 +16,10 @@ import {
 
 const EMPTY_MESSAGES: Message[] = [];
 const MAX_CACHED_CONVERSATIONS = 16;
+// Históricos inativos podem ficar no cache para troca rápida, mas não indefinidamente.
+// A conversa aberta e mensagens que ainda precisam de reconciliação são preservadas.
+const MAX_CACHED_INACTIVE_MESSAGES = 2_000;
+const MAX_ESTIMATED_INACTIVE_BYTES = 8 * 1024 * 1024;
 const EMPTY_HISTORY_REVALIDATION_MS = 10_000;
 
 interface MessagesContextValue {
@@ -94,36 +98,113 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const syncRequestsRef = useRef<Map<string, Promise<void>>>(new Map());
   const cacheGenerationRef = useRef<Map<string, number>>(new Map());
   const activeConversationIdRef = useRef<string | null>(null);
+  const pendingMutationCountsRef = useRef<Map<string, number>>(new Map());
   const recentConversationIdsRef = useRef<Map<string, number>>(new Map());
   const recencyCounterRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+  const estimatedBytesRef = useRef<WeakMap<Message[], number>>(new WeakMap());
   const touchConversation = useCallback((conversationId: string) => {
     recentConversationIdsRef.current.set(conversationId, ++recencyCounterRef.current);
   }, []);
-  const setActiveConversationId = useCallback((conversationId: string | null) => {
-    activeConversationIdRef.current = conversationId;
-    if (conversationId) touchConversation(conversationId);
-  }, [touchConversation]);
 
-  useEffect(() => {
-    const ids = Object.keys(state.messages);
-    if (ids.length <= MAX_CACHED_CONVERSATIONS) return;
-    const candidates = ids
-      .filter(id => id !== activeConversationIdRef.current &&
-        !state.messagesLoading[id] &&
-        !state.messageHistory[id]?.isLoadingMore &&
+  const estimateHistoryBytes = useCallback((messages: Message[]) => {
+    const cached = estimatedBytesRef.current.get(messages);
+    if (cached !== undefined) return cached;
+    let bytes = 0;
+    for (const message of messages) {
+      // JSON reflete também atributos e URLs de anexos, sem guardar outra cópia
+      // do histórico. Interromper a contagem quando a conversa excede o orçamento.
+      try {
+        bytes += 64 + 2 * JSON.stringify(message).length;
+      } catch {
+        // Mensagens locais com metadados não serializáveis ainda recebem um
+        // custo conservador sem impedir a renderização do inbox.
+        bytes += 4_096 + 2 * (message.content?.length ?? 0);
+      }
+      if (bytes > MAX_ESTIMATED_INACTIVE_BYTES) break;
+    }
+    estimatedBytesRef.current.set(messages, bytes);
+    return bytes;
+  }, []);
+
+  const trimCache = useCallback((currentState: MessagesState) => {
+    if (!mountedRef.current) return;
+    const ids = Object.keys(currentState.messages);
+    const activeId = activeConversationIdRef.current;
+    const inactiveIds = ids.filter(id => id !== activeId);
+    let inactiveCount = 0;
+    let inactiveBytes = 0;
+    for (const id of inactiveIds) {
+      inactiveCount += currentState.messages[id].length;
+      inactiveBytes += estimateHistoryBytes(currentState.messages[id]);
+    }
+    if (ids.length <= MAX_CACHED_CONVERSATIONS &&
+      inactiveCount <= MAX_CACHED_INACTIVE_MESSAGES &&
+      inactiveBytes <= MAX_ESTIMATED_INACTIVE_BYTES) return;
+
+    const candidates = inactiveIds
+      .filter(id => !currentState.messagesLoading[id] &&
+        !currentState.messageHistory[id]?.isLoadingMore &&
         !initialRequestsRef.current.has(id) &&
         ![...syncRequestsRef.current.keys()].some(key => key.startsWith(`${id}:`)) &&
-        !state.messages[id].some(message => message.status === 'progress' || message.status === 'failed'))
+        !pendingMutationCountsRef.current.has(id) &&
+        !currentState.messages[id].some(message => message.status === 'progress' || message.status === 'failed'))
       .sort((a, b) => (recentConversationIdsRef.current.get(a) ?? 0) -
         (recentConversationIdsRef.current.get(b) ?? 0));
-    const evicted = candidates.slice(0, ids.length - MAX_CACHED_CONVERSATIONS);
+    const evicted: string[] = [];
+    for (const id of candidates) {
+      if (ids.length - evicted.length <= MAX_CACHED_CONVERSATIONS &&
+        inactiveCount <= MAX_CACHED_INACTIVE_MESSAGES &&
+        inactiveBytes <= MAX_ESTIMATED_INACTIVE_BYTES) break;
+      evicted.push(id);
+      inactiveCount -= currentState.messages[id].length;
+      inactiveBytes -= estimateHistoryBytes(currentState.messages[id]);
+    }
     if (evicted.length === 0) return;
     evicted.forEach(id => {
       lastSyncedAtRef.current.delete(id);
       recentConversationIdsRef.current.delete(id);
+      cacheGenerationRef.current.set(id, (cacheGenerationRef.current.get(id) ?? 0) + 1);
     });
     dispatch({ type: 'EVICT_CONVERSATIONS', payload: evicted });
-  }, [state.messages, state.messagesLoading, state.messageHistory]);
+  }, [estimateHistoryBytes]);
+
+  const setActiveConversationId = useCallback((conversationId: string | null) => {
+    activeConversationIdRef.current = conversationId;
+    if (conversationId) {
+      touchConversation(conversationId);
+      trimCache(stateRef.current);
+    } else {
+      // O cleanup de A e o setup de B acontecem no mesmo ciclo de efeitos.
+      // Adiar a poda evita descartar B durante o `null` intermediário.
+      queueMicrotask(() => {
+        if (mountedRef.current && activeConversationIdRef.current === null) {
+          trimCache(stateRef.current);
+        }
+      });
+    }
+  }, [touchConversation, trimCache]);
+
+  const beginMutation = useCallback((conversationId: string) => {
+    const counts = pendingMutationCountsRef.current;
+    counts.set(conversationId, (counts.get(conversationId) ?? 0) + 1);
+    return () => {
+      const remaining = (counts.get(conversationId) ?? 1) - 1;
+      if (remaining > 0) counts.set(conversationId, remaining);
+      else counts.delete(conversationId);
+      trimCache(stateRef.current);
+    };
+  }, [trimCache]);
+
+  useEffect(() => {
+    trimCache(stateRef.current);
+  }, [state.messages, state.messagesLoading, state.messageHistory, trimCache]);
 
   // Prefetch e abertura da mesma conversa compartilham a requisição inicial.
   // O state de loading só muda após render, então sozinho não impede o duplo GET.
@@ -199,13 +280,16 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         if (syncRequestsRef.current.get(requestKey) === request) {
           syncRequestsRef.current.delete(requestKey);
         }
+        // Um sync vazio não altera o reducer; ainda assim pode liberar um
+        // histórico antes protegido por requisição para a poda do cache.
+        trimCache(stateRef.current);
       });
 
       syncRequestsRef.current.set(requestKey, request);
       touchConversation(conversationId);
       return request;
     },
-    [state.messages, state.messageHistory, fetchInitialMessages, touchConversation],
+    [state.messages, state.messageHistory, fetchInitialMessages, touchConversation, trimCache],
   );
 
   // Message actions
@@ -632,6 +716,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
 
   const onDeleteMessage = useCallback(
     async (conversationId: string, message: Message) => {
+      const endMutation = beginMutation(conversationId);
       try {
         // Chamar API para deletar mensagem
         const deletedMessage = await chatService.deleteMessage(conversationId, message.id);
@@ -649,13 +734,16 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         toast.success(t('contexts.messages.success.messageDeleted'));
       } catch {
         toast.error(t('contexts.messages.errors.deleteMessage'));
+      } finally {
+        endMutation();
       }
     },
-    [t],
+    [beginMutation, t],
   );
 
   const retryMessage = useCallback(
     async (conversationId: string, messageId: string) => {
+      const endMutation = beginMutation(conversationId);
       try {
         const retriedMessage = await chatService.retryMessage(conversationId, messageId);
         dispatch({ type: 'UPDATE_MESSAGE', payload: { conversationId, message: retriedMessage } });
@@ -665,9 +753,11 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           description: error instanceof Error ? error.message : undefined,
         });
         throw error;
+      } finally {
+        endMutation();
       }
     },
-    [t],
+    [beginMutation, t],
   );
 
   // Direct state manipulation (for WebSocket integration)
