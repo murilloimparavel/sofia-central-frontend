@@ -161,10 +161,12 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
       ? chatService.filterConversations(query.request)
       : chatService.getConversations(query.params);
     // Uma consulta em voo recebe um journal limitado dos eventos posteriores.
-    // Se não for possível reconciliar com segurança, repetimos no máximo duas
-    // vezes; nenhuma resposta obsoleta é aplicada ou salva como cache fresco.
-    const retryDeadline = Date.now() + 2_000;
-    for (let attempt = 0; attempt < 3 && canContinue(); attempt += 1) {
+    // If a response cannot be reconciled safely, wait for realtime activity
+    // to settle and retry within a bounded window. Never apply or cache stale data.
+    const retryDeadline = Date.now() + 8_000;
+    let attempt = 0;
+    while (canContinue() && Date.now() < retryDeadline) {
+      attempt += 1;
       const liveAccountId = useAppDataStore.getState().account?.id;
       if (requestAccountId == null && liveAccountId != null) requestAccountId = liveAccountId;
       const cacheRevision = getConversationQueryCacheRevision();
@@ -183,12 +185,27 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           return true;
         }
       }
-      if (attempt === 2 || Date.now() >= retryDeadline) break;
-      await new Promise(resolve => setTimeout(resolve, 150));
-      if (!canContinue()) return false;
+      // Back off between requests and restart the quiet window when realtime
+      // writes continue. Polling is bounded by the overall deadline.
+      let observedRevision = getConversationQueryCacheRevision();
+      let quietSince = Date.now();
+      const quietDuration = Math.min(250 * attempt, 1_500);
+      while (canContinue() && Date.now() < retryDeadline) {
+        await new Promise(resolve => setTimeout(resolve, Math.min(50, retryDeadline - Date.now())));
+        if (!canContinue()) return false;
+        const currentRevision = getConversationQueryCacheRevision();
+        if (currentRevision !== observedRevision) {
+          observedRevision = currentRevision;
+          quietSince = Date.now();
+        } else if (Date.now() - quietSince >= quietDuration) {
+          break;
+        }
+      }
     }
     if (!canContinue()) return false;
-    throw new Error('A lista mudou durante o carregamento. Tente novamente.');
+    // Realtime remained too active to establish a safe snapshot. Preserve the
+    // current list and report that the user can explicitly retry the query.
+    throw new Error('A lista está recebendo atualizações. Clique na aba novamente para tentar carregar uma versão atual.');
   }, [userId, accountId]);
 
   // Filter actions

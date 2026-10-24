@@ -45,6 +45,11 @@ describe('ConversationScopeTabs', () => {
     expect(tabs[3]).toHaveAttribute('aria-selected', 'false');
   });
 
+  it('leaves all scope tabs unselected for custom filters', () => {
+    render(<ConversationScopeTabs activeFilters={[cf('priority', 'high')]} onSelectScope={vi.fn()} />);
+    expect(screen.getAllByRole('tab').every(tab => tab.getAttribute('aria-selected') === 'false')).toBe(true);
+  });
+
   it('calls onSelectScope with CONVERSATION_SCOPE_PRESETS.bot when Robô tab is clicked', () => {
     const onSelectScope = vi.fn();
     render(<ConversationScopeTabs activeFilters={[]} onSelectScope={onSelectScope} />);

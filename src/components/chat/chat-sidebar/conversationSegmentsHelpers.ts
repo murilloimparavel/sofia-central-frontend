@@ -57,18 +57,16 @@ export const CONVERSATION_SCOPE_PRESETS: Record<ConversationScopeId, BaseFilter[
 export const getActiveConversationScope = (
   active: ConversationFilter[],
 ): ConversationScopeId | null => {
-  const statusFilterItem = active.find(f => f.attribute_key === 'status');
-  const statusValue =
-    statusFilterItem &&
-    (Array.isArray(statusFilterItem.values) ? statusFilterItem.values[0] : statusFilterItem.values);
-
-  if (statusValue === 'pending') return 'bot';
-
-  const filter = active.find(f => f.attribute_key === 'assignee_type' || f.attribute_key === 'assignee_id');
-  const value = filter && (Array.isArray(filter.values) ? filter.values[0] : filter.values);
-  if (value === 'me') return 'mine';
-  if (value === 'unassigned') return 'unassigned';
-  if (value === 'all') return 'all';
+  const valueOf = (filter: ConversationFilter | undefined) =>
+    filter && (Array.isArray(filter.values) ? filter.values[0] : filter.values);
+  const isExact = (expected: Array<[string, string]>) => active.length === expected.length &&
+    expected.every(([key, value]) => active.some(f => f.attribute_key === key &&
+      f.filter_operator === 'equal_to' && (f.query_operator === undefined || f.query_operator === 'and') &&
+      (Array.isArray(f.values) ? f.values.length === 1 : true) && valueOf(f) === value));
+  if (isExact([['assignee_type', 'all'], ['status', 'pending']])) return 'bot';
+  if (isExact([['assignee_type', 'me'], ['status', 'open']])) return 'mine';
+  if (isExact([['assignee_type', 'unassigned'], ['status', 'open']])) return 'unassigned';
+  if (isExact([['assignee_type', 'all'], ['status', 'all']])) return 'all';
   return null;
 };
 
