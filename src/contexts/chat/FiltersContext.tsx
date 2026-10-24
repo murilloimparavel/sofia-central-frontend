@@ -1,10 +1,18 @@
-import React, { createContext, useContext, useReducer, useCallback, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useMemo, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { chatService } from '@/services/chat/chatService';
 import { extractConversationsData } from '@/utils/chat/responseHelpers';
 import { ConversationFilter, QuickFilterTab, Conversation, ConversationsQuery } from '@/types/chat/api';
 import { PaginationMeta } from '@/types/core';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useAuthStore } from '@/store/authStore';
+import { useAppDataStore } from '@/store/appDataStore';
+import {
+  getConversationQueryCache,
+  getConversationQueryCacheRevision,
+  replayConversationQueryEvents,
+  setConversationQueryCache,
+} from '@/utils/chat/conversationQueryCache';
 import {
   convertFiltersToApiFormat,
   convertFiltersToUrlParams,
@@ -102,8 +110,86 @@ const FiltersContext = createContext<FiltersContextValue | undefined>(undefined)
 
 export function FiltersProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage('chat');
+  const userId = useAuthStore(store => store.currentUser?.id);
+  const accountId = useAppDataStore(store => store.account?.id);
   const [state, dispatch] = useReducer(filtersReducer, initialState);
   const latestRequestRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      latestRequestRef.current += 1;
+    };
+  }, []);
+
+  // Um cache fresco substitui a lista uma única vez e não dispara REST. Quando
+  // expira, a lista atual permanece visível até a resposta chegar, evitando o
+  // ciclo cache→rede que causava flash e mudança brusca do scroll.
+  const resolveQuery = useCallback(async (
+    query: ConversationsQuery,
+    requestId: number,
+    onSuccess: (conversations: Conversation[], pagination: PaginationMeta, query: ConversationsQuery) => void,
+  ): Promise<boolean> => {
+    if (useAuthStore.getState().currentUser?.id !== userId) return false;
+    // Na abertura, a conta pode chegar enquanto a lista já carrega. Adoção é
+    // permitida apenas de conta ausente para definida; troca de conta/sessão
+    // descarta a resposta antiga.
+    let requestAccountId = accountId;
+    const initialAccountId = useAppDataStore.getState().account?.id;
+    if (requestAccountId !== initialAccountId) {
+      if (requestAccountId == null && initialAccountId != null) requestAccountId = initialAccountId;
+      else return false;
+    }
+    const cached = getConversationQueryCache(userId, requestAccountId, query);
+    if (cached) {
+      if (requestId !== latestRequestRef.current) return false;
+      onSuccess(cached.conversations, cached.pagination, query);
+      return true;
+    }
+
+    dispatch({ type: 'SET_APPLYING_FILTERS', payload: true });
+    const canContinue = () => {
+      const liveAccountId = useAppDataStore.getState().account?.id;
+      return mountedRef.current && requestId === latestRequestRef.current &&
+        useAuthStore.getState().currentUser?.id === userId &&
+        (liveAccountId === requestAccountId ||
+          (requestAccountId == null && liveAccountId != null));
+    };
+    const fetchQuery = () => query.kind === 'filter'
+      ? chatService.filterConversations(query.request)
+      : chatService.getConversations(query.params);
+    // Uma consulta em voo recebe um journal limitado dos eventos posteriores.
+    // Se não for possível reconciliar com segurança, repetimos no máximo duas
+    // vezes; nenhuma resposta obsoleta é aplicada ou salva como cache fresco.
+    const retryDeadline = Date.now() + 2_000;
+    for (let attempt = 0; attempt < 3 && canContinue(); attempt += 1) {
+      const liveAccountId = useAppDataStore.getState().account?.id;
+      if (requestAccountId == null && liveAccountId != null) requestAccountId = liveAccountId;
+      const cacheRevision = getConversationQueryCacheRevision();
+      const response = await fetchQuery();
+      if (!canContinue()) return false;
+      const sameAccount = useAppDataStore.getState().account?.id === requestAccountId;
+      const extracted = extractConversationsData(response);
+      if (sameAccount) {
+        const entry = { ...extracted, query };
+        const safeEntry = cacheRevision === getConversationQueryCacheRevision()
+          ? entry
+          : replayConversationQueryEvents(userId, requestAccountId, cacheRevision, entry);
+        if (safeEntry) {
+          onSuccess(safeEntry.conversations, safeEntry.pagination, query);
+          setConversationQueryCache(userId, requestAccountId, safeEntry);
+          return true;
+        }
+      }
+      if (attempt === 2 || Date.now() >= retryDeadline) break;
+      await new Promise(resolve => setTimeout(resolve, 150));
+      if (!canContinue()) return false;
+    }
+    if (!canContinue()) return false;
+    throw new Error('A lista mudou durante o carregamento. Tente novamente.');
+  }, [userId, accountId]);
 
   // Filter actions
   const setFilters = useCallback((filters: ConversationFilter[]) => {
@@ -117,31 +203,14 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
       onError: (error: string) => void,
     ) => {
       const requestId = ++latestRequestRef.current;
-      dispatch({ type: 'SET_APPLYING_FILTERS', payload: true });
 
       try {
-        if (filters.length === 0) {
-          // Se não há filtros, carregar conversas normais
-          const response = await chatService.getConversations();
-          const { conversations, pagination } = extractConversationsData(response);
-          if (requestId !== latestRequestRef.current) return;
-          onSuccess(conversations, pagination, { kind: 'list', params: {} });
-          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
-        } else if (shouldUseAdvancedFilters(filters)) {
-          // Usar filtros avançados (POST /filter)
-          const filterRequest = convertFiltersToApiFormat(filters);
-          const response = await chatService.filterConversations(filterRequest);
-          const { conversations, pagination } = extractConversationsData(response);
-          if (requestId !== latestRequestRef.current) return;
-          onSuccess(conversations, pagination, { kind: 'filter', request: filterRequest });
-          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
-        } else {
-          // Usar filtros simples (GET /conversations)
-          const params = convertFiltersToUrlParams(filters);
-          const response = await chatService.getConversations(params);
-          const { conversations, pagination } = extractConversationsData(response);
-          if (requestId !== latestRequestRef.current) return;
-          onSuccess(conversations, pagination, { kind: 'list', params });
+        const query: ConversationsQuery = filters.length === 0
+          ? { kind: 'list', params: {} }
+          : shouldUseAdvancedFilters(filters)
+            ? { kind: 'filter', request: convertFiltersToApiFormat(filters) }
+            : { kind: 'list', params: convertFiltersToUrlParams(filters) };
+        if (await resolveQuery(query, requestId, onSuccess)) {
           dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         }
       } catch (error) {
@@ -158,7 +227,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [t],
+    [t, resolveQuery],
   );
 
   const applySearch = useCallback(
@@ -177,10 +246,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
         } else {
           // Carregar conversas normais
           try {
-            const response = await chatService.getConversations();
-            const { conversations, pagination } = extractConversationsData(response);
-            if (requestId !== latestRequestRef.current) return;
-            onSuccess(conversations, pagination, { kind: 'list', params: {} });
+            await resolveQuery({ kind: 'list', params: {} }, requestId, onSuccess);
           } catch (error) {
             if (requestId !== latestRequestRef.current) return;
             const errorMessage =
@@ -197,11 +263,9 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      dispatch({ type: 'SET_APPLYING_FILTERS', payload: true });
-
       try {
         const searchParams = createSearchFilter(searchTerm);
-        let finalParams = searchParams;
+        let query: ConversationsQuery;
 
         // Combinar busca com filtros ativos se houver
         if (state.activeFilters.length > 0) {
@@ -211,21 +275,16 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
               ...convertFiltersToApiFormat(state.activeFilters),
               q: searchTerm,
             };
-            const response = await chatService.filterConversations(filterRequest);
-            const { conversations, pagination } = extractConversationsData(response);
-            if (requestId !== latestRequestRef.current) return;
-            onSuccess(conversations, pagination, { kind: 'filter', request: filterRequest });
-            return;
+            query = { kind: 'filter', request: filterRequest };
           } else {
             const filterParams = convertFiltersToUrlParams(state.activeFilters);
-            finalParams = combineSearchWithFilters(searchParams, filterParams);
+            query = { kind: 'list', params: combineSearchWithFilters(searchParams, filterParams) };
           }
+        } else {
+          query = { kind: 'list', params: searchParams };
         }
 
-        const response = await chatService.getConversations(finalParams);
-        const { conversations, pagination } = extractConversationsData(response);
-        if (requestId !== latestRequestRef.current) return;
-        onSuccess(conversations, pagination, { kind: 'list', params: finalParams });
+        await resolveQuery(query, requestId, onSuccess);
       } catch (error) {
         if (requestId !== latestRequestRef.current) return;
         const errorMessage =
@@ -240,7 +299,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [state.activeFilters, applyFilters, t],
+    [state.activeFilters, applyFilters, t, resolveQuery],
   );
 
   const setQuickFilter = useCallback((tab: QuickFilterTab) => {

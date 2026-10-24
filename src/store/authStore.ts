@@ -4,6 +4,8 @@ import { validateToken } from '@/services/auth/authService';
 import { tourService } from '@/services/tours/tourService';
 import { useAppDataStore } from './appDataStore';
 import { normalizeAvatarUrl } from '@/utils/avatarUrl';
+import { clearConversationQueryCache } from '@/utils/chat/conversationQueryCache';
+import { clearScopeCache } from '@/utils/chat/conversationScopeCache';
 
 interface ImpersonationData {
   adminUser: UserResponse;
@@ -65,6 +67,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
     tours: {},
 
     setUser: user => {
+      if (String(get().currentUser?.id ?? '') !== String(user?.id ?? '')) {
+        clearConversationQueryCache();
+        clearScopeCache();
+      }
       const isLoggedIn = checkIsLoggedIn(user);
       set({
         currentUser: user,
@@ -104,6 +110,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     clearUser: () => {
+      clearConversationQueryCache();
+      clearScopeCache();
       localStorage.removeItem('access_token');
       set({
         currentUser: null,
@@ -173,6 +181,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const currentState = get();
 
       if (currentState.currentUser && currentState.accessToken) {
+        clearConversationQueryCache();
+        clearScopeCache();
         set({
           impersonation: {
             adminUser: currentState.currentUser,
@@ -220,6 +230,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const impersonationData = get().impersonation;
 
       if (impersonationData) {
+        clearConversationQueryCache();
+        clearScopeCache();
         set({
           currentUser: impersonationData.adminUser,
           accessToken: impersonationData.adminToken,

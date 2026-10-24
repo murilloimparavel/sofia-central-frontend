@@ -9,6 +9,8 @@ import type { User } from '@/types/users';
 import type { Inbox } from '@/types/channels/inbox';
 import type { Label } from '@/types/settings';
 import type { Team } from '@/types/users';
+import { clearConversationQueryCache } from '@/utils/chat/conversationQueryCache';
+import { clearScopeCache } from '@/utils/chat/conversationScopeCache';
 
 interface AppDataState {
   // Data
@@ -93,6 +95,10 @@ export const useAppDataStore = create<AppDataState>((set, get) => ({
     set({ isLoadingAccount: true });
     try {
       const result = await accountService.getAccount();
+      if (state.account?.id && state.account.id !== result.id) {
+        clearConversationQueryCache();
+        clearScopeCache();
+      }
       set({
         account: result,
         isLoadingAccount: false,
@@ -236,6 +242,8 @@ export const useAppDataStore = create<AppDataState>((set, get) => ({
   },
 
   clearAppData: () => {
+    clearConversationQueryCache();
+    clearScopeCache();
     set({
       account: null,
       agents: [],

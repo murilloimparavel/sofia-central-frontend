@@ -9,6 +9,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { chatService } from '@/services/chat/chatService';
 import { conversationAPI } from '@/services/conversations/conversationService';
 import { useUnansweredConversationsStore } from '@/store/unansweredConversationsStore';
+import { useAppDataStore } from '@/store/appDataStore';
 
 import { toast } from 'sonner';
 
@@ -21,6 +22,12 @@ import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
 import { matchesConversationId } from '@/utils/chat/conversationMatcher';
 import { useOptionalAuth } from '@/contexts/AuthContext';
 import { doesConversationMatchQuery } from '@/utils/chat/conversationMatch';
+import {
+  evictConversationFromQueryCache,
+  invalidateConversationQueryCache,
+  patchUnreadInConversationQueryCache,
+  reconcileConversationQueryCache,
+} from '@/utils/chat/conversationQueryCache';
 
 export function ConversationsProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage('chat');
@@ -207,14 +214,21 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
           if (!finalCheck) {
             if (matchesCurrentView) {
+              reconcileConversationQueryCache(conversation);
               dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
             } else {
               dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
             }
           } else {
             if (matchesCurrentView) {
+              reconcileConversationQueryCache(conversation);
               dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
             } else {
+              evictConversationFromQueryCache(conversationKey, {
+                query: currentQueryRef.current,
+                userId: currentUser?.id,
+                accountId: useAppDataStore.getState().account?.id,
+              });
               dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationKey });
               dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
             }
@@ -291,6 +305,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         if (unreadCount > 0 && !alreadyMarked) {
           lastMarkedReadRef.current.add(canonicalConversationId);
           void chatService.markConversationAsRead(canonicalConversationId).then(() => {
+            patchUnreadInConversationQueryCache(canonicalConversationId, 0);
             // Atualizar estado local para garantir persistência
             dispatch({
               type: 'UPDATE_UNREAD_COUNT',
@@ -332,6 +347,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     ) => {
       try {
         const response = await chatService.updateConversationStatus(conversationId, status);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -372,6 +388,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string, onFilterReload?: () => Promise<void>) => {
       try {
         const response = await chatService.returnConversationToBot(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -410,6 +427,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     ) => {
       try {
         const response = await chatService.updateConversationPriority(conversationId, priority);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -448,6 +466,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string, onFilterReload?: () => Promise<void>) => {
       try {
         const response = await chatService.pinConversation(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -487,6 +506,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string, onFilterReload?: () => Promise<void>) => {
       try {
         const response = await chatService.unpinConversation(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -530,6 +550,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     ) => {
       try {
         const response = await chatService.archiveConversation(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -579,6 +600,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     ) => {
       try {
         const response = await chatService.unarchiveConversation(conversationId);
+        invalidateConversationQueryCache();
 
         if (response && response.data && response.data.id) {
           dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
@@ -621,6 +643,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   );
 
   const updateContactInConversations = useCallback((updatedContact: Contact) => {
+    invalidateConversationQueryCache();
     dispatch({ type: 'UPDATE_CONTACT_IN_CONVERSATIONS', payload: updatedContact });
   }, []);
 
@@ -630,16 +653,23 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
       console.warn('updateConversation: Invalid conversation data', conversation);
       return;
     }
+    reconcileConversationQueryCache(conversation);
     dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
   }, []);
 
   const addConversation = useCallback((conversation: Conversation) => {
+    reconcileConversationQueryCache(conversation);
     dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
   }, []);
 
   const removeConversation = useCallback((conversationId: string) => {
+    evictConversationFromQueryCache(conversationId, {
+      query: currentQueryRef.current,
+      userId: currentUser?.id,
+      accountId: useAppDataStore.getState().account?.id,
+    });
     dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationId });
-  }, []);
+  }, [currentUser?.id]);
 
   const cleanupDuplicates = useCallback(() => {
     dispatch({ type: 'CLEANUP_DUPLICATES' });
@@ -666,6 +696,8 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
   const updateUnreadCount = useCallback(
     (conversationId: string, count: number) => {
+      unreadCountsRef.current = { ...unreadCountsRef.current, [conversationId]: count };
+      patchUnreadInConversationQueryCache(conversationId, count);
       dispatch({
         type: 'UPDATE_UNREAD_COUNT',
         payload: { conversationId, count },
@@ -677,27 +709,39 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
   const updateConversationLastActivity = useCallback(
     (conversationId: string, lastActivityAt: string) => {
+      const current = findConversationByAnyId(conversationId);
+      if (current) {
+        reconcileConversationQueryCache({ ...current, last_activity_at: lastActivityAt });
+      } else {
+        invalidateConversationQueryCache();
+      }
       dispatch({
         type: 'UPDATE_CONVERSATION_LAST_ACTIVITY',
         payload: { conversationId, lastActivityAt },
       });
     },
-    [],
+    [findConversationByAnyId],
   );
 
   const incrementUnreadCount = useCallback((conversationId: string) => {
+    const current = findConversationByAnyId(conversationId);
+    const currentCount = unreadCountsRef.current[conversationId] ?? current?.unread_count ?? 0;
+    unreadCountsRef.current = { ...unreadCountsRef.current, [conversationId]: currentCount + 1 };
+    patchUnreadInConversationQueryCache(conversationId, currentCount + 1);
     dispatch({
       type: 'INCREMENT_UNREAD_COUNT',
       payload: { conversationId },
     });
     useUnansweredConversationsStore.getState().fetch();
-  }, []);
+  }, [findConversationByAnyId]);
 
   const addHiddenConversation = useCallback((conversation: Conversation) => {
+    reconcileConversationQueryCache(conversation);
     dispatch({ type: 'ADD_HIDDEN_CONVERSATION', payload: conversation });
   }, []);
 
   const revealHiddenConversations = useCallback(() => {
+    invalidateConversationQueryCache();
     dispatch({ type: 'REVEAL_HIDDEN_CONVERSATIONS' });
   }, []);
 
@@ -706,6 +750,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string, options?: { silent?: boolean }) => {
       try {
         await conversationAPI.deleteConversation(conversationId);
+        invalidateConversationQueryCache();
 
         // Remove from local state
         dispatch({ type: 'REMOVE_CONVERSATION', payload: conversationId });
@@ -739,6 +784,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
       try {
         lastMarkedReadRef.current.add(conversationId);
         await conversationAPI.markAsRead(conversationId);
+        patchUnreadInConversationQueryCache(conversationId, 0);
 
         dispatch({
           type: 'UPDATE_UNREAD_COUNT',
@@ -773,6 +819,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         await conversationAPI.markAsUnread(conversationId);
 
         const currentCount = state.unreadCounts[conversationId] || 0;
+        patchUnreadInConversationQueryCache(conversationId, Math.max(1, currentCount));
         dispatch({
           type: 'UPDATE_UNREAD_COUNT',
           payload: { conversationId, count: Math.max(1, currentCount) },
@@ -802,6 +849,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string) => {
       try {
         const updatedConversation = await conversationAPI.updateStatus(conversationId, 'resolved');
+        invalidateConversationQueryCache();
 
         // Update local state
         if (updatedConversation && updatedConversation.id) {
@@ -834,6 +882,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     async (conversationId: string) => {
       try {
         const updatedConversation = await conversationAPI.updateStatus(conversationId, 'pending');
+        invalidateConversationQueryCache();
 
         // Update local state
         if (updatedConversation && updatedConversation.id) {
@@ -867,6 +916,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           conversationId,
           assigneeId,
         );
+        invalidateConversationQueryCache();
         dispatch({
           type: 'UPDATE_CONVERSATION',
           payload: updatedConversation as unknown as Conversation,
@@ -903,6 +953,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           null,
           teamId,
         );
+        invalidateConversationQueryCache();
 
         // Update local state
         dispatch({
@@ -933,6 +984,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   const assignLabels = useCallback(async (conversationId: string, labels: string[]) => {
     try {
       await conversationAPI.addLabels(conversationId, labels);
+      invalidateConversationQueryCache();
     } catch (error) {
       console.error('Error assigning labels:', error);
       toast.error(t('contexts.conversations.errors.assignLabels'), {
