@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from 'react';
+import ChunkLoadErrorBoundary from '@/components/ChunkLoadErrorBoundary';
 import './CommercialAssistantPopup.css';
-import CommercialAssistantPanel from './CommercialAssistantPanel';
+
+const CommercialAssistantPanel = lazy(() => import('./CommercialAssistantPanel'));
 const POSITION_STORAGE_KEY = 'commercial-assistant-trigger-position';
 const DEFAULT_POSITION = { right: 88, bottom: 96 };
 const DOCK_EDGE = 28;
@@ -246,7 +248,11 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
               <CloseIcon />
             </button>
           </header>
-          <CommercialAssistantPanel />
+          <ChunkLoadErrorBoundary>
+            <Suspense fallback={<div className="ca-panel-content" aria-busy="true" role="status">Carregando assistente…</div>}>
+              <CommercialAssistantPanel />
+            </Suspense>
+          </ChunkLoadErrorBoundary>
         </section>
       )}
 
