@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import MessageAudio from './MessageAudio';
 import { Attachment } from '@/types/chat/api';
 import { useAudioPlaybackStore } from '@/store/audioPlaybackStore';
@@ -46,6 +46,12 @@ describe('MessageAudio Mobile & Reliability', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAudioPlaybackStore.getState().stopActiveAudio();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('renders audio attachments with 44x44 play button and formatted duration', () => {
@@ -167,5 +173,45 @@ describe('MessageAudio Mobile & Reliability', () => {
 
     expect(play).toHaveBeenCalledTimes(1);
     expect(useAudioPlaybackStore.getState().activeUrl).toBe('https://example.com/audio1.ogg');
+  });
+
+  it('defers unknown-duration metadata until the audio approaches the viewport', () => {
+    let onIntersect: IntersectionObserverCallback = () => undefined;
+    const observe = vi.fn();
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) { onIntersect = callback; }
+      observe = observe;
+      disconnect = vi.fn();
+    });
+
+    const setMediaSrc = vi.spyOn(window.HTMLMediaElement.prototype, 'src', 'set');
+    window.HTMLMediaElement.prototype.load = vi.fn();
+
+    const withoutBackendDuration = { ...mockAttachments[0], meta: {} };
+    render(<MessageAudio attachments={[withoutBackendDuration]} />);
+
+    expect(observe).toHaveBeenCalledTimes(1);
+    expect(setMediaSrc).not.toHaveBeenCalled();
+
+    act(() => onIntersect([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver));
+
+    expect(setMediaSrc).toHaveBeenCalledWith(withoutBackendDuration.data_url);
+  });
+
+  it('cancels pending duration probes when navigating away from the conversation', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('IntersectionObserver', undefined);
+    const setMediaSrc = vi.spyOn(window.HTMLMediaElement.prototype, 'src', 'set');
+    window.HTMLMediaElement.prototype.load = vi.fn();
+
+    const attachments = mockAttachments.map(attachment => ({ ...attachment, meta: {} }));
+    const { unmount } = render(<MessageAudio attachments={attachments} />);
+    expect(setMediaSrc).toHaveBeenCalledWith(attachments[0].data_url);
+
+    unmount();
+    act(() => vi.advanceTimersByTime(100));
+
+    expect(setMediaSrc).not.toHaveBeenCalledWith(attachments[1].data_url);
+    expect(window.HTMLMediaElement.prototype.load).toHaveBeenCalledTimes(1);
   });
 });

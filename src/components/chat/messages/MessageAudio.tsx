@@ -50,8 +50,11 @@ const getSharedDurationAudio = (): HTMLAudioElement => {
 };
 
 // Fila sequencial de duração para evitar esgotamento de hardware de mídia no celular
-const durationQueue: Array<{ url: string; attachmentId?: string | number; callback: (dur: number) => void }> = [];
+type DurationJob = { url: string; callback: (dur: number) => void; cancelled: boolean };
+const durationQueue: DurationJob[] = [];
 let isProcessingDurationQueue = false;
+let activeDurationJob: DurationJob | null = null;
+let cancelActiveDurationJob: (() => void) | null = null;
 
 const processDurationQueue = () => {
   if (isProcessingDurationQueue || durationQueue.length === 0) return;
@@ -65,21 +68,25 @@ const processDurationQueue = () => {
 
   const audio = getSharedDurationAudio();
   let finished = false;
+  activeDurationJob = item;
 
   const cleanup = () => {
     if (finished) return;
     finished = true;
+    clearTimeout(timeoutId);
     audio.removeEventListener('loadedmetadata', onLoaded);
     audio.removeEventListener('error', onError);
     audio.removeAttribute('src');
     audio.load(); // Libera decodificador de mídia
+    activeDurationJob = null;
+    cancelActiveDurationJob = null;
     isProcessingDurationQueue = false;
     setTimeout(processDurationQueue, 30);
   };
 
   const onLoaded = () => {
     const dur = audio.duration;
-    if (dur && !isNaN(dur) && isFinite(dur) && dur > 0) {
+    if (!item.cancelled && dur && !isNaN(dur) && isFinite(dur) && dur > 0) {
       item.callback(dur);
     }
     cleanup();
@@ -89,18 +96,36 @@ const processDurationQueue = () => {
     cleanup();
   };
 
-  audio.addEventListener('loadedmetadata', onLoaded);
-  audio.addEventListener('error', onError);
-  audio.src = item.url;
-
-  // Timeout de segurança para nunca travar a fila
-  setTimeout(() => {
+  // Timeout de segurança para nunca travar a fila.
+  const timeoutId = setTimeout(() => {
     if (!finished) cleanup();
   }, 4000);
+  audio.addEventListener('loadedmetadata', onLoaded);
+  audio.addEventListener('error', onError);
+  cancelActiveDurationJob = cleanup;
+  audio.src = item.url;
+};
+
+const queueDuration = (url: string, callback: (dur: number) => void) => {
+  const item: DurationJob = { url, callback, cancelled: false };
+  durationQueue.push(item);
+  processDurationQueue();
+
+  return () => {
+    item.cancelled = true;
+    const index = durationQueue.indexOf(item);
+    if (index >= 0) durationQueue.splice(index, 1);
+    if (activeDurationJob === item) cancelActiveDurationJob?.();
+  };
 };
 
 // Cache global de durações
 const globalDurationsCache: Record<string, number> = {};
+
+const getBackendDuration = (attachment: Attachment): number => {
+  const duration = Number(attachment.meta?.duration || attachment.meta?.seconds);
+  return Number.isFinite(duration) && duration > 0 ? duration : 0;
+};
 
 const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
   const { t } = useLanguage('chat');
@@ -111,7 +136,11 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [durations, setDurations] = useState<Record<string, number>>({});
+  const [shouldLoadMissingDurations, setShouldLoadMissingDurations] = useState(
+    typeof IntersectionObserver === 'undefined',
+  );
   const audioRef = useRef<HTMLAudioElement>(null);
+  const audioListRef = useRef<HTMLDivElement>(null);
   const playPromiseRef = useRef<Promise<void> | null>(null);
   const playbackRequestRef = useRef(0);
 
@@ -306,50 +335,58 @@ const MessageAudio: React.FC<MessageAudioProps> = ({ attachments }) => {
     };
   }, [resetPlaybackState]);
 
-  // Carregar durações de forma leve e sequencial
+  // Consultar metadados apenas para áudios próximos da área visível.
   useEffect(() => {
+    if (shouldLoadMissingDurations) return;
+    const element = audioListRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setShouldLoadMissingDurations(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '400px' });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [shouldLoadMissingDurations]);
+
+  // Cancelar as consultas pendentes quando a conversa sai da tela.
+  useEffect(() => {
+    if (!shouldLoadMissingDurations) return;
+    const cancelJobs: Array<() => void> = [];
     attachments.forEach((attachment) => {
       if (!attachment.data_url) return;
       const url = attachment.data_url;
 
-      // 1. Verificar metadata duration se veio do backend
-      const metaDuration = (attachment.meta?.duration as number) || (attachment.meta?.seconds as number);
-      if (metaDuration && metaDuration > 0) {
-        setDurations(prev => ({ ...prev, [url]: metaDuration }));
+      const metaDuration = getBackendDuration(attachment);
+      if (metaDuration) {
         globalDurationsCache[url] = metaDuration;
         return;
       }
+      if (globalDurationsCache[url]) return;
 
-      // 2. Verificar cache global
-      if (globalDurationsCache[url]) {
-        setDurations(prev => ({ ...prev, [url]: globalDurationsCache[url] }));
-        return;
-      }
-
-      // 3. Adicionar à fila sequencial leve sem injetar nós no DOM
-      durationQueue.push({
-        url,
-        attachmentId: attachment.id,
-        callback: (dur: number) => {
-          globalDurationsCache[url] = dur;
-          setDurations(prev => ({ ...prev, [url]: dur }));
-        },
-      });
-      processDurationQueue();
+      cancelJobs.push(queueDuration(url, dur => {
+        globalDurationsCache[url] = dur;
+        setDurations(prev => ({ ...prev, [url]: dur }));
+      }));
     });
-  }, [attachments]);
+    return () => cancelJobs.forEach(cancel => cancel());
+  }, [attachments, shouldLoadMissingDurations]);
 
   return (
     <>
       {/* Elemento de áudio com playsInline para iOS e sem poluição de DOM */}
       <audio ref={audioRef} preload="metadata" playsInline webkit-playsinline="true" />
 
-      <div className="space-y-2">
+      <div ref={audioListRef} className="space-y-2">
         {attachments
           .filter(attachment => attachment && attachment.data_url && attachment.data_url.trim() !== '')
           .map((attachment, index) => {
             const isCurrentlyPlaying = currentPlaying === attachment.data_url && isPlaying;
-            const itemDuration = durations[attachment.data_url] || (currentPlaying === attachment.data_url ? duration : 0);
+            const itemDuration = durations[attachment.data_url] || getBackendDuration(attachment)
+              || globalDurationsCache[attachment.data_url]
+              || (currentPlaying === attachment.data_url ? duration : 0);
             const progressValue = itemDuration > 0 && currentPlaying === attachment.data_url
               ? Math.min(100, Math.max(0, (currentTime / itemDuration) * 100))
               : 0;
