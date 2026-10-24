@@ -65,6 +65,7 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 
 // ─── Chat context ─────────────────────────────────────────────────────────────
 const mockSelectConversation = vi.fn().mockResolvedValue(undefined);
+const mockSetActiveConversationId = vi.hoisted(() => vi.fn());
 
 vi.mock('@/contexts/chat/ChatContext', () => ({
   useChatContext: () => ({
@@ -86,6 +87,7 @@ vi.mock('@/contexts/chat/ChatContext', () => ({
     messages: {
       loadMessages: vi.fn(),
       loadMoreMessages: vi.fn(),
+      setActiveConversationId: mockSetActiveConversationId,
       state: { messages: [], messagesLoading: false },
     },
     selectedConversation: mockSelectedConversation.value,

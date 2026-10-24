@@ -4,6 +4,7 @@ import {
   useRef,
   useCallback,
   useMemo,
+  memo,
   type CSSProperties,
 } from 'react';
 import { Button } from '@evoapi/design-system/button';
@@ -39,7 +40,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useChatContext } from '@/contexts/chat/ChatContext';
+import { useChatConversations, useChatFilters } from '@/contexts/chat/ChatContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useOptionalAuth } from '@/contexts/AuthContext';
 import { Conversation, ConversationFilter } from '@/types/chat/api';
@@ -154,9 +155,9 @@ const ChatSidebar = ({
 }: ChatSidebarProps) => {
   const { t } = useLanguage('chat');
   const { user: currentUser } = useOptionalAuth() ?? {};
-  const chatContext = useChatContext();
   // Explicitly type conversations to ensure TypeScript recognizes it has 'state'
-  const conversations = chatContext.conversations as typeof chatContext.conversations & {
+  const conversationContext = useChatConversations();
+  const conversations = conversationContext as typeof conversationContext & {
     state: {
       conversations: Conversation[];
       conversationsLoading: boolean;
@@ -173,7 +174,7 @@ const ChatSidebar = ({
     loadConversations: (params?: unknown) => Promise<void>;
     loadMoreConversations: () => Promise<void>;
   };
-  const filters = chatContext.filters;
+  const filters = useChatFilters();
   const { can } = usePermissions();
   const [conversationFilters, setConversationFilters] = useState<BaseFilter[]>([]);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -900,4 +901,4 @@ const ChatSidebar = ({
   );
 };
 
-export default ChatSidebar;
+export default memo(ChatSidebar);

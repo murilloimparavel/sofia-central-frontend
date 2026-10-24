@@ -967,32 +967,32 @@ export function useChatContext() {
 // ============================================================================
 
 export function useChatMessages() {
-  return useChatContext().messages;
+  return useMessagesOriginal();
 }
 
 export function useChatConversations() {
-  return useChatContext().conversations;
+  return useConversationsOriginal();
 }
 
 export function useChatFilters() {
-  return useChatContext().filters;
+  return useFiltersOriginal();
 }
 
 export function useChatUI() {
-  return useChatContext().ui;
+  return useUIOriginal();
 }
 
 export function useChatWebSocket() {
-  return useChatContext().websocket;
+  return useWebSocketContextOriginal();
 }
 
 export function useSelectedConversation(): Conversation | null {
-  return useChatContext().selectedConversation;
+  return useConversationsOriginal().selectedConversation;
 }
 
 export function useSelectedConversationId(): string | null {
-  const { conversations } = useChatContext();
-  return conversations.state.selectedConversationId ? String(conversations.state.selectedConversationId) : null;
+  const { state } = useConversationsOriginal();
+  return state.selectedConversationId ? String(state.selectedConversationId) : null;
 }
 
 export function useIsConversationSelected(conversationId: string | number): boolean {

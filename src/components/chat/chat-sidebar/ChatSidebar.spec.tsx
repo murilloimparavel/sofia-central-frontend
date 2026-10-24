@@ -142,6 +142,8 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 
 vi.mock('@/contexts/chat/ChatContext', () => ({
   useChatContext: () => overrideContext ?? makeMockContext(),
+  useChatConversations: () => (overrideContext ?? makeMockContext()).conversations,
+  useChatFilters: () => (overrideContext ?? makeMockContext()).filters,
 }));
 
 const defaultProps = {

@@ -13,6 +13,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { useConversationHandlers } from '@/hooks/chat/useConversationHandlers';
 import { useAssignmentHandlers } from '@/hooks/chat/useAssignmentHandlers';
 import { useFilterHandlers } from '@/hooks/chat/useFilterHandlers';
+import { useEventCallback } from '@/hooks/chat/useEventCallback';
 
 import { loadConversationFilters, getDefaultFilter } from '@/utils/storage/filtersStorage';
 import { CONVERSATION_SEGMENTS } from '@/components/chat/chat-sidebar/conversationSegmentsHelpers';
@@ -103,9 +104,17 @@ const Chat = () => {
   const lastUrlSyncRef = useRef<string | null>(null);
 
   const selectedConvIdRef = useRef<string | null>(conversations.state.selectedConversationId ?? null);
+  const setActiveConversationId = messages.setActiveConversationId;
   useEffect(() => {
     selectedConvIdRef.current = conversations.state.selectedConversationId ?? null;
   }, [conversations.state.selectedConversationId]);
+
+  // Keep the open conversation protected from the bounded message cache.
+  // This runs only when selection changes, not on every message state update.
+  useEffect(() => {
+    setActiveConversationId(conversations.state.selectedConversationId ?? null);
+    return () => setActiveConversationId(null);
+  }, [conversations.state.selectedConversationId, setActiveConversationId]);
 
   // 🔄 CARREGAR MAIS MENSAGENS: Função simples via Context
   const handleLoadMore = useCallback(() => {
@@ -270,7 +279,7 @@ const Chat = () => {
   }, []);
 
   const handleClearSelection = useCallback(() => {
-    setSelectedConversationIds(new Set());
+    setSelectedConversationIds(previous => previous.size === 0 ? previous : new Set());
   }, []);
 
   const handleBulkSetStatus = useCallback(
@@ -506,20 +515,9 @@ const Chat = () => {
     void messages.retryMessage(String(conversations.state.selectedConversationId), messageId).catch(() => undefined);
   };
 
-  // 🎯 CONVERSATION HANDLERS: Usar handlers dos hooks customizados
-  const handleMarkAsRead = useCallback(
-    async (conversation: Conversation) => {
-      await conversationHandlers.handleMarkAsRead(conversation);
-    },
-    [conversationHandlers],
-  );
-
-  const handleMarkAsUnread = useCallback(
-    async (conversation: Conversation) => {
-      await conversationHandlers.handleMarkAsUnread(conversation);
-    },
-    [conversationHandlers],
-  );
+  // Keep the composer handlers stable while the message timeline changes.
+  const sendMessageAction = useEventCallback(handleSendMessage);
+  const retryMessageAction = useEventCallback(handleRetryMessage);
 
   // UX decision: after resolve/delete, drop to the unselected list rather than
   // auto-advancing to the next conversation. Intentional — mirrors the delete flow.
@@ -847,7 +845,7 @@ const Chat = () => {
       return;
     }
 
-    setSelectedConversationIds(new Set());
+    setSelectedConversationIds(previous => previous.size === 0 ? previous : new Set());
 
     // 🔒 MARCAR NAVEGAÇÃO MANUAL para evitar URL sync
     isManualNavigationRef.current = true;
@@ -865,9 +863,34 @@ const Chat = () => {
     }, 100);
   };
 
+  // Message events can render Chat while the sidebar's inputs have not changed.
+  // Keep action identities stable so only affected conversation cards render.
+  const sidebarSelect = useEventCallback(handleConversationSelect);
+  const sidebarApplyFilters = useEventCallback(handleApplyFilters);
+  const sidebarClearFilters = useEventCallback(handleClearFilters);
+  const sidebarPin = useEventCallback(handlePinConversation);
+  const sidebarUnpin = useEventCallback(handleUnpinConversation);
+  const sidebarArchive = useEventCallback(handleArchiveConversation);
+  const sidebarUnarchive = useEventCallback(handleUnarchiveConversation);
+  const sidebarDelete = useEventCallback(handleDeleteConversation);
+  const sidebarMarkResolved = useEventCallback(handleMarkAsResolved);
+  const sidebarBulkSetStatus = useEventCallback(handleBulkSetStatus);
+
   const handleCloseConversation = useCallback(async () => {
     await clearSelectionAndGoToList();
   }, [clearSelectionAndGoToList]);
+
+  const openContactSidebar = useCallback(() => setIsContactSidebarOpen(true), []);
+  const headerClose = useEventCallback(handleCloseConversation);
+  const headerConversationUpdated = useEventCallback(conversations.updateConversation);
+  const headerMarkOpen = useEventCallback(handleMarkAsOpen);
+  const headerMarkResolved = useEventCallback(handleMarkAsResolved);
+  const headerPostpone = useEventCallback(handlePostpone);
+  const headerMarkSnoozed = useEventCallback(handleMarkAsSnoozed);
+  const headerSetPriority = useEventCallback(handleSetPriority);
+  const headerAssignAgent = useEventCallback(handleAssignAgent);
+  const headerAssignTeam = useEventCallback(handleAssignTeam);
+  const headerAssignTag = useEventCallback(handleAssignTag);
 
   return (
     <ErrorBoundary>
@@ -878,19 +901,19 @@ const Chat = () => {
           mobileView={mobileView}
           searchInput={searchInput}
           onSearchChange={setSearchInput}
-          onConversationSelect={handleConversationSelect}
-          onFilterApply={handleApplyFilters}
-          onFilterClear={handleClearFilters}
-          onPinConversation={handlePinConversation}
-          onUnpinConversation={handleUnpinConversation}
-          onArchiveConversation={handleArchiveConversation}
-          onUnarchiveConversation={handleUnarchiveConversation}
-          onDeleteConversation={handleDeleteConversation}
-          onMarkAsResolved={handleMarkAsResolved}
+          onConversationSelect={sidebarSelect}
+          onFilterApply={sidebarApplyFilters}
+          onFilterClear={sidebarClearFilters}
+          onPinConversation={sidebarPin}
+          onUnpinConversation={sidebarUnpin}
+          onArchiveConversation={sidebarArchive}
+          onUnarchiveConversation={sidebarUnarchive}
+          onDeleteConversation={sidebarDelete}
+          onMarkAsResolved={sidebarMarkResolved}
           selectedConversationIds={selectedConversationIds}
           onToggleSelect={handleToggleConversationSelection}
           onClearSelection={handleClearSelection}
-          onBulkSetStatus={handleBulkSetStatus}
+          onBulkSetStatus={sidebarBulkSetStatus}
           isBulkUpdatingStatus={isBulkUpdatingStatus}
           canBulkUpdateStatus={can('conversations', 'update')}
           width={sidebarWidth}
@@ -933,24 +956,18 @@ const Chat = () => {
               {/* Chat Header */}
               <ChatHeader
                 conversation={selectedConversation}
-                onBackClick={handleCloseConversation}
-                onCloseConversation={handleCloseConversation}
-                onContactSidebarOpen={() => setIsContactSidebarOpen(true)}
-                onMarkAsRead={handleMarkAsRead}
-                onMarkAsUnread={handleMarkAsUnread}
-                onMarkAsOpen={handleMarkAsOpen}
-                onMarkAsResolved={handleMarkAsResolved}
-                onPostpone={handlePostpone}
-                onMarkAsSnoozed={handleMarkAsSnoozed}
-                onSetPriority={handleSetPriority}
-                onPinConversation={handlePinConversation}
-                onUnpinConversation={handleUnpinConversation}
-                onArchiveConversation={handleArchiveConversation}
-                onUnarchiveConversation={handleUnarchiveConversation}
-                onAssignAgent={handleAssignAgent}
-                onAssignTeam={handleAssignTeam}
-                onAssignTag={handleAssignTag}
-                onDeleteConversation={handleDeleteConversation}
+                onBackClick={headerClose}
+                onCloseConversation={headerClose}
+                onContactSidebarOpen={openContactSidebar}
+                onConversationUpdated={headerConversationUpdated}
+                onMarkAsOpen={headerMarkOpen}
+                onMarkAsResolved={headerMarkResolved}
+                onPostpone={headerPostpone}
+                onMarkAsSnoozed={headerMarkSnoozed}
+                onSetPriority={headerSetPriority}
+                onAssignAgent={headerAssignAgent}
+                onAssignTeam={headerAssignTeam}
+                onAssignTag={headerAssignTag}
                 unreadCount={conversations.getUnreadCount(selectedConversation.id) || 0}
               />
 
@@ -969,9 +986,9 @@ const Chat = () => {
                   selectedConversationId={conversations.state.selectedConversationId}
                   selectedConversation={selectedConversation}
                   selectedMessages={selectedMessages}
-                  onSendMessage={handleSendMessage}
+                  onSendMessage={sendMessageAction}
                   onLoadMore={handleLoadMore}
-                  onRetryMessage={handleRetryMessage}
+                  onRetryMessage={retryMessageAction}
                   isPendingConversation={selectedConversation?.status === 'pending'}
                   onOpenConversation={() =>
                     selectedConversation && handleMarkAsOpen(selectedConversation)
