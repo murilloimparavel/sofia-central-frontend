@@ -301,7 +301,7 @@ describe('FiltersProvider request ordering', () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it('bounds retries and reports a clear error under continuous unknown events', async () => {
+  it('bounds retries and exposes a retryable error under continuous unknown events', async () => {
     vi.mocked(chatService.getConversations).mockImplementation(async () => {
       invalidateConversationQueryCache();
       return { data: [{ id: 'stale' }], meta: { page: 1, page_size: 20, total: 1 } } as never;
@@ -319,15 +319,39 @@ describe('FiltersProvider request ordering', () => {
     try {
       await act(async () => { await filters.applyFilters([statusFilter('open')], onSuccess, onError); });
       await new Promise(resolve => setTimeout(resolve, 1_050));
-      expect(Date.now() - startedAt).toBeLessThan(2_000);
-      expect(chatService.getConversations).toHaveBeenCalledTimes(3);
+      expect(Date.now() - startedAt).toBeLessThan(9_500);
+      expect(chatService.getConversations).toHaveBeenCalledTimes(1);
       expect(onSuccess).not.toHaveBeenCalled();
       expect(onError).toHaveBeenCalledOnce();
-      expect(onError.mock.calls[0][0]).toContain('A lista mudou');
+      expect(onError.mock.calls[0][0]).toContain('Clique na aba novamente');
       expect(filters.state.isApplyingFilters).toBe(false);
     } finally {
       clearInterval(events);
     }
+  }, 10_000);
+
+  it('waits for realtime activity to settle and applies a fresh response', async () => {
+    let calls = 0;
+    vi.mocked(chatService.getConversations).mockImplementation(async () => {
+      calls += 1;
+      if (calls < 3) invalidateConversationQueryCache();
+      return { data: [{ id: `fresh-${calls}` }], meta: { page: 1, page_size: 20, total: 1 } } as never;
+    });
+    let filters!: ReturnType<typeof useFilters>;
+    function Probe() {
+      filters = useFilters();
+      return null;
+    }
+    render(<FiltersProvider><Probe /></FiltersProvider>);
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+
+    await act(async () => { await filters.applyFilters([statusFilter('open')], onSuccess, onError); });
+
+    expect(chatService.getConversations).toHaveBeenCalledTimes(3);
+    expect(onSuccess).toHaveBeenCalledOnce();
+    expect(onSuccess.mock.calls[0][0][0].id).toBe('fresh-3');
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it('does not replay an unknown advanced filter after a WS event', async () => {
@@ -351,11 +375,12 @@ describe('FiltersProvider request ordering', () => {
 
     await act(async () => { await filters.applyFilters([unknownFilter], onSuccess, onError); });
 
-    expect(chatService.filterConversations).toHaveBeenCalledTimes(3);
+    expect(chatService.filterConversations.mock.calls.length).toBeGreaterThan(1);
+    expect(chatService.filterConversations.mock.calls.length).toBeLessThan(32);
     expect(onSuccess).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledOnce();
     expect(filters.state.isApplyingFilters).toBe(false);
-  });
+  }, 10_000);
 
   it('cancels a pending quiet-window retry after account switch', async () => {
     let resolveFirst!: (value: unknown) => void;

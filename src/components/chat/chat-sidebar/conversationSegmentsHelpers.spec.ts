@@ -127,8 +127,16 @@ describe('conversationSegmentsHelpers — Scope Tabs: Chats, Fila, Robô, Todas'
 
     expect(getActiveConversationScope([cf('assignee_type', 'me'), cf('status', 'open')])).toBe('mine');
     expect(getActiveConversationScope([cf('assignee_type', 'unassigned'), cf('status', 'open')])).toBe('unassigned');
+    expect(getActiveConversationScope([cf('status', 'pending')])).toBe(null);
     expect(getActiveConversationScope([cf('assignee_type', 'all'), cf('status', 'pending')])).toBe('bot');
-    expect(getActiveConversationScope([cf('status', 'pending')])).toBe('bot');
+    expect(getActiveConversationScope([cf('assignee_type', 'all'), cf('status', 'pending'), cf('priority', 'high')])).toBe(null);
+    expect(getActiveConversationScope([cf('assignee_type', 'me'), cf('status', 'all')])).toBe(null);
+    expect(getActiveConversationScope([
+      { ...cf('assignee_type', 'all'), query_operator: 'or' }, cf('status', 'pending'),
+    ])).toBe(null);
+    expect(getActiveConversationScope([
+      { ...cf('assignee_type', 'all'), values: ['all', 'me'] }, cf('status', 'pending'),
+    ])).toBe(null);
     expect(getActiveConversationScope([cf('assignee_type', 'all'), cf('status', 'all')])).toBe('all');
     expect(getActiveConversationScope([cf('status', 'all')])).toBe(null);
   });
