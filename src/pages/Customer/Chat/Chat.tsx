@@ -67,6 +67,20 @@ interface SendMessageOptions {
 const UUID_V4_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const PREFETCH_DELAY_MS = 600;
+const PREFETCH_COOLDOWN_MS = 10_000;
+
+// Network Information is unavailable in Safari; in that case the normal
+// delayed prefetch remains available to desktop and touch users.
+function canPrefetchOnCurrentNetwork(): boolean {
+  const connection = (navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+  }).connection;
+  return !connection?.saveData &&
+    connection?.effectiveType !== '2g' &&
+    connection?.effectiveType !== 'slow-2g';
+}
+
 // Coluna de conversas redimensionável (§3.1) — largura persiste entre sessões
 // (mesmo espírito de collapsed/pinned de outras UIs do produto). Limites
 // evitam extremos inúteis: muito estreito corta nome/prévia, muito largo
@@ -167,6 +181,28 @@ const Chat = () => {
         : null,
     [conversations.state.selectedConversationId],
   );
+
+  const prefetchTargetId = useMemo(() => {
+    // Wait for route and selection to agree before spending bandwidth. This
+    // avoids prefetching a stale neighbor during a deep-link transition.
+    if (!selectedConversationIdStr || !conversationId) return null;
+    const list = conversations.state.conversations;
+    const currentIndex = list.findIndex(
+      c => String(c.uuid || c.id) === selectedConversationIdStr ||
+        String(c.id) === selectedConversationIdStr,
+    );
+    const selectedInList = list[currentIndex];
+    if (!selectedInList ||
+        String(selectedInList.uuid || selectedInList.id).toLowerCase() !== conversationId.toLowerCase()) {
+      return null;
+    }
+    const nextConversation = list[currentIndex + 1];
+    return !nextConversation
+      ? null
+      : String(nextConversation.uuid || nextConversation.id);
+  }, [conversationId, selectedConversationIdStr, conversations.state.conversations]);
+  const prefetchMessages = useEventCallback((id: string) => messages.prefetchMessages(id));
+  const recentPrefetchesRef = useRef(new Map<string, number>());
 
   // 🎯 FILTROS: Usar handlers dos hooks customizados (DEFINIR ANTES DOS useEffect)
   const handleApplyFilters = useCallback(
@@ -335,30 +371,23 @@ const Chat = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations.state.selectedConversationId]); // Removido 'messages' para evitar loop
 
-  // ⚡ PREFETCH INTELIGENTE (Princípio 80/20):
-  // Quando uma conversa é selecionada e o operador está interagindo com ela,
-  // pré-carrega em segundo plano a próxima conversa da lista.
-  // Se o atendente clicar nela em seguida, o carregamento é instantâneo (0ms).
+  // Delay the adjacent conversation's prefetch without resetting the timer
+  // when message state or list objects change but the target stays the same.
   useEffect(() => {
-    const selectedId = conversations.state.selectedConversationId;
-    if (!selectedId) return;
-
+    if (!prefetchTargetId) return;
     const timer = setTimeout(() => {
-      const list = conversations.state.conversations;
-      const currentIndex = list.findIndex(
-        c => String(c.uuid || c.id) === String(selectedId) || String(c.id) === String(selectedId),
-      );
-      if (currentIndex !== -1 && currentIndex + 1 < list.length) {
-        const nextConv = list[currentIndex + 1];
-        const nextId = String(nextConv.uuid || nextConv.id);
-        if (nextId) {
-          void messages.prefetchMessages(nextId);
-        }
-      }
-    }, 600);
-
+      if (!canPrefetchOnCurrentNetwork()) return;
+      const recent = recentPrefetchesRef.current;
+      const now = Date.now();
+      if (now - (recent.get(prefetchTargetId) ?? -Infinity) < PREFETCH_COOLDOWN_MS) return;
+      recent.set(prefetchTargetId, now);
+      // Keep this tiny budget bounded when an operator works through a long list.
+      if (recent.size > 16) recent.delete(recent.keys().next().value!);
+      // The message context handles failed background requests silently.
+      void prefetchMessages(prefetchTargetId);
+    }, PREFETCH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [conversations.state.selectedConversationId, conversations.state.conversations, messages]);
+  }, [prefetchTargetId, prefetchMessages]);
 
   // A route change switches the mobile pane before any network request settles.
   useEffect(() => {

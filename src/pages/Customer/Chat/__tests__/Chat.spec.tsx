@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import Chat from '../Chat';
 import { CONVERSATION_SEGMENTS } from '@/components/chat/chat-sidebar/conversationSegmentsHelpers';
@@ -10,6 +10,8 @@ import type { Conversation } from '@/types/chat/api';
 const mockState = vi.hoisted(() => ({
   selectedConversationId: null as string | null,
 }));
+const mockConversationList = vi.hoisted(() => ({ value: [] as Conversation[] }));
+const mockPrefetchMessages = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 const mockHookResolve = vi.hoisted(() => ({
   fn: vi.fn<[Conversation, (() => Promise<void>)?], Promise<void>>(),
@@ -82,7 +84,7 @@ vi.mock('@/contexts/chat/ChatContext', () => ({
         selectedConversationId: mockState.selectedConversationId,
         conversationsLoading: false,
         conversationsError: null,
-        conversations: [],
+        conversations: mockConversationList.value,
       },
       selectConversation: mockSelectConversation,
       getConversation: mockGetConversation,
@@ -96,6 +98,7 @@ vi.mock('@/contexts/chat/ChatContext', () => ({
     messages: {
       loadMessages: vi.fn(),
       loadMoreMessages: vi.fn(),
+      prefetchMessages: mockPrefetchMessages,
       setActiveConversationId: mockSetActiveConversationId,
       state: { messages: [], messagesLoading: false },
     },
@@ -474,6 +477,111 @@ describe('Chat — assignment modal subtitle names the contact (CRM-388)', () =>
 const ROUTE_A = '11111111-1111-4111-8111-111111111111';
 const ROUTE_B = '22222222-2222-4222-8222-222222222222';
 const ROUTE_C = '33333333-3333-4333-8333-333333333333';
+
+describe('Chat — adjacent conversation prefetch', () => {
+  const list = [ROUTE_A, ROUTE_B, ROUTE_C].map(id => ({ id, uuid: id } as Conversation));
+  const connectionDescriptor = Object.getOwnPropertyDescriptor(navigator, 'connection');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    mockConversationList.value = [...list];
+    mockRoute.conversationId = ROUTE_A;
+    mockState.selectedConversationId = ROUTE_A;
+    mockSelectedConversation.value = list[0];
+    mockGetConversation.mockImplementation((id: string) => list.find(conv => conv.uuid === id) || null);
+    Object.defineProperty(navigator, 'connection', { configurable: true, value: undefined });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    if (connectionDescriptor) {
+      Object.defineProperty(navigator, 'connection', connectionDescriptor);
+    } else {
+      Reflect.deleteProperty(navigator, 'connection');
+    }
+  });
+
+  it('keeps the same timer and request when a list or message context rerenders', () => {
+    const { rerender, unmount } = render(<Chat />);
+    act(() => { vi.advanceTimersByTime(300); });
+
+    mockConversationList.value = [...list];
+    rerender(<Chat />);
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+
+    rerender(<Chat />);
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('cancels the old neighbor and waits for the new one', () => {
+    const { rerender, unmount } = render(<Chat />);
+    act(() => { vi.advanceTimersByTime(300); });
+
+    mockConversationList.value = [list[0], list[2], list[1]];
+    rerender(<Chat />);
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(mockPrefetchMessages).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_C);
+    unmount();
+  });
+
+  it('recognizes a selected database ID when the URL uses its UUID', () => {
+    const first = { id: 'database-a', uuid: ROUTE_A } as Conversation;
+    mockConversationList.value = [first, list[1]];
+    mockState.selectedConversationId = 'database-a';
+    mockSelectedConversation.value = first;
+    const { unmount } = render(<Chat />);
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+    unmount();
+  });
+
+  it('does not request the same neighbor twice during the cache freshness window', () => {
+    const { rerender, unmount } = render(<Chat />);
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+
+    act(() => {
+      mockRoute.conversationId = ROUTE_B;
+      mockState.selectedConversationId = ROUTE_B;
+      rerender(<Chat />);
+    });
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_C);
+
+    act(() => {
+      mockRoute.conversationId = ROUTE_A;
+      mockState.selectedConversationId = ROUTE_A;
+      rerender(<Chat />);
+    });
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(mockPrefetchMessages.mock.calls.filter(([id]) => id === ROUTE_B)).toHaveLength(1);
+    unmount();
+  });
+
+  it.each([{ saveData: true }, { effectiveType: '2g' }, { effectiveType: 'slow-2g' }])(
+    'skips prefetch on a constrained connection %o', connection => {
+      Object.defineProperty(navigator, 'connection', { configurable: true, value: connection });
+      const { unmount } = render(<Chat />);
+      act(() => { vi.advanceTimersByTime(600); });
+      expect(mockPrefetchMessages).not.toHaveBeenCalled();
+      unmount();
+    },
+  );
+
+  it('uses the delayed fallback when Network Information is unavailable', () => {
+    const { unmount } = render(<Chat />);
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+    unmount();
+  });
+});
 
 function deferredConversation() {
   let resolve!: (conversation: Conversation | null) => void;
