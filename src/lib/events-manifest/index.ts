@@ -1,10 +1,11 @@
-import { EVENT_NAMES, type EvoFlowEventName } from './event-names';
+import { EVENT_NAMES } from './event-names';
 import { EVENT_CATALOG, EVENT_CATEGORIES } from './catalog';
 import type { EventCatalogEntry, EventCategory, EventDtoType, Locale } from './types';
 
 export type { EventCatalogEntry, EventCategory, EventDtoType, EventSchema, FieldSpec, FieldType, Locale } from './types';
 export { EVENT_NAMES, EVENT_CATEGORIES };
-export type { EvoFlowEventName };
+export { isCanonicalEvent } from './event-names';
+export type { EvoFlowEventName } from './event-names';
 
 export function getEventCatalog(): EventCatalogEntry[] {
   return EVENT_NAMES.map((name) => EVENT_CATALOG[name]);
@@ -12,10 +13,6 @@ export function getEventCatalog(): EventCatalogEntry[] {
 
 export function getEvent(eventName: string): EventCatalogEntry | undefined {
   return EVENT_CATALOG[eventName];
-}
-
-export function isCanonicalEvent(eventName: string): eventName is EvoFlowEventName {
-  return (EVENT_NAMES as readonly string[]).includes(eventName);
 }
 
 export function getEventsByCategory(category: EventCategory): EventCatalogEntry[] {

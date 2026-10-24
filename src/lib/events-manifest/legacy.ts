@@ -1,4 +1,4 @@
-import { isCanonicalEvent } from './index';
+import { isCanonicalEvent } from './event-names';
 
 /**
  * Maps legacy snake_case event names (used by older Journey/Campaign nodes

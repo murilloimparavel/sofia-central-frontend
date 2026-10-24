@@ -10,6 +10,7 @@ import {
   isCustomEvent,
   getEventLabel,
 } from './index';
+import { isCanonicalEvent as isCanonicalEventFromNames } from './event-names';
 
 describe('frontend events manifest mirror', () => {
   it('exposes one catalog entry per EVENT_NAME', () => {
@@ -97,6 +98,7 @@ describe('frontend events manifest mirror', () => {
   });
 
   it('identifies canonical events with isCanonicalEvent', () => {
+    expect(isCanonicalEvent).toBe(isCanonicalEventFromNames);
     expect(isCanonicalEvent('contact.created')).toBe(true);
     expect(isCanonicalEvent('custom')).toBe(true);
     expect(isCanonicalEvent('not.a.real.event')).toBe(false);
