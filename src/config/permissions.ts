@@ -58,6 +58,7 @@ const RESOURCE_DEFINITIONS = [
   { key: 'ai_agent_processor', actions: ['read', 'execute', 'stream'], category: 'agents' as const },
   { key: 'ai_chat_sessions', actions: ['read', 'create', 'update', 'delete', 'bulk_delete', 'metrics'], category: 'agents' as const },
   { key: 'ai_a2a_protocol', actions: ['read', 'execute', 'stream', 'message_send', 'task_management'], category: 'agents' as const },
+  { key: 'ai_knowledge', actions: ['read', 'create', 'update', 'delete', 'publish'], category: 'agents' as const },
   { key: 'ai_custom_mcp_servers', actions: ['read', 'create', 'update', 'delete', 'test'], category: 'agents' as const },
   { key: 'ai_custom_tools', actions: ['read', 'create', 'update', 'delete', 'test'], category: 'agents' as const },
   { key: 'ai_clients', actions: ['read', 'usage', 'limits'], category: 'agents' as const },

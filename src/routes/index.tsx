@@ -1,3 +1,4 @@
+import KnowledgePage from '@/pages/Customer/Agents/Knowledge/KnowledgePage';
 import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PrivateRoute from './PrivateRoute';
@@ -1294,6 +1295,8 @@ const AppRouter = () => {
               </PrivateRoute>
             }
           />
+
+          <Route path="/agents/knowledge" element={<PrivateRoute><CustomerRoute><MainLayout><PermissionRoute resource="ai_knowledge" action="read"><KnowledgePage /></PermissionRoute></MainLayout></CustomerRoute></PrivateRoute>} />
 
           <Route
             path="/agents/custom-mcp-servers"

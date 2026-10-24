@@ -1,5 +1,6 @@
 import { LucideIcon } from 'lucide-react';
 import {
+  BookOpen,
   User,
   LogOut,
   Cog,
@@ -147,6 +148,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
   },
   {
     id: 'customer-agents',
+    permissions: ['ai_agents.read', 'ai_custom_tools.read', 'ai_custom_mcp_servers.read', 'ai_knowledge.read'],
     name: t('menu.customer.agents'),
     href: '/agents/list',
     icon: Bot,
@@ -174,6 +176,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         resource: 'ai_custom_mcp_servers',
         action: 'read',
       },
+      { name: t('menu.agents.knowledge'), href: '/agents/knowledge', icon: BookOpen, resource: 'ai_knowledge', action: 'read' },
     ],
   },
   {
