@@ -4,8 +4,7 @@ import "@evoapi/design-system/styles";
 // our theming overrides in globals.css can win the cascade (EVO-1270).
 import '@xyflow/react/dist/style.css';
 import './styles/globals.css';
-import './i18n/config'; // Importar configuração do i18n
-import App from './App.tsx';
+import { initializeI18n } from './i18n/config';
 import { initTheme } from './utils/themeUtils';
 import { initGA4 } from './utils/ga4Utils';
 import { recoverFromVitePreloadError } from './utils/chunkLoadRecovery';
@@ -30,6 +29,13 @@ initGA4();
 
 // ⚡ OTIMIZAÇÃO: StrictMode removido para evitar duplicação de requests
 // Em desenvolvimento, StrictMode executa useEffect 2x para detectar problemas
-createRoot(document.getElementById('root')!).render(
-    <App />
-);
+// Fetch the app and saved locale in parallel; render when both are ready.
+void Promise.all([initializeI18n(), import('./App.tsx')]).then(([, { default: App }]) => {
+  createRoot(document.getElementById('root')!).render(<App />);
+}).catch(error => {
+  console.error('[bootstrap] Application chunk unavailable:', error);
+  // The preload-error handler above retries once after a deployment. If the
+  // chunk is still unavailable, leave a readable recovery path on screen.
+  const root = document.getElementById('root');
+  if (root) root.textContent = 'Não foi possível carregar o aplicativo. Atualize a página para tentar novamente.';
+});
