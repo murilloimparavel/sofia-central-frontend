@@ -69,6 +69,8 @@ interface ChatSidebarProps {
   searchInput: string;
   onSearchChange: (value: string) => void;
   onConversationSelect: (conversation: Conversation) => void;
+  onPrefetchIntent?: (conversationId: string) => void;
+  onCancelPrefetchIntent?: (conversationId: string) => void;
   onFilterApply: (filters: BaseFilter[]) => void;
   onFilterClear: () => void;
   // Context menu handlers (só os 4 itens do protótipo — status/prioridade/
@@ -138,6 +140,8 @@ const ChatSidebar = ({
   searchInput,
   onSearchChange,
   onConversationSelect,
+  onPrefetchIntent,
+  onCancelPrefetchIntent,
   onFilterApply,
   onFilterClear,
   onPinConversation,
@@ -885,6 +889,8 @@ const ChatSidebar = ({
               hasNextPage={hasNextPage && !showArchived}
               unreadCount={conversations.getUnreadCount}
               onSelect={handleConversationCardSelect}
+              onPrefetchIntent={onPrefetchIntent}
+              onCancelPrefetchIntent={onCancelPrefetchIntent}
               onToggleSelect={onToggleSelect}
               onStartSelection={handleStartSelection}
               onPin={onPinConversation}
