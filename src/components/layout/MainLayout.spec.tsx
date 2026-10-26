@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 
 vi.mock('../../hooks/useLanguage', () => ({
@@ -38,6 +39,10 @@ vi.mock('./components', () => ({
 
 vi.mock('@/components/WelcomeTourModal', () => ({
   WelcomeTourModal: () => null,
+}));
+
+vi.mock('@/components/commercial-assistant/CommercialAssistantPopup', () => ({
+  default: () => null,
 }));
 
 vi.mock('sonner', () => ({
@@ -139,5 +144,55 @@ describe('MainLayout — backdrop dismissal', () => {
     mockUseMenuState.mockReturnValue({ ...defaultMenuState(), activeSubmenu: null });
     renderLayout();
     expect(screen.queryByRole('button', { name: 'sidebar.closeSubmenu' })).not.toBeInTheDocument();
+  });
+});
+
+describe('MainLayout — inbox route boundary stability', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('sidebar-collapsed', 'false');
+    mockUseMenuState.mockReturnValue(defaultMenuState());
+  });
+
+  function StatefulRouteContent() {
+    const location = useLocation();
+    const [count, setCount] = React.useState(0);
+    const [crash, setCrash] = React.useState(false);
+    if (crash) throw new Error('route crashed');
+    return (
+      <div>
+        <span data-testid="route-state">{count}</span>
+        <span data-testid="route-path">{location.pathname}</span>
+        <button onClick={() => setCount(value => value + 1)}>increment</button>
+        <button onClick={() => setCrash(true)}>crash</button>
+      </div>
+    );
+  }
+
+  function RouteControls() {
+    const navigate = useNavigate();
+    return <>
+      <button onClick={() => navigate('/conversations/second')}>second conversation</button>
+      <button onClick={() => navigate('/dashboard')}>leave inbox</button>
+    </>;
+  }
+
+  it('preserves mounted child state between conversations and resets the boundary after leaving inbox', () => {
+    render(
+      <MemoryRouter initialEntries={['/conversations/first']}>
+        <RouteControls />
+        <MainLayout><StatefulRouteContent /></MainLayout>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'increment' }));
+    fireEvent.click(screen.getByRole('button', { name: 'second conversation' }));
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/conversations/second');
+    expect(screen.getByTestId('route-state')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'crash' }));
+    expect(screen.getByText('base.errorBoundary.title')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'leave inbox' }));
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/dashboard');
   });
 });
