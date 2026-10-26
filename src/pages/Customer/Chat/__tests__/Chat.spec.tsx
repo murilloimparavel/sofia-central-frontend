@@ -46,6 +46,8 @@ const mockGetConversation = vi.hoisted(() => vi.fn().mockReturnValue(null));
 const capturedSidebarProps = vi.hoisted(() => ({
   mobileView: 'list' as 'list' | 'chat',
   onConversationSelect: null as ((conv: Conversation) => void) | null,
+  onPrefetchIntent: null as ((id: string) => void) | null,
+  onCancelPrefetchIntent: null as ((id: string) => void) | null,
 }));
 
 // Mutable: the badge effect must react to the param, not to mount.
@@ -174,6 +176,8 @@ vi.mock('@/components/chat/chat-sidebar/ChatSidebar', () => ({
     capturedProps.onMarkAsResolved = props.onMarkAsResolved;
     capturedSidebarProps.mobileView = props.mobileView;
     capturedSidebarProps.onConversationSelect = props.onConversationSelect;
+    capturedSidebarProps.onPrefetchIntent = props.onPrefetchIntent;
+    capturedSidebarProps.onCancelPrefetchIntent = props.onCancelPrefetchIntent;
     return <div data-testid="chat-sidebar" data-mobile-view={props.mobileView} />;
   },
 }));
@@ -542,9 +546,9 @@ describe('Chat — adjacent conversation prefetch', () => {
     unmount();
   });
 
-  it('does not request the same neighbor twice during the cache freshness window', () => {
+  it('does not request the same neighbor twice during the cache freshness window', async () => {
     const { rerender, unmount } = render(<Chat />);
-    act(() => { vi.advanceTimersByTime(600); });
+    await act(async () => { vi.advanceTimersByTime(600); await Promise.resolve(); });
     expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
 
     act(() => {
@@ -552,7 +556,7 @@ describe('Chat — adjacent conversation prefetch', () => {
       mockState.selectedConversationId = ROUTE_B;
       rerender(<Chat />);
     });
-    act(() => { vi.advanceTimersByTime(600); });
+    await act(async () => { vi.advanceTimersByTime(600); await Promise.resolve(); });
     expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_C);
 
     act(() => {
@@ -560,7 +564,7 @@ describe('Chat — adjacent conversation prefetch', () => {
       mockState.selectedConversationId = ROUTE_A;
       rerender(<Chat />);
     });
-    act(() => { vi.advanceTimersByTime(600); });
+    await act(async () => { vi.advanceTimersByTime(600); await Promise.resolve(); });
     expect(mockPrefetchMessages.mock.calls.filter(([id]) => id === ROUTE_B)).toHaveLength(1);
     unmount();
   });
@@ -579,6 +583,85 @@ describe('Chat — adjacent conversation prefetch', () => {
     const { unmount } = render(<Chat />);
     act(() => { vi.advanceTimersByTime(600); });
     expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+    unmount();
+  });
+
+  it('debounces hover intent and cancels it when the pointer leaves before the delay', () => {
+    const { unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(80);
+      capturedSidebarProps.onCancelPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(200);
+    });
+    expect(mockPrefetchMessages).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('respects constrained network and deduplicates repeated hover intent', () => {
+    Object.defineProperty(navigator, 'connection', {
+      configurable: true, value: { saveData: true },
+    });
+    const { unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(200);
+    });
+    expect(mockPrefetchMessages).not.toHaveBeenCalled();
+
+    Object.defineProperty(navigator, 'connection', { configurable: true, value: undefined });
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(200);
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(200);
+    });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+    unmount();
+  });
+
+  it('drops rapid prefetch requests for different cards while one request is in flight', () => {
+    let rejectFirst!: (error: Error) => void;
+    mockPrefetchMessages.mockImplementationOnce(() => new Promise((_, reject) => { rejectFirst = reject; }));
+    const { unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(140);
+    });
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_C);
+      vi.advanceTimersByTime(140);
+    });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+    act(() => rejectFirst(new Error('prefetch failed')));
+    act(() => { vi.advanceTimersByTime(0); });
+    unmount();
+  });
+
+  it('releases the global prefetch slot after a failed request', async () => {
+    let rejectFirst!: (error: Error) => void;
+    mockPrefetchMessages
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectFirst = reject; }))
+      .mockResolvedValueOnce(undefined);
+    const { unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(140);
+    });
+    await act(async () => {
+      rejectFirst(new Error('prefetch failed'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    act(() => {
+      vi.advanceTimersByTime(500);
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_C);
+      vi.advanceTimersByTime(140);
+    });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(2);
+    expect(mockPrefetchMessages).toHaveBeenLastCalledWith(ROUTE_C);
     unmount();
   });
 });

@@ -28,6 +28,8 @@ export interface ConversationCardProps {
   selectionMode: boolean;
   unreadCount: number;
   onSelect: (conversation: Conversation) => void;
+  onPrefetchIntent?: (conversationId: string) => void;
+  onCancelPrefetchIntent?: (conversationId: string) => void;
   onToggleSelect: (displayId: string) => void;
   onStartSelection: (displayId: string) => void;
   onPin: (conversation: Conversation) => void;
@@ -69,6 +71,8 @@ const ConversationCardComponent: React.FC<ConversationCardProps> = ({
   selectionMode,
   unreadCount,
   onSelect,
+  onPrefetchIntent,
+  onCancelPrefetchIntent,
   onToggleSelect,
   onStartSelection,
   onPin,
@@ -98,6 +102,10 @@ const ConversationCardComponent: React.FC<ConversationCardProps> = ({
       key={conversation.id}
       data-conversation-card="true"
       data-conversation-id={String(conversation.id)}
+      onMouseEnter={() => !selectionMode && onPrefetchIntent?.(String(conversation.uuid || conversation.id))}
+      onMouseLeave={() => onCancelPrefetchIntent?.(String(conversation.uuid || conversation.id))}
+      onFocus={() => !selectionMode && onPrefetchIntent?.(String(conversation.uuid || conversation.id))}
+      onBlur={() => onCancelPrefetchIntent?.(String(conversation.uuid || conversation.id))}
       className={`p-4 mx-0.5 mb-2.5 rounded-[14px] border cursor-pointer transition-colors ${
         isBulkSelected
           ? 'bg-primary/5 border-primary/20'

@@ -68,7 +68,9 @@ const UUID_V4_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const PREFETCH_DELAY_MS = 600;
+const INTENT_PREFETCH_DELAY_MS = 140;
 const PREFETCH_COOLDOWN_MS = 10_000;
+const PREFETCH_MIN_START_INTERVAL_MS = 500;
 
 // Network Information is unavailable in Safari; in that case the normal
 // delayed prefetch remains available to desktop and touch users.
@@ -203,6 +205,38 @@ const Chat = () => {
   }, [conversationId, selectedConversationIdStr, conversations.state.conversations]);
   const prefetchMessages = useEventCallback((id: string) => messages.prefetchMessages(id));
   const recentPrefetchesRef = useRef(new Map<string, number>());
+  const intentPrefetchTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const prefetchInFlightRef = useRef(false);
+  const lastPrefetchStartedAtRef = useRef(Number.NEGATIVE_INFINITY);
+  const requestMessagePrefetch = useCallback((id: string) => {
+    if (!id || !canPrefetchOnCurrentNetwork()) return;
+    const recent = recentPrefetchesRef.current;
+    const now = Date.now();
+    if (now - (recent.get(id) ?? -Infinity) < PREFETCH_COOLDOWN_MS) return;
+    if (prefetchInFlightRef.current || now - lastPrefetchStartedAtRef.current < PREFETCH_MIN_START_INTERVAL_MS) return;
+    recent.set(id, now);
+    prefetchInFlightRef.current = true;
+    lastPrefetchStartedAtRef.current = now;
+    if (recent.size > 16) recent.delete(recent.keys().next().value!);
+    void prefetchMessages(id).catch(() => undefined).finally(() => {
+      prefetchInFlightRef.current = false;
+    });
+  }, [prefetchMessages]);
+  const handlePrefetchIntent = useCallback((id: string) => {
+    if (!id || id === selectedConversationIdStr || !canPrefetchOnCurrentNetwork()) return;
+    if (intentPrefetchTimersRef.current.has(id) ||
+      Date.now() - (recentPrefetchesRef.current.get(id) ?? -Infinity) < PREFETCH_COOLDOWN_MS) return;
+    const timer = setTimeout(() => {
+      intentPrefetchTimersRef.current.delete(id);
+      requestMessagePrefetch(id);
+    }, INTENT_PREFETCH_DELAY_MS);
+    intentPrefetchTimersRef.current.set(id, timer);
+  }, [requestMessagePrefetch, selectedConversationIdStr]);
+  const cancelPrefetchIntent = useCallback((id: string) => {
+    const timer = intentPrefetchTimersRef.current.get(id);
+    if (timer) clearTimeout(timer);
+    intentPrefetchTimersRef.current.delete(id);
+  }, []);
 
   // 🎯 FILTROS: Usar handlers dos hooks customizados (DEFINIR ANTES DOS useEffect)
   const handleApplyFilters = useCallback(
@@ -376,18 +410,15 @@ const Chat = () => {
   useEffect(() => {
     if (!prefetchTargetId) return;
     const timer = setTimeout(() => {
-      if (!canPrefetchOnCurrentNetwork()) return;
-      const recent = recentPrefetchesRef.current;
-      const now = Date.now();
-      if (now - (recent.get(prefetchTargetId) ?? -Infinity) < PREFETCH_COOLDOWN_MS) return;
-      recent.set(prefetchTargetId, now);
-      // Keep this tiny budget bounded when an operator works through a long list.
-      if (recent.size > 16) recent.delete(recent.keys().next().value!);
-      // The message context handles failed background requests silently.
-      void prefetchMessages(prefetchTargetId);
+      requestMessagePrefetch(prefetchTargetId);
     }, PREFETCH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [prefetchTargetId, prefetchMessages]);
+  }, [prefetchTargetId, requestMessagePrefetch]);
+
+  useEffect(() => () => {
+    intentPrefetchTimersRef.current.forEach(timer => clearTimeout(timer));
+    intentPrefetchTimersRef.current.clear();
+  }, []);
 
   // A route change switches the mobile pane before any network request settles.
   useEffect(() => {
@@ -933,6 +964,8 @@ const Chat = () => {
           searchInput={searchInput}
           onSearchChange={setSearchInput}
           onConversationSelect={sidebarSelect}
+          onPrefetchIntent={handlePrefetchIntent}
+          onCancelPrefetchIntent={cancelPrefetchIntent}
           onFilterApply={sidebarApplyFilters}
           onFilterClear={sidebarClearFilters}
           onPinConversation={sidebarPin}
