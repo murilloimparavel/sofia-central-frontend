@@ -38,6 +38,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
+  const errorBoundaryKey = /^\/conversations(?:\/[^/]+)?\/?$/.test(pathname)
+    ? 'conversations'
+    : pathname;
 
   // Estados do layout
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -142,9 +145,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
         {/* Main Content */}
         <main className="flex-1 min-h-0 overflow-auto bg-background transition-colors duration-150 ease-in-out">
-          {/* Keyed by path so a crashed page does not keep the fallback up after navigating away */}
+          {/* Reset on page changes while keeping the inbox mounted across conversations. */}
           <div className="h-full">
-            <ErrorBoundary key={pathname}>{children}</ErrorBoundary>
+            <ErrorBoundary key={errorBoundaryKey}>{children}</ErrorBoundary>
           </div>
         </main>
 
