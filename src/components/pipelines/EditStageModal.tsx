@@ -33,6 +33,7 @@ import { LocalAttributeDefinition, LocalAttributeDefinitionPayload } from '@/typ
 import PipelineStageCustomAttributes from './PipelineStageCustomAttributes';
 import StageAutomationRules, { type PipelineWithStages } from './StageAutomationRules';
 import { buildAutomationRulesPayload } from './stageAutomationPayload';
+import PipelineClassificationEditor from './PipelineClassificationEditor';
 
 // Cores predefinidas para as etapas
 const getStageColors = (t: (key: string) => string) => [
@@ -81,6 +82,7 @@ export default function EditStageModal({
   agents = [],
 }: EditStageModalProps) {
   const { t } = useLanguage('pipelines');
+  const [activeTab, setActiveTab] = useState('details');
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3B82F6');
   const [stageType, setStageType] = useState('active');
@@ -288,11 +290,12 @@ export default function EditStageModal({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
             <TabsTrigger value="details">{t('editStage.details')}</TabsTrigger>
             <TabsTrigger value="automation">{t('editStage.automation')}</TabsTrigger>
             <TabsTrigger value="attributes">{t('editStage.customAttributes')}</TabsTrigger>
+            <TabsTrigger value="classification">{t('classification.tab')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="details" className="py-4 space-y-4 overflow-y-auto flex-1">
@@ -425,6 +428,9 @@ export default function EditStageModal({
               stageId={stage.id}
             />
           </TabsContent>
+          <TabsContent value="classification" className="py-4 overflow-y-auto flex-1">
+            {stage.pipeline_id && <PipelineClassificationEditor key={stage.pipeline_id} pipelineId={stage.pipeline_id} stageId={stage.id} />}
+          </TabsContent>
         </Tabs>
 
         <DialogFooter>
@@ -435,12 +441,12 @@ export default function EditStageModal({
           >
             {t('editStage.cancel')}
           </Button>
-          <Button
+          {activeTab !== 'classification' && <Button
             onClick={handleSubmit}
             disabled={!canSubmit || loading}
           >
             {loading ? t('editStage.saving') : t('editStage.save')}
-          </Button>
+          </Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
