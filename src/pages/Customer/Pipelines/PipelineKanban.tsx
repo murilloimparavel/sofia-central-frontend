@@ -54,6 +54,7 @@ import {
   StageAutomationRule,
 } from '@/types/analytics';
 import EditPipelineModal from '@/components/pipelines/EditPipelineModal';
+import PipelineClassificationModal from '@/components/pipelines/PipelineClassificationModal';
 import CreateStageModal from '@/components/pipelines/CreateStageModal';
 import AddItemModal from '@/components/pipelines/AddItemModal';
 import RemoveItemModal from '@/components/pipelines/RemoveItemModal';
@@ -160,6 +161,7 @@ export default function PipelineKanban() {
 
   // Modal states
   const [showEditPipelineModal, setShowEditPipelineModal] = useState(false);
+  const [showClassificationModal, setShowClassificationModal] = useState(false);
   const [isUpdatingPipeline, setIsUpdatingPipeline] = useState(false);
   const [showCreateStageModal, setShowCreateStageModal] = useState(false);
   const [isCreatingStage, setIsCreatingStage] = useState(false);
@@ -889,6 +891,10 @@ export default function PipelineKanban() {
                       <Edit className="h-4 w-4 mr-2" />
                       {t('kanban.header.editPipeline')}
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowClassificationModal(true)}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      {t('classification.title')}
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={async () => {
                         if (!pipeline?.id) return;
@@ -1529,6 +1535,8 @@ export default function PipelineKanban() {
           loading={isUpdatingPipeline}
         />
       )}
+
+      {pipeline && <PipelineClassificationModal pipelineId={pipeline.id} open={showClassificationModal} onOpenChange={setShowClassificationModal} />}
 
       {/* Create Stage Modal */}
       <CreateStageModal

@@ -27,6 +27,7 @@ import TeamsService from '@/services/teams/teamsService';
 import { Team } from '@/types/users/teams';
 import { LocalAttributeDefinition, LocalAttributeDefinitionPayload } from '@/types/pipelines/localAttributeDefinition';
 import PipelineCustomAttributes from './PipelineCustomAttributes';
+import PipelineClassificationEditor from './PipelineClassificationEditor';
 
 interface EditPipelineModalProps {
   open: boolean;
@@ -44,6 +45,7 @@ export default function EditPipelineModal({
   loading,
 }: EditPipelineModalProps) {
   const { t } = useLanguage('pipelines');
+  const [activeTab, setActiveTab] = useState('details');
   const [formData, setFormData] = useState<UpdatePipelineData>({
     name: pipeline.name,
     description: pipeline.description || '',
@@ -108,6 +110,7 @@ export default function EditPipelineModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (activeTab === 'classification') return;
     if (!formData.name?.trim()) return;
     if (formData.visibility === 'team' && teamIds.length === 0) return;
 
@@ -161,10 +164,11 @@ export default function EditPipelineModal({
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="details">{t('editPipeline.details')}</TabsTrigger>
               <TabsTrigger value="attributes">{t('editPipeline.customAttributes')}</TabsTrigger>
+              <TabsTrigger value="classification">{t('classification.tab')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="py-4 overflow-y-auto flex-1">
@@ -325,6 +329,9 @@ export default function EditPipelineModal({
                 pipelineId={pipeline.id}
               />
             </TabsContent>
+            <TabsContent value="classification" className="py-4 overflow-y-auto flex-1">
+              <PipelineClassificationEditor key={pipeline.id} pipelineId={pipeline.id} />
+            </TabsContent>
           </Tabs>
 
           <DialogFooter>
@@ -336,9 +343,9 @@ export default function EditPipelineModal({
             >
               {t('editPipeline.cancel')}
             </Button>
-            <Button type="submit" disabled={loading || !formData.name?.trim() || (formData.visibility === 'team' && teamIds.length === 0)}>
+            {activeTab !== 'classification' && <Button type="submit" disabled={loading || !formData.name?.trim() || (formData.visibility === 'team' && teamIds.length === 0)}>
               {loading ? t('editPipeline.saving') : t('editPipeline.save')}
-            </Button>
+            </Button>}
           </DialogFooter>
         </form>
       </DialogContent>
