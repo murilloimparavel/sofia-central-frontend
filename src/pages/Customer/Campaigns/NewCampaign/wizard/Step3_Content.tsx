@@ -31,7 +31,7 @@ const Step3_Content = ({ data, onChange, onNext, onBack }: Step3Props) => {
   useEffect(() => {
     const fetchInboxes = async () => {
       try {
-        const response = await InboxesService.list();
+        const response = await InboxesService.listAll();
         setInboxes(response.data || []);
       } catch (error) {
         console.error('Error fetching inboxes:', error);

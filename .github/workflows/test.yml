@@ -148,6 +148,8 @@ jobs:
             src/utils/apiHelpers.spec.ts \
             src/hooks/channels/useChannelSubmission.spec.ts \
             src/hooks/channels/useChannelValidation.spec.ts \
+            src/services/channels/inboxesService.spec.ts \
+            src/components/scheduledActions/ScheduleActionModal.spec.tsx \
             src/utils/channelStatus.spec.ts \
             src/components/channels/ChannelTypeHub.spec.tsx \
             src/components/inbox/HubConnectButton.spec.tsx \

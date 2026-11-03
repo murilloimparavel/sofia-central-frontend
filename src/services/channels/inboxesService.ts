@@ -31,12 +31,108 @@ const appendFormDataValue = (formData: FormData, key: string, value: unknown): v
   formData.append(key, String(value));
 };
 
+const ALL_INBOXES_PAGE_SIZE = 100;
+const MAX_INBOXES_PAGES = 100;
+
+const paginationError = (reason: string): Error => new Error(`Could not fetch all inbox pages: ${reason}`);
+
 // Inbox service aligned with Evolution API
 // Only endpoints needed for the Channels page are implemented initially.
 const InboxesService = {
   async list(): Promise<InboxesResponse> {
     const response = await api.get('/inboxes');
     return extractResponse<Inbox>(response) as InboxesResponse;
+  },
+
+  async listAll(): Promise<Pick<InboxesResponse, 'data'>> {
+    const inboxesById = new Map<string, Inbox>();
+    const seenPageSignatures = new Set<string>();
+    let expectedTotalPages: number | undefined;
+    let expectedTotal: number | undefined;
+    let expectedPageSize: number | undefined;
+
+    for (let page = 1; page <= MAX_INBOXES_PAGES; page += 1) {
+      const response = await api.get('/inboxes', {
+        params: { page, per_page: ALL_INBOXES_PAGE_SIZE },
+      });
+      const result = extractResponse<Inbox>(response) as InboxesResponse;
+      const pageData = result?.data;
+      const pagination = result?.meta?.pagination;
+
+      if (!Array.isArray(pageData) || !pagination) {
+        throw paginationError(`page ${page} did not include data and pagination metadata`);
+      }
+
+      const { page: currentPage, page_size: pageSize, total, total_pages: totalPages } = pagination;
+      if (
+        !Number.isSafeInteger(currentPage) ||
+        currentPage !== page ||
+        !Number.isSafeInteger(pageSize) ||
+        pageSize < 1 ||
+        !Number.isSafeInteger(total) ||
+        total < 0 ||
+        !Number.isSafeInteger(totalPages) ||
+        totalPages < 0 ||
+        totalPages !== Math.ceil(total / pageSize)
+      ) {
+        throw paginationError(`page ${page} returned invalid pagination metadata`);
+      }
+
+      if (totalPages > MAX_INBOXES_PAGES) {
+        throw paginationError(`page count exceeds the ${MAX_INBOXES_PAGES}-page safety limit`);
+      }
+      if (expectedTotalPages !== undefined && totalPages !== expectedTotalPages) {
+        throw paginationError('page count changed while loading inboxes');
+      }
+      if (expectedTotal !== undefined && total !== expectedTotal) {
+        throw paginationError('record count changed while loading inboxes');
+      }
+      if (expectedPageSize !== undefined && pageSize !== expectedPageSize) {
+        throw paginationError('page size changed while loading inboxes');
+      }
+      expectedTotalPages = totalPages;
+      expectedTotal = total;
+      expectedPageSize = pageSize;
+
+      if (totalPages === 0) {
+        if (page !== 1 || pageData.length > 0 || total !== 0) {
+          throw paginationError(`page ${page} returned data for an empty collection`);
+        }
+        return { data: [] };
+      }
+      if (page > totalPages) {
+        throw paginationError(`pagination ended before page ${page}`);
+      }
+
+      const pageIds = pageData.map(inbox => {
+        if (!inbox || typeof inbox.id !== 'string' || inbox.id.length === 0) {
+          throw paginationError(`page ${page} contained an inbox without a valid ID`);
+        }
+        return inbox.id;
+      });
+      const pageSignature = JSON.stringify(pageIds);
+      if (seenPageSignatures.has(pageSignature)) {
+        throw paginationError(`page ${page} repeated an earlier page`);
+      }
+      seenPageSignatures.add(pageSignature);
+
+      let addedCount = 0;
+      pageData.forEach(inbox => {
+        if (!inboxesById.has(inbox.id)) {
+          addedCount += 1;
+        }
+        inboxesById.set(inbox.id, inbox);
+      });
+      if (addedCount === 0) {
+        throw paginationError(`page ${page} made no progress`);
+      }
+
+      if (page === totalPages) {
+        return { data: Array.from(inboxesById.values()) };
+      }
+    }
+
+    throw paginationError(`pagination did not finish within ${MAX_INBOXES_PAGES} pages`);
   },
 
   async getById(inboxId: string): Promise<InboxResponse> {
