@@ -382,6 +382,7 @@ export interface ConversationListParams {
   conversation_type?: 'mention' | 'unattended' | 'participating';
   unread?: boolean;
   unanswered?: boolean; // EVO-1963: open + awaiting agent reply (waiting_since present)
+  urgent_followup?: boolean;
   is_group?: boolean;
   archived?: boolean;
 }

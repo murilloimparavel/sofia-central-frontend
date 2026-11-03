@@ -75,6 +75,10 @@ export function doesConversationMatchFilters(
         const isUnread = (conversation.unread_count ?? 0) > 0;
         return filter_operator === 'not_equal_to' ? !isUnread : isUnread;
       }
+      case 'urgent_followup': {
+        const isUrgent = conversation.custom_attributes?.urgent_followup === true;
+        return filter_operator === 'not_equal_to' ? !isUrgent : isUrgent;
+      }
       case 'is_group': {
         // Chip "Grupos" (value 'true'): só conversas de grupo (is_group do
         // serializer). Sem isso o matcher caía no default=true e injetava

@@ -9,7 +9,7 @@ import type { ConversationFilter } from '@/types/chat/api';
 
 export type ConversationSegmentId = 'open' | 'pending' | 'resolved' | 'unread' | 'unanswered' | 'groups';
 
-export type ConversationScopeId = 'mine' | 'unassigned' | 'bot' | 'all';
+export type ConversationScopeId = 'mine' | 'unassigned' | 'urgent' | 'bot' | 'all';
 
 export interface ConversationSegment {
   id: ConversationSegmentId;
@@ -29,7 +29,7 @@ const statusFilter = (value: string): BaseFilter => ({
 // unread / unanswered / is_group: eixos de navegação (não-status) mapeados pra params
 // GET em convertFiltersToUrlParams. status ausente é injetado como 'all' lá, então
 // estas views abrangem todos os status (ex.: "Não lidas" = não lidas em qualquer status).
-const boolFilter = (attributeKey: 'unread' | 'unanswered' | 'is_group'): BaseFilter => ({
+const boolFilter = (attributeKey: 'unread' | 'unanswered' | 'is_group' | 'urgent_followup'): BaseFilter => ({
   ...DEFAULT_BASE_FILTER,
   attributeKey,
   filterOperator: 'equal_to',
@@ -48,6 +48,7 @@ export const CONVERSATION_SCOPE_PRESETS: Record<ConversationScopeId, BaseFilter[
   mine: [assigneeFilter('me'), statusFilter('open')],
   // Fila: novos atendimentos em andamento aguardando operador (sem responsável)
   unassigned: [assigneeFilter('unassigned'), statusFilter('open')],
+  urgent: [boolFilter('urgent_followup')],
   // Robô: todos os atendimentos sob controle da IA / agentes autônomos
   bot: [assigneeFilter('all'), statusFilter('pending')],
   // Todas: visão global da empresa com todos os atendimentos e status
@@ -57,6 +58,7 @@ export const CONVERSATION_SCOPE_PRESETS: Record<ConversationScopeId, BaseFilter[
 export const getActiveConversationScope = (
   active: ConversationFilter[],
 ): ConversationScopeId | null => {
+  if (active.some(f => f.attribute_key === 'urgent_followup' && f.values?.map(String).includes('true'))) return 'urgent';
   const statusFilterItem = active.find(f => f.attribute_key === 'status');
   const statusValue =
     statusFilterItem &&

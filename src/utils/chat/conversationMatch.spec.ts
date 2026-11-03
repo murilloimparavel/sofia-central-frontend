@@ -79,6 +79,11 @@ describe('doesConversationMatchFilters', () => {
   });
 
   describe('chip-nav axes', () => {
+    it('urgent_followup enters and leaves the urgent queue as the server marker changes', () => {
+      const urgent = filter('urgent_followup', ['true']);
+      expect(doesConversationMatchFilters(conv({ custom_attributes: { urgent_followup: true } }), [urgent])).toBe(true);
+      expect(doesConversationMatchFilters(conv({ custom_attributes: {} }), [urgent])).toBe(false);
+    });
     it('unread', () => {
       expect(doesConversationMatchFilters(conv({ unread_count: 2 }), [filter('unread', ['true'])])).toBe(true);
       expect(doesConversationMatchFilters(conv({ unread_count: 0 }), [filter('unread', ['true'])])).toBe(false);

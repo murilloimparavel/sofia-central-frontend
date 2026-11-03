@@ -348,6 +348,7 @@
     "scopeTabs": {
       "mine": "My Chats",
       "unassigned": "Queue",
+      "urgent": "Urgent",
       "bot": "Bot",
       "all": "All"
     },
