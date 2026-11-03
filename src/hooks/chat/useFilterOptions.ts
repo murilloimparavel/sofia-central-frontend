@@ -67,7 +67,7 @@ export const useFilterOptions = (params: UseFilterOptionsParams = {}): FilterOpt
           teamsResponse,
           usersResponse,
         ] = await Promise.allSettled([
-          InboxesService.list(),
+          InboxesService.listAll(),
           chatService.getAvailablePipelines(),
           contactsService.getContacts({ per_page: 100, sort: 'last_activity_at', order: 'desc' }),
           labelsService.getLabels({ per_page: 200 }),

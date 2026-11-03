@@ -123,7 +123,7 @@ const CustomerDashboardPage = () => {
         const [pipelinesResponse, teamsResponse, inboxesResponse, usersResponse] = await Promise.all([
           pipelinesService.getPipelines({ page: 1, per_page: 100, sort: 'name', order: 'asc' }),
           TeamsService.getTeams({ page: 1, per_page: 100, sort: 'name', order: 'asc' }),
-          InboxesService.list(),
+          InboxesService.listAll(),
           usersService.getUsers({ page: 1, per_page: 100, sort: 'name', order: 'asc' }),
         ]);
 
