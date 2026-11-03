@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
 import { MCPServerConfig } from '@/types/ai';
 import { Tool } from '@/types';
+import KnowledgeAgentBindings from '../Knowledge/KnowledgeAgentBindings';
 
 type AgentPageMode = 'create' | 'edit' | 'view';
 
@@ -590,6 +591,9 @@ const AgentPage = () => {
             editingAgentId={id}
             folderId={undefined}
           />
+          {id && permissionsReady && can('ai_knowledge', 'read') && can('ai_agents', 'read') && (
+            <KnowledgeAgentBindings agentId={id} canEdit={can('ai_knowledge', 'update') && can('ai_agents', 'update')} />
+          )}
         </div>
       </div>
     </div>
