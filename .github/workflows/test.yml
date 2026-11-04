@@ -11,10 +11,15 @@ on:
   push:
     branches: [develop, main]
 
+concurrency:
+  group: pr-quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   vitest:
     name: Vitest
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -205,6 +210,7 @@ jobs:
   eslint:
     name: ESLint (diff)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
 
