@@ -51,3 +51,9 @@ test('malformed push payload does not crash the worker', async () => {
   await w.dispatch('push', { data: { json: () => { throw Error('invalid JSON'); } } });
   assert.equal(w.shown.length, 0);
 });
+
+test('test-notification click opens the profile for the same user', async () => {
+  const w = worker(); await w.user('u1');
+  await w.dispatch('notificationclick', { notification: { close() {}, data: { userId: 'u1', url: 'https://crm.example.com/profile/notificacoes' } } });
+  assert.deepEqual(w.opened, ['https://crm.example.com/profile/notificacoes']);
+});

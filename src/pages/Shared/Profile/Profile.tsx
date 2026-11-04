@@ -1,3 +1,4 @@
+import { WebPushTestButton } from './WebPushTestButton';
 import { enableWebPush, disableWebPush, isWebPushEnabled, needsHomeScreen } from '@/services/notifications/webPushService';
 import { useState, ChangeEvent, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -942,6 +943,8 @@ const Profile = () => {
             disabled={pushBusy}
           />
         </div>
+
+        <WebPushTestButton enabled={notificationSettings.browser_push_enabled} busy={pushBusy} />
 
         {notificationSettings.browser_push_enabled && !Object.values(notificationSettings.push_notifications).some(Boolean) && (
           <p role="status" className="text-sm text-muted-foreground">

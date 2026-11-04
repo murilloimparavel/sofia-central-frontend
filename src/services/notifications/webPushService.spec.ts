@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '@/services/core/api';
-import { disableWebPush, enableWebPush, isWebPushEnabled, syncWebPush } from './webPushService';
+import { disableWebPush, enableWebPush, isWebPushEnabled, syncWebPush, sendWebPushTest } from './webPushService';
 vi.mock('@/services/core/api', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
 const subscription = {
   endpoint: 'https://push.example/device',
@@ -29,6 +29,16 @@ beforeEach(() => {
   vi.mocked(api.get).mockResolvedValue({ data: { public_key: 'AQID' } });
 });
 describe('web push lifecycle', () => {
+  it('sends the test request only for the current enrolled endpoint', async () => {
+    localStorage.setItem('sofia-web-push-enabled', 'true');
+    vi.mocked(api.post).mockResolvedValueOnce({ data: { delay_seconds: 10 } });
+    expect(await sendWebPushTest()).toBe(10);
+    expect(api.post).toHaveBeenCalledWith('/notification_subscriptions/test', { endpoint: subscription.endpoint });
+  });
+  it('requires real enrollment before sending a test', async () => {
+    await expect(sendWebPushTest()).rejects.toThrow('Ative as notificações');
+    expect(api.post).not.toHaveBeenCalled();
+  });
   it('does not treat permission alone as an active subscription', async () => {
     expect(await isWebPushEnabled()).toBe(false);
     localStorage.setItem('sofia-web-push-enabled', 'true');

@@ -24,6 +24,16 @@ No iPhone (iOS 16.4+), adicionar à Tela de Início e abrir pelo ícone antes de
 No Android, usar navegador com Push API. O site deve usar HTTPS. O worker e o manifest
 possuem regras Nginx sem cache imutável. Ícones de 192 e 512 pixels reutilizam a arte existente.
 
+## Botão de teste no perfil
+
+Com o aparelho inscrito, usar **Enviar notificação de teste** em Perfil → Notificações.
+O servidor agenda um push VAPID real para dez segundos depois, permitindo bloquear a tela.
+O botão não cria uma mensagem ou conversa nem modifica preferências. O teste é enviado
+somente à inscrição atual do usuário, com intervalo mínimo de trinta segundos entre solicitações.
+A mensagem na tela confirma o agendamento; a apresentação do alerta deve ser conferida no aparelho.
+Tocar no alerta de teste abre novamente o perfil. A inscrição é verificada outra vez no job,
+para não enviar após logout, remoção ou transferência do aparelho para outra conta.
+
 ## Validação local
 
 ```sh

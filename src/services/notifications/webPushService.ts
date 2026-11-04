@@ -93,3 +93,12 @@ export async function syncWebPush(userId: string) {
   await setWorkerUser(reg, userId);
   localStorage.setItem(ownerKey, userId);
 }
+
+export async function sendWebPushTest(): Promise<number> {
+  if (!(await isWebPushEnabled())) throw new Error('Ative as notificações neste aparelho antes de enviar um teste.');
+  const reg = await registration();
+  const subscription = await reg?.pushManager.getSubscription();
+  if (!subscription) throw new Error('Ative novamente as notificações neste aparelho.');
+  const response = await api.post('/notification_subscriptions/test', { endpoint: subscription.endpoint });
+  return (response.data.data ?? response.data).delay_seconds;
+}

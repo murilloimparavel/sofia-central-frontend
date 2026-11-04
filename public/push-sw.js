@@ -40,7 +40,8 @@ self.addEventListener('notificationclick', event => {
     const state = await cache.match(stateUrl);
     if (!state || String((await state.json()).userId) !== String(event.notification.data.userId)) return;
     const target = new URL(event.notification.data.url || '/conversations', self.location.origin);
-    if (target.origin !== self.location.origin || !/^\/conversations\/\d+$/.test(target.pathname)) return;
+    const allowedPath = /^\/conversations\/\d+$/.test(target.pathname) || target.pathname === '/profile/notificacoes';
+    if (target.origin !== self.location.origin || !allowedPath) return;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const client = windows.find(item => new URL(item.url).origin === target.origin);
     if (client) { await client.navigate(target.href); await client.focus(); }
