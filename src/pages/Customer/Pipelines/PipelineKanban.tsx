@@ -54,6 +54,7 @@ import {
   StageAutomationRule,
 } from '@/types/analytics';
 import EditPipelineModal from '@/components/pipelines/EditPipelineModal';
+import PipelineClassificationCatalogDialog from '@/components/pipelines/PipelineClassificationCatalogDialog';
 import CreateStageModal from '@/components/pipelines/CreateStageModal';
 import AddItemModal from '@/components/pipelines/AddItemModal';
 import RemoveItemModal from '@/components/pipelines/RemoveItemModal';
@@ -160,6 +161,7 @@ export default function PipelineKanban() {
 
   // Modal states
   const [showEditPipelineModal, setShowEditPipelineModal] = useState(false);
+  const [showClassificationCatalog, setShowClassificationCatalog] = useState(false);
   const [isUpdatingPipeline, setIsUpdatingPipeline] = useState(false);
   const [showCreateStageModal, setShowCreateStageModal] = useState(false);
   const [isCreatingStage, setIsCreatingStage] = useState(false);
@@ -885,6 +887,10 @@ export default function PipelineKanban() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => setShowClassificationCatalog(true)}>
+                      <GitBranch className="h-4 w-4 mr-2" />
+                      Configurar classificação Jev
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleEditPipeline}>
                       <Edit className="h-4 w-4 mr-2" />
                       {t('kanban.header.editPipeline')}
@@ -1527,6 +1533,15 @@ export default function PipelineKanban() {
           pipeline={pipeline}
           onSubmit={handleUpdatePipeline}
           loading={isUpdatingPipeline}
+        />
+      )}
+
+      {pipeline && (
+        <PipelineClassificationCatalogDialog
+          open={showClassificationCatalog}
+          onOpenChange={setShowClassificationCatalog}
+          pipelineId={pipeline.id}
+          pipelineName={pipeline.name}
         />
       )}
 
