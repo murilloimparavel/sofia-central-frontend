@@ -6,7 +6,7 @@ import {
   getActiveConversationScope,
 } from './conversationSegmentsHelpers';
 import { convertBaseFiltersToConversationFilters } from '@/utils/chat/filterAdapters';
-import { shouldUseAdvancedFilters, convertFiltersToUrlParams } from '@/utils/chat/filterConverters';
+import { shouldUseAdvancedFilters, convertFiltersToApiFormat, convertFiltersToUrlParams } from '@/utils/chat/filterConverters';
 import type { ConversationFilter } from '@/types/chat/api';
 
 // The "unanswered" chip has to match the sidebar badge and reach the backend through
@@ -156,5 +156,23 @@ describe('conversationSegmentsHelpers — Scope Tabs: Chats, Fila, Robô, Todas'
       { attribute_key: 'status', filter_operator: 'not_equal_to', values: ['resolved'] } as unknown as ConversationFilter,
     ];
     expect(shouldUseAdvancedFilters(notEqualFilter)).toBe(true);
+  });
+
+  it('preserves Urgente with priority and date in the advanced request', () => {
+    const urgent = convertBaseFiltersToConversationFilters(CONVERSATION_SCOPE_PRESETS.urgent)[0];
+    const filters: ConversationFilter[] = [
+      urgent,
+      { attribute_key: 'priority', filter_operator: 'equal_to', values: ['high'], query_operator: 'and' },
+      { attribute_key: 'created_at', filter_operator: 'is_greater_than', values: ['2026-11-01'], query_operator: 'and' },
+    ];
+
+    expect(getActiveConversationScope(filters)).toBe('urgent');
+    expect(shouldUseAdvancedFilters(filters)).toBe(true);
+    expect(convertFiltersToApiFormat(filters).filters.map(f => [f.attribute_key, f.filter_operator, f.values])).toEqual([
+      ['urgent_followup', 'equal_to', ['true']],
+      ['priority', 'equal_to', ['high']],
+      ['created_at', 'is_greater_than', ['2026-11-01']],
+    ]);
+    expect(getActiveConversationScope([{ ...urgent, query_operator: 'or' }, filters[1]])).toBe(null);
   });
 });

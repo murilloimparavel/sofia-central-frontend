@@ -64,7 +64,10 @@ export const getActiveConversationScope = (
     expected.every(([key, value]) => active.some(f => f.attribute_key === key &&
       f.filter_operator === 'equal_to' && (f.query_operator === undefined || f.query_operator === 'and') &&
       (Array.isArray(f.values) ? f.values.length === 1 : true) && valueOf(f) === value));
-  if (isExact([['urgent_followup', 'true']])) return 'urgent';
+  // Keep Urgente selected while priority/date filters narrow its AND query.
+  if (active.every(f => f.query_operator?.toLowerCase() !== 'or') &&
+      active.some(f => f.attribute_key === 'urgent_followup' && f.filter_operator === 'equal_to' &&
+        valueOf(f) === 'true')) return 'urgent';
   if (isExact([['assignee_type', 'all'], ['status', 'pending']])) return 'bot';
   if (isExact([['assignee_type', 'me'], ['status', 'open']])) return 'mine';
   if (isExact([['assignee_type', 'unassigned'], ['status', 'open']])) return 'unassigned';
