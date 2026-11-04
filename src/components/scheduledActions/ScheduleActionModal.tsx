@@ -77,7 +77,7 @@ export function ScheduleActionModal({
 
       setLoadingInboxes(true);
       try {
-        const response = await InboxesService.list();
+        const response = await InboxesService.listAll();
         const inboxes = response.data || [];
         setAvailableInboxes(getMessagingInboxes(inboxes));
 

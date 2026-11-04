@@ -1,3 +1,5 @@
+import { WebPushTestButton } from './WebPushTestButton';
+import { enableWebPush, disableWebPush, isWebPushEnabled, needsHomeScreen } from '@/services/notifications/webPushService';
 import { useState, ChangeEvent, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -131,6 +133,8 @@ const Profile = () => {
     browser_push_enabled: false,
     available_types: [],
   });
+
+  const [pushBusy, setPushBusy] = useState(false);
 
   // Configurações de áudio
   const [audioSettings, setAudioSettings] = useState(() => {
@@ -273,15 +277,6 @@ const Profile = () => {
     };
 
     fetchNotificationSettings();
-
-    // Check browser notification permission status on mount
-    if ('Notification' in window) {
-      const permission = Notification.permission;
-      setNotificationSettings(prev => ({
-        ...prev,
-        browser_push_enabled: permission === 'granted',
-      }));
-    }
   }, [flagsToSettings]);
 
   // Limpar email de confirmação quando dialog fechar
@@ -683,17 +678,8 @@ const Profile = () => {
       return;
     }
 
-    // Auto-request browser permission on first push enable.
-    // If the user denies the prompt, abort: saving push=true while permission is
-    // 'denied' would silently store an unreachable subscription on the backend.
-    if (type === 'push' && value && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        await requestNotificationPermission();
-      }
-      if (Notification.permission !== 'granted') {
-        toast.error(t('notifications.browserPermission.denied'));
-        return;
-      }
+    if (type === 'push' && value && !notificationSettings.browser_push_enabled) {
+      if (!(await requestNotificationPermission(true))) return;
     }
 
     // Atualizar estado local primeiro (otimistic update)
@@ -769,43 +755,25 @@ const Profile = () => {
     }
   };
 
-  const requestNotificationPermission = async () => {
-    if (!('Notification' in window)) {
-      toast.error(t('notifications.browserPermission.notSupported'));
-      return;
-    }
-
-    // Check current permission status
-    let permission = Notification.permission;
-
-    // If permission is default, request it
-    if (permission === 'default') {
-      permission = await Notification.requestPermission();
-    }
-
-    // Update state based on permission
-    const isGranted = permission === 'granted';
-    setNotificationSettings(prev => ({
-      ...prev,
-      browser_push_enabled: isGranted,
-    }));
-
-    if (isGranted) {
-      toast.success(t('notifications.browserPermission.granted'));
-    } else if (permission === 'denied') {
-      toast.error(t('notifications.browserPermission.denied'));
+  const requestNotificationPermission = async (enabled = true) => {
+    setPushBusy(true);
+    try {
+      if (enabled) await enableWebPush(String(user!.id));
+      else await disableWebPush();
+      setNotificationSettings(prev => ({ ...prev, browser_push_enabled: enabled }));
+      toast.success(enabled ? 'Notificações ativadas neste aparelho.' : 'Notificações desativadas neste aparelho.');
+      return true;
+    } catch (error) {
+      setNotificationSettings(prev => ({ ...prev, browser_push_enabled: false }));
+      toast.error(error instanceof Error ? error.message : 'Não foi possível configurar as notificações.');
+      return false;
+    } finally {
+      setPushBusy(false);
     }
   };
 
-  // Check browser notification permission on mount
   useEffect(() => {
-    if ('Notification' in window) {
-      const permission = Notification.permission;
-      setNotificationSettings(prev => ({
-        ...prev,
-        browser_push_enabled: permission === 'granted',
-      }));
-    }
+    isWebPushEnabled().then(enabled => setNotificationSettings(prev => ({ ...prev, browser_push_enabled: enabled }))).catch(() => {});
   }, []);
 
   const renderInterfaceSettings = () => (
@@ -964,15 +932,25 @@ const Profile = () => {
             <div>
               <p className="font-medium">{t('notifications.browserPermission.title')}</p>
               <p className="text-sm text-muted-foreground">
-                {t('notifications.browserPermission.description')}
+                {needsHomeScreen() ? 'No iPhone: Compartilhar → Adicionar à Tela de Início. Abra pelo ícone para ativar.' : 'Receba alertas de novas mensagens com o canal, mesmo com o app fechado. O conteúdo da mensagem fica oculto.'}
               </p>
             </div>
           </div>
           <Switch
             checked={notificationSettings.browser_push_enabled}
-            onCheckedChange={requestNotificationPermission}
+            onCheckedChange={checked => { void requestNotificationPermission(checked); }}
+            aria-label="Notificações push neste aparelho"
+            disabled={pushBusy}
           />
         </div>
+
+        <WebPushTestButton enabled={notificationSettings.browser_push_enabled} busy={pushBusy} />
+
+        {notificationSettings.browser_push_enabled && !Object.values(notificationSettings.push_notifications).some(Boolean) && (
+          <p role="status" className="text-sm text-muted-foreground">
+            Selecione abaixo quais alertas deseja receber. Para novas mensagens, ative as opções de conversas atribuídas e conversas das quais participa; para conversas novas, ative também a criação de conversa.
+          </p>
+        )}
 
         {/* Notificações por email */}
         <div className="space-y-4">

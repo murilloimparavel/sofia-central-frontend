@@ -107,7 +107,7 @@ export function ScheduledActionPanel({
     const fetchInboxes = async () => {
       setLoadingInboxes(true);
       try {
-        const response = await InboxesService.list();
+        const response = await InboxesService.listAll();
         const inboxes = response.data || [];
 
         const messagingInboxes = inboxes.filter(inbox => {

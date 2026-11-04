@@ -18,7 +18,7 @@ vi.mock('@/hooks/useLanguage', () => ({
 
 vi.mock('@/services/channels/inboxesService', () => ({
   default: {
-    list: vi.fn(),
+    listAll: vi.fn(),
   },
 }));
 
@@ -120,8 +120,7 @@ const buildInbox = (overrides: Partial<Inbox>): Inbox => ({
 
 describe('ScheduleActionModal', () => {
   it('shows unique channel options for mixed inbox types', async () => {
-    mockedInboxesService.list.mockResolvedValue({
-      success: true,
+    mockedInboxesService.listAll.mockResolvedValue({
       data: [
         buildInbox({ id: 'wa-cloud', name: 'WhatsApp Cloud', channel_type: 'Channel::WhatsappCloud' }),
         buildInbox({ id: 'wa-legacy', name: 'WhatsApp Legacy', channel_type: 'Channel::Whatsapp' }),
@@ -131,8 +130,6 @@ describe('ScheduleActionModal', () => {
         buildInbox({ id: 'telegram-team', name: 'Telegram Team', channel_type: 'Channel::Telegram' }),
         buildInbox({ id: 'api-team', name: 'API Team', channel_type: 'Channel::Api' }),
       ],
-      meta: {} as never,
-      message: '',
     });
 
     render(
@@ -143,7 +140,7 @@ describe('ScheduleActionModal', () => {
     );
 
     await waitFor(() => {
-      expect(mockedInboxesService.list).toHaveBeenCalledTimes(1);
+      expect(mockedInboxesService.listAll).toHaveBeenCalledTimes(1);
     });
 
     await waitFor(() => {

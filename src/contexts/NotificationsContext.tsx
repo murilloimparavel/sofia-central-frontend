@@ -509,6 +509,7 @@ const NotificationsProviderInner: React.FC<NotificationsProviderProps> = ({ chil
         typeof window !== 'undefined' &&
         'Notification' in window &&
         Notification.permission === 'granted' &&
+        localStorage.getItem('sofia-web-push-enabled') !== 'true' &&
         document.hidden
       ) {
         try {

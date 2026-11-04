@@ -1,3 +1,4 @@
+import { syncWebPush, disableWebPush } from '@/services/notifications/webPushService';
 import React, { createContext, useContext, useEffect, ReactNode } from 'react';
 import { UserResponse } from '@/types/auth';
 import { useAuthStore } from '@/store/authStore';
@@ -104,6 +105,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => clearInterval(interval);
   }, [isAuthenticated, user]);
 
+  useEffect(() => {
+    if (isAuthenticated && user?.id) syncWebPush(String(user.id)).catch(() => {});
+  }, [isAuthenticated, user?.id]);
+
+  useEffect(() => {
+    const onAuthLost = () => { void disableWebPush(false).catch(() => {}); };
+    window.addEventListener('evolution:auth-lost', onAuthLost);
+    return () => window.removeEventListener('evolution:auth-lost', onAuthLost);
+  }, []);
+
   const login = async (userData: UserResponse, _loginData: { access_token?: string }) => {
     try {
       setUser(userData);
@@ -114,6 +125,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async () => {
+    try { await disableWebPush(); } catch { /* Local unsubscribe is attempted even when the API fails. */ }
     try {
       await authServiceLogout();
     } catch (error) {
@@ -202,6 +214,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// Context hooks are stable exports shared with the provider.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -210,6 +224,7 @@ export const useAuth = () => {
   return context;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useOptionalAuth = () => {
   return useContext(AuthContext);
 };
