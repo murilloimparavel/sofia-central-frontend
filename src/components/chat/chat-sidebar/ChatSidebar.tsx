@@ -106,7 +106,7 @@ const MIN_PREFETCH_DISTANCE_PX = 1000;
 // catálogo do modal avançado (CONVERSATION_FILTER_TYPES). Precisam ser excluídos
 // do sync activeFilters -> modal, senão o modal renderiza uma linha quebrada
 // (dropdowns em branco) ao abrir com um desses ativos.
-const CHIP_ONLY_FILTER_KEYS = ['unread', 'is_group'];
+const CHIP_ONLY_FILTER_KEYS = ['unread', 'is_group', 'urgent_followup'];
 
 // Chats/Fila/Todas são escopos de navegação e não filtros avançados.
 const SCOPE_FILTER_KEYS = ['assignee_type', 'assignee_id'];

@@ -36,7 +36,8 @@ export function doesConversationMatchFilters(
         // me/unassigned/assigned — mesma lógica de match no realtime e reconcile local.
         // Resolve o ID do atendente a partir de assignee_id, assignee.id ou meta.assignee.id
         const assigneeId =
-          conversation.assignee_id ?? conversation.assignee?.id ?? (conversation as any).meta?.assignee?.id;
+          conversation.assignee_id ?? conversation.assignee?.id ??
+          (conversation.meta as { assignee?: { id?: string | number } } | undefined)?.assignee?.id;
         const val = String(values[0]);
 
         if (val === 'me') {
@@ -74,6 +75,10 @@ export function doesConversationMatchFilters(
         // unread_count > 0; ao ler (unread_count -> 0) o WS remove da view.
         const isUnread = (conversation.unread_count ?? 0) > 0;
         return filter_operator === 'not_equal_to' ? !isUnread : isUnread;
+      }
+      case 'urgent_followup': {
+        const isUrgent = conversation.custom_attributes?.urgent_followup === true;
+        return filter_operator === 'not_equal_to' ? !isUrgent : isUrgent;
       }
       case 'is_group': {
         // Chip "Grupos" (value 'true'): só conversas de grupo (is_group do
@@ -129,9 +134,14 @@ export function doesConversationMatchQuery(
   if (!query) return true;
 
   if (query.kind === 'filter') {
+    const filters: ConversationFilter[] = (query.request?.filters ?? []).map(item => ({
+      ...item,
+      filter_operator: item.filter_operator as ConversationFilter['filter_operator'],
+      query_operator: item.query_operator === 'or' ? 'or' : 'and',
+    }));
     return doesConversationMatchFilters(
       conversation,
-      (query.request?.filters as any) || [],
+      filters,
       currentUserId,
     );
   }
@@ -150,7 +160,7 @@ export function doesConversationMatchQuery(
   const assigneeId =
     conversation.assignee_id ??
     conversation.assignee?.id ??
-    (conversation as any).meta?.assignee?.id;
+    (conversation.meta as { assignee?: { id?: string | number } } | undefined)?.assignee?.id;
 
   if (params.assignee_type === 'me') {
     const meMatches =
@@ -187,6 +197,11 @@ export function doesConversationMatchQuery(
   if (params.unread !== undefined) {
     const isUnread = (conversation.unread_count ?? 0) > 0;
     if (isUnread !== Boolean(params.unread)) return false;
+  }
+
+  if (params.urgent_followup !== undefined) {
+    const isUrgent = conversation.custom_attributes?.urgent_followup === true;
+    if (isUrgent !== params.urgent_followup) return false;
   }
 
   // Labels check

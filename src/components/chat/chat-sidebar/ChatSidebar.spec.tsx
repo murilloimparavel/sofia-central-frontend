@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ChatSidebar from './ChatSidebar';
 import type { ConversationFilter } from '@/types/chat/api';
+import { convertBaseFiltersToConversationFilters } from '@/utils/chat/filterAdapters';
+import { convertFiltersToApiFormat, shouldUseAdvancedFilters } from '@/utils/chat/filterConverters';
 
 vi.mock('@/services/pipelines/pipelinesService', () => ({
   pipelinesService: {
@@ -26,6 +28,14 @@ vi.mock('sonner', () => ({
 
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock('@/hooks/chat/useFilterOptions', () => ({
+  useFilterOptions: () => ({
+    inboxes: [], labels: [], users: [], teams: [], contacts: [],
+    pipelines: [{ value: 'pipeline-test', label: 'Funil de teste' }],
+    loading: false, error: null,
+  }),
 }));
 
 vi.mock('@/hooks/useDebounce', () => ({
@@ -422,5 +432,29 @@ describe('ChatSidebar defensive scope filtering', () => {
 
     expect(screen.getByText('Unassigned Contact')).toBeInTheDocument();
     expect(screen.queryByText('Assigned Contact')).not.toBeInTheDocument();
+  });
+});
+
+describe('ChatSidebar urgent pipeline filtering', () => {
+  it('keeps Urgente and the selected pipeline in the advanced API request', async () => {
+    overrideContext = makeMockContext();
+    overrideContext.filters.state.activeFilters = [
+      { attribute_key: 'urgent_followup', filter_operator: 'equal_to', values: ['true'], query_operator: 'and' },
+    ] as never;
+    const onFilterApply = vi.fn();
+    render(<ChatSidebar {...defaultProps} onFilterApply={onFilterApply} />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'chatSidebar.filtersButton' }));
+    await user.click(screen.getByRole('button', { name: 'conversationsFilter.attributes.pipeline_id' }));
+    await user.click(screen.getByText('Funil de teste'));
+    await user.click(screen.getByRole('button', { name: 'conversationsFilter.applyFilters' }));
+
+    const applied = convertBaseFiltersToConversationFilters(onFilterApply.mock.calls.at(-1)![0]);
+    expect(shouldUseAdvancedFilters(applied)).toBe(true);
+    expect(convertFiltersToApiFormat(applied).filters).toEqual([
+      { attribute_key: 'urgent_followup', filter_operator: 'equal_to', values: ['true'], query_operator: null },
+      { attribute_key: 'pipeline_id', filter_operator: 'equal_to', values: ['pipeline-test'], query_operator: 'AND' },
+    ]);
   });
 });

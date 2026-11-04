@@ -9,7 +9,7 @@ import type { ConversationFilter } from '@/types/chat/api';
 
 export type ConversationSegmentId = 'open' | 'pending' | 'resolved' | 'unread' | 'unanswered' | 'groups';
 
-export type ConversationScopeId = 'mine' | 'unassigned' | 'bot' | 'all';
+export type ConversationScopeId = 'mine' | 'unassigned' | 'urgent' | 'bot' | 'all';
 
 export interface ConversationSegment {
   id: ConversationSegmentId;
@@ -29,7 +29,7 @@ const statusFilter = (value: string): BaseFilter => ({
 // unread / unanswered / is_group: eixos de navegação (não-status) mapeados pra params
 // GET em convertFiltersToUrlParams. status ausente é injetado como 'all' lá, então
 // estas views abrangem todos os status (ex.: "Não lidas" = não lidas em qualquer status).
-const boolFilter = (attributeKey: 'unread' | 'unanswered' | 'is_group'): BaseFilter => ({
+const boolFilter = (attributeKey: 'unread' | 'unanswered' | 'is_group' | 'urgent_followup'): BaseFilter => ({
   ...DEFAULT_BASE_FILTER,
   attributeKey,
   filterOperator: 'equal_to',
@@ -48,6 +48,7 @@ export const CONVERSATION_SCOPE_PRESETS: Record<ConversationScopeId, BaseFilter[
   mine: [assigneeFilter('me'), statusFilter('open')],
   // Fila: novos atendimentos em andamento aguardando operador (sem responsável)
   unassigned: [assigneeFilter('unassigned'), statusFilter('open')],
+  urgent: [boolFilter('urgent_followup')],
   // Robô: todos os atendimentos sob controle da IA / agentes autônomos
   bot: [assigneeFilter('all'), statusFilter('pending')],
   // Todas: visão global da empresa com todos os atendimentos e status
@@ -63,6 +64,10 @@ export const getActiveConversationScope = (
     expected.every(([key, value]) => active.some(f => f.attribute_key === key &&
       f.filter_operator === 'equal_to' && (f.query_operator === undefined || f.query_operator === 'and') &&
       (Array.isArray(f.values) ? f.values.length === 1 : true) && valueOf(f) === value));
+  // Keep Urgente selected while priority/date filters narrow its AND query.
+  if (active.every(f => f.query_operator?.toLowerCase() !== 'or') &&
+      active.some(f => f.attribute_key === 'urgent_followup' && f.filter_operator === 'equal_to' &&
+        valueOf(f) === 'true')) return 'urgent';
   if (isExact([['assignee_type', 'all'], ['status', 'pending']])) return 'bot';
   if (isExact([['assignee_type', 'me'], ['status', 'open']])) return 'mine';
   if (isExact([['assignee_type', 'unassigned'], ['status', 'open']])) return 'unassigned';
