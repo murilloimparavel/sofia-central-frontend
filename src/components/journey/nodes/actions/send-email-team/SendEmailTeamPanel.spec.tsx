@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SendEmailTeamPanel } from './SendEmailTeamPanel';
 import { SendEmailTeamNodeData } from './SendEmailTeamNode';
@@ -29,7 +29,7 @@ describe('SendEmailTeamPanel — no auto-persist on load', () => {
       <SendEmailTeamPanel nodeId="n1" data={makeData()} onUpdate={onUpdate} onClose={vi.fn()} />,
     );
 
-    await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
+    await screen.findByRole('group', { name: 'Destination teams' });
     expect(onUpdate).not.toHaveBeenCalled();
   });
 });
@@ -41,7 +41,7 @@ describe('SendEmailTeamPanel — labels are paired to their controls', () => {
     render(
       <SendEmailTeamPanel nodeId="n1" data={makeData()} onUpdate={vi.fn()} onClose={vi.fn()} />,
     );
-    await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
+    await screen.findByRole('group', { name: 'Destination teams' });
 
     expect(screen.getByRole('group', { name: 'Destination teams' })).toBeTruthy();
   });
@@ -52,7 +52,7 @@ describe('SendEmailTeamPanel — labels are paired to their controls', () => {
     render(
       <SendEmailTeamPanel nodeId="n1" data={makeData()} onUpdate={vi.fn()} onClose={vi.fn()} />,
     );
-    await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
+    await screen.findByRole('group', { name: 'Destination teams' });
 
     expect(screen.getByLabelText('Email message')).toBeTruthy();
   });
