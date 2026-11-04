@@ -12,6 +12,8 @@ interface ConversationListProps {
   hasNextPage: boolean;
   unreadCount: (conversationId: string) => number;
   onSelect: (conversation: Conversation) => void;
+  onPrefetchIntent?: (conversationId: string) => void;
+  onCancelPrefetchIntent?: (conversationId: string) => void;
   onToggleSelect: (displayId: string) => void;
   onStartSelection: (displayId: string) => void;
   onPin: (conversation: Conversation) => void;
@@ -32,6 +34,8 @@ export function ConversationList({
   hasNextPage,
   unreadCount,
   onSelect,
+  onPrefetchIntent,
+  onCancelPrefetchIntent,
   onToggleSelect,
   onStartSelection,
   onPin,
@@ -61,6 +65,8 @@ export function ConversationList({
             selectionMode={selectionMode}
             unreadCount={unreadCount(conversation.id) || 0}
             onSelect={onSelect}
+            onPrefetchIntent={onPrefetchIntent}
+            onCancelPrefetchIntent={onCancelPrefetchIntent}
             onToggleSelect={onToggleSelect}
             onStartSelection={onStartSelection}
             onPin={onPin}

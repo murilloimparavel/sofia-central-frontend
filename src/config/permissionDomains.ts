@@ -45,6 +45,7 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
       'ai_mcp_servers',
       'ai_custom_tools',
       'ai_custom_mcp_servers',
+      'ai_knowledge',
       'ai_api_keys',
     ],
   },

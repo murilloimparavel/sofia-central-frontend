@@ -200,7 +200,8 @@
     "tabs": {
       "agents": "Agents IA",
       "customTools": "Outils Personnalisés",
-      "customMcpServers": "MCP Personnalisés"
+      "customMcpServers": "MCP Personnalisés",
+      "knowledge": "Base de connaissances"
     },
     "noAccess": {
       "title": "Aucun accès à cet espace",
@@ -209,7 +210,8 @@
     "subtitles": {
       "agents": "Gérez vos agents IA",
       "customTools": "Gérez vos outils personnalisés",
-      "customMcpServers": "Gérez vos serveurs MCP personnalisés"
+      "customMcpServers": "Gérez vos serveurs MCP personnalisés",
+      "knowledge": "Base de connaissances"
     }
   },
   "filters": {

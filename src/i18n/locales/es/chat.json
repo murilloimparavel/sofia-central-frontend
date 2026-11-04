@@ -95,6 +95,8 @@
       "messageNotSent": "El mensaje no fue enviado",
       "deliveryStatusUnavailable": "Estado de entrega no disponible - Haga clic para más detalles",
       "statusUnavailableText": "Estado no disponible",
+      "deliveryPendingText": "Confirmación pendiente",
+      "deliveryPendingTitle": "Verifique el envío antes de volver a intentarlo",
       "sendFailedText": "Envío fallido",
       "sendFailed": "Envío fallido - Haga clic para ver el motivo",
       "tryAgain": "Intentar de nuevo",

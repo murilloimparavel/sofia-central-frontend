@@ -27,6 +27,7 @@ vi.mock('@/contexts/chat/ChatContext', () => ({
   useChatContext: () => ({
     conversations: { updateConversation: mockUpdateConversation },
   }),
+  useChatConversations: () => ({ updateConversation: mockUpdateConversation }),
 }));
 
 vi.mock('sonner', () => ({
@@ -81,6 +82,7 @@ const makeConversation = (id = '42') =>
 
 const defaultProps = {
   conversation: makeConversation(),
+  onConversationUpdated: mockUpdateConversation,
   onBackClick: vi.fn(),
   onCloseConversation: vi.fn(),
   onContactSidebarOpen: vi.fn(),

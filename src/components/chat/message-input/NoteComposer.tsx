@@ -32,19 +32,19 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onSave, onExit, isSaving = 
         flex: 1,
         width: '100%',
         padding: '16px 20px 18px',
-        borderTop: '3px solid #f97316',
-        background: '#fff7ed',
+        borderTop: '3px solid var(--inbox-note-composer-accent)',
+        background: 'var(--inbox-note-composer-surface)',
         boxSizing: 'border-box',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-        <span style={{ fontSize: 13.5, color: '#9a3412', lineHeight: 1.4 }}>
+        <span style={{ fontSize: 13.5, color: 'var(--inbox-note-composer-text)', lineHeight: 1.4 }}>
           {t(
             'messageInput.noteComposer.helper',
             'Salve notas importantes na conversa para que outros usuários possam ver no futuro.',
           )}
         </span>
-        <div onClick={onExit} style={{ cursor: 'pointer', color: '#c2410c', flex: '0 0 auto', display: 'flex', marginTop: 1 }}>
+        <div onClick={onExit} style={{ cursor: 'pointer', color: 'var(--inbox-note-composer-control)', flex: '0 0 auto', display: 'flex', marginTop: 1 }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
             <line x1="6" y1="6" x2="18" y2="18" />
             <line x1="18" y1="6" x2="6" y2="18" />
@@ -63,12 +63,12 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onSave, onExit, isSaving = 
           width: '100%',
           minHeight: 72,
           resize: 'none',
-          border: '1px solid #fdba74',
+          border: '1px solid var(--inbox-note-composer-input-border)',
           borderRadius: 12,
           background: '#FFFFFF',
           padding: '12px 14px',
           fontSize: 14,
-          color: '#2b3240',
+          color: 'var(--inbox-note-composer-input-text)',
           fontFamily: 'inherit',
           outline: 'none',
           boxSizing: 'border-box',
@@ -80,7 +80,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onSave, onExit, isSaving = 
           onClick={onExit}
           style={{
             cursor: 'pointer',
-            color: '#9a3412',
+            color: 'var(--inbox-note-composer-text)',
             fontSize: 14,
             fontWeight: 500,
             padding: '8px 16px',
@@ -94,8 +94,8 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onSave, onExit, isSaving = 
           style={{
             cursor: content.trim() && !isSaving ? 'pointer' : 'not-allowed',
             opacity: content.trim() && !isSaving ? 1 : 0.6,
-            background: '#f97316',
-            border: '1px solid #f97316',
+            background: 'var(--inbox-note-composer-accent)',
+            border: '1px solid var(--inbox-note-composer-accent)',
             color: '#FFFFFF',
             fontSize: 14,
             fontWeight: 600,

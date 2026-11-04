@@ -20,32 +20,26 @@ export const useFilterHandlers = () => {
       // to cache and then to network data caused two list reconciliations,
       // visible flashes, and scroll clamping during scope changes.
 
-      return new Promise<void>((resolve, reject) => {
-        filters.applyFilters(
-          apiFilters,
-          (conversationsResult, pagination, query) => {
-            // Atualizar o estado das conversas com os resultados do filtro
-            conversations.setConversations(conversationsResult, pagination, query);
+      let failure: string | null = null;
+      await filters.applyFilters(
+        apiFilters,
+        (conversationsResult, pagination, query) => {
+          conversations.setConversations(conversationsResult, pagination, query);
 
-            if (scopeId && query) {
-              setScopeCache(scopeId, {
-                conversations: conversationsResult,
-                pagination,
-                query,
-              });
-            }
+          if (scopeId && query) {
+            setScopeCache(scopeId, { conversations: conversationsResult, pagination, query });
+          }
 
-            // 💾 PERSISTIR: Salvar filtros aplicados no localStorage
-            saveConversationFilters(newFilters);
-            resolve();
-          },
-          error => {
-            // Erro - mostrar mensagem e rejeitar promise
-            console.error('❌ Erro ao aplicar filtros:', error);
-            reject(error);
-          },
-        );
-      });
+          saveConversationFilters(newFilters);
+        },
+        error => {
+          failure = error;
+          console.error('❌ Erro ao aplicar filtros:', error);
+        },
+      );
+      // Uma requisição substituída por outra termina sem callback. O await
+      // também precisa terminar para não deixar uma Promise pendurada.
+      if (failure) throw new Error(failure);
     },
     [filters, conversations],
   );

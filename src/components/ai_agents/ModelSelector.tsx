@@ -61,10 +61,9 @@ export const availableModels = [
   { value: 'bedrock/mistral.mistral-7b-instruct-v0:2', label: 'Mistral 7B (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/amazon.nova-micro-v1:0', label: 'Amazon Nova Micro (Bedrock)', provider: 'bedrock' },
   // Vertex has no listing endpoint and no rolling alias, so these are pinned by hand.
-  // Gemini 2.5 retires 2026-10-16; Pro stays on it because 3.1 Pro is still preview.
+  // Gemini 2.5's retirement date was reached on 2026-10-16; keep retired IDs out of the picker.
   { value: 'vertex_ai/gemini-3.7-flash', label: 'Gemini 3.7 Flash (Vertex)', provider: 'vertex_ai' },
   { value: 'vertex_ai/gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-2.5-pro', label: 'Gemini 2.5 Pro (Vertex)', provider: 'vertex_ai' },
 ];
 
 export interface ModelSelectorProps {

@@ -2,6 +2,10 @@ import type { Conversation, ConversationsQuery } from '@/types/chat/api';
 import type { PaginationMeta } from '@/types/core';
 import type { ConversationScopeId } from '@/components/chat/chat-sidebar/conversationSegmentsHelpers';
 import { matchesConversationId } from './conversationMatcher';
+import {
+  evictConversationFromQueryCache,
+  reconcileConversationQueryCache,
+} from './conversationQueryCache';
 
 export interface ScopeCacheEntry {
   conversations: Conversation[];
@@ -37,6 +41,7 @@ export function evictFromScopeCache(
   scopeId: ConversationScopeId,
   conversationId: string | number,
 ): void {
+  evictConversationFromQueryCache(conversationId);
   const entry = scopeCache.get(scopeId);
   if (!entry) return;
   const idStr = String(conversationId);
@@ -58,6 +63,7 @@ export function addOrUpdateInScopeCache(
   scopeId: ConversationScopeId,
   conversation: Conversation,
 ): void {
+  reconcileConversationQueryCache(conversation);
   const entry = scopeCache.get(scopeId);
   if (!entry) return;
   const idStr = String(conversation.id);

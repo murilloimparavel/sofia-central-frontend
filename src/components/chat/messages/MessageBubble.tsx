@@ -42,12 +42,15 @@ interface MessageBubbleProps {
   showTimestamp?: boolean;
   labels?: Array<{ id: string; title: string; color: string }>;
   allMessages?: Message[]; // Todas as mensagens para buscar reply
+  replyMessageById?: ReadonlyMap<string, Message>;
+  replyMessageBySourceId?: ReadonlyMap<string, Message>;
   isPostConversation?: boolean;
   isThreadRoot?: boolean;
   isThreadReply?: boolean;
   isFacebookStyle?: boolean; // Estilo Facebook (tudo à esquerda, bubble simples)
   moderation?: FacebookCommentModeration; // Moderation data for this message
   onRetry?: () => void;
+  onRetryMessage?: (messageId: string) => void;
   onReply?: (message: Message) => void;
   onCopy?: (message: Message) => void;
   onDelete?: (message: Message) => void;
@@ -64,12 +67,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   showTimestamp = true,
   labels = [],
   allMessages = [],
+  replyMessageById,
+  replyMessageBySourceId,
   isPostConversation: _isPostConversation = false, // Prefixado com _ para evitar erro TS (pode ser usado no futuro)
   isThreadRoot: _isThreadRoot = false, // Prefixado com _ para evitar erro TS (pode ser usado no futuro)
   isThreadReply = false,
   isFacebookStyle = false,
   moderation,
   onRetry,
+  onRetryMessage,
   onReply,
   onCopy,
   onDelete,
@@ -77,6 +83,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   canForward = false,
 }) => {
   const { t } = useLanguage('chat');
+  const retry = onRetryMessage ? () => onRetryMessage(String(message.id)) : onRetry;
   const isTemplate = message.message_type === MESSAGE_TYPE.TEMPLATE;
   const isActivity = message.message_type === MESSAGE_TYPE.ACTIVITY;
   const isPrivate = message.private;
@@ -99,15 +106,19 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const replyToMessage = useMemo(() => {
     if (!hasReplyReference) return null;
     if (replyToMessageId) {
-      return allMessages.find(msg => String(msg.id) === String(replyToMessageId)) ?? null;
+      return replyMessageById
+        ? replyMessageById.get(String(replyToMessageId)) ?? null
+        : allMessages.find(msg => String(msg.id) === String(replyToMessageId)) ?? null;
     }
     if (replyToExternalId) {
-      return allMessages.find(
-        msg => msg.source_id && String(msg.source_id) === String(replyToExternalId),
-      ) ?? null;
+      return replyMessageBySourceId
+        ? replyMessageBySourceId.get(String(replyToExternalId)) ?? null
+        : allMessages.find(
+            msg => msg.source_id && String(msg.source_id) === String(replyToExternalId),
+          ) ?? null;
     }
     return null;
-  }, [hasReplyReference, replyToMessageId, replyToExternalId, allMessages]);
+  }, [hasReplyReference, replyToMessageId, replyToExternalId, allMessages, replyMessageById, replyMessageBySourceId]);
 
   const handleCopyMessage = () => {
     if (message.content) {
@@ -392,12 +403,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                   </div>
                 )}
                 {showTimestamp && timestampVariant === 'tuck' && (
-                  <MessageStatus message={message} isOwn={false} onRetry={onRetry} variant="tuck" />
+                  <MessageStatus message={message} isOwn={false} onRetry={retry} variant="tuck" />
                 )}
               </div>
 
               {showTimestamp && timestampVariant === 'default' && (
-                <MessageStatus message={message} isOwn={false} onRetry={onRetry} variant="default" />
+                <MessageStatus message={message} isOwn={false} onRetry={retry} variant="default" />
               )}
             </div>,
           )}
@@ -559,12 +570,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </div>
               )}
               {showTimestamp && timestampVariant === 'tuck' && (
-                <MessageStatus message={message} isOwn={isOwn} onRetry={onRetry} variant="tuck" />
+                <MessageStatus message={message} isOwn={isOwn} onRetry={retry} variant="tuck" />
               )}
             </div>
 
             {showTimestamp && timestampVariant === 'default' && (
-              <MessageStatus message={message} isOwn={isOwn} onRetry={onRetry} variant="default" />
+              <MessageStatus message={message} isOwn={isOwn} onRetry={retry} variant="default" />
             )}
           </div>,
         )}
@@ -606,11 +617,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 };
 
 function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbleProps): boolean {
-  if (prev.message.id !== next.message.id) return false;
-  if (prev.message.status !== next.message.status) return false;
-  if (prev.message.content !== next.message.content) return false;
-  if (prev.message.created_at !== next.message.created_at) return false;
-  if (prev.message.attachments !== next.message.attachments) return false;
+  // Reducers replace a changed message object and preserve unchanged ones.
+  // Comparing the complete object also covers sender, note and reply metadata.
+  if (prev.message !== next.message) return false;
   if (prev.isOwn !== next.isOwn) return false;
   if (prev.isFromBot !== next.isFromBot) return false;
   if (prev.isFromAgent !== next.isFromAgent) return false;
@@ -624,14 +633,31 @@ function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbl
   if (prev.labels !== next.labels) return false;
   if (prev.canForward !== next.canForward) return false;
   if (prev.onForward !== next.onForward) return false;
+  if (prev.onRetry !== next.onRetry) return false;
+  if (prev.onRetryMessage !== next.onRetryMessage) return false;
+  if (prev.onReply !== next.onReply) return false;
+  if (prev.onCopy !== next.onCopy) return false;
+  if (prev.onDelete !== next.onDelete) return false;
 
   // Se a mensagem possui referência de resposta (reply), verificar allMessages
   const hasReply = !!(
     prev.message.content_attributes?.in_reply_to ||
     prev.message.content_attributes?.in_reply_to_external_id
   );
-  if (hasReply && prev.allMessages !== next.allMessages) {
-    return false;
+  if (hasReply) {
+    if (prev.replyMessageById && next.replyMessageById && prev.replyMessageBySourceId && next.replyMessageBySourceId) {
+      const replyId = prev.message.content_attributes?.in_reply_to;
+      const externalId = prev.message.content_attributes?.in_reply_to_external_id;
+      const previousReply = replyId
+        ? prev.replyMessageById.get(String(replyId))
+        : prev.replyMessageBySourceId.get(String(externalId));
+      const nextReply = replyId
+        ? next.replyMessageById.get(String(replyId))
+        : next.replyMessageBySourceId.get(String(externalId));
+      if (previousReply !== nextReply) return false;
+    } else if (prev.allMessages !== next.allMessages) {
+      return false;
+    }
   }
 
   return true;

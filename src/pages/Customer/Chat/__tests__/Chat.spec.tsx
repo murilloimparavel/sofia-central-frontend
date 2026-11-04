@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import Chat from '../Chat';
 import { CONVERSATION_SEGMENTS } from '@/components/chat/chat-sidebar/conversationSegmentsHelpers';
@@ -10,6 +10,8 @@ import type { Conversation } from '@/types/chat/api';
 const mockState = vi.hoisted(() => ({
   selectedConversationId: null as string | null,
 }));
+const mockConversationList = vi.hoisted(() => ({ value: [] as Conversation[] }));
+const mockPrefetchMessages = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 const mockHookResolve = vi.hoisted(() => ({
   fn: vi.fn<[Conversation, (() => Promise<void>)?], Promise<void>>(),
@@ -20,6 +22,7 @@ const capturedProps = vi.hoisted(() => ({
 }));
 
 const capturedHeaderProps = vi.hoisted(() => ({
+  onBackClick: null as (() => Promise<void>) | null,
   onMarkAsResolved: null as ((conv: Conversation) => Promise<void>) | null,
   conversation: null as Conversation | null,
   onAssignAgent: null as ((conv: Conversation) => Promise<void>) | null,
@@ -37,6 +40,15 @@ const mockSelectedConversation = vi.hoisted(() => ({
 
 // ─── react-router-dom ─────────────────────────────────────────────────────────
 const mockNavigate = vi.hoisted(() => vi.fn());
+const mockRoute = vi.hoisted(() => ({ conversationId: undefined as string | undefined }));
+const mockLoadSpecificConversation = vi.hoisted(() => vi.fn());
+const mockGetConversation = vi.hoisted(() => vi.fn().mockReturnValue(null));
+const capturedSidebarProps = vi.hoisted(() => ({
+  mobileView: 'list' as 'list' | 'chat',
+  onConversationSelect: null as ((conv: Conversation) => void) | null,
+  onPrefetchIntent: null as ((id: string) => void) | null,
+  onCancelPrefetchIntent: null as ((id: string) => void) | null,
+}));
 
 // Mutable: the badge effect must react to the param, not to mount.
 const mockSearch = vi.hoisted(() => ({
@@ -45,7 +57,7 @@ const mockSearch = vi.hoisted(() => ({
 }));
 
 vi.mock('react-router-dom', () => ({
-  useParams: () => ({ conversationId: undefined }),
+  useParams: () => ({ conversationId: mockRoute.conversationId }),
   useNavigate: () => mockNavigate,
   useSearchParams: () => [mockSearch.params, mockSearch.setParams],
 }));
@@ -65,6 +77,7 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 
 // ─── Chat context ─────────────────────────────────────────────────────────────
 const mockSelectConversation = vi.fn().mockResolvedValue(undefined);
+const mockSetActiveConversationId = vi.hoisted(() => vi.fn());
 
 vi.mock('@/contexts/chat/ChatContext', () => ({
   useChatContext: () => ({
@@ -73,10 +86,11 @@ vi.mock('@/contexts/chat/ChatContext', () => ({
         selectedConversationId: mockState.selectedConversationId,
         conversationsLoading: false,
         conversationsError: null,
-        conversations: [],
+        conversations: mockConversationList.value,
       },
       selectConversation: mockSelectConversation,
-      getConversation: vi.fn().mockReturnValue(null),
+      getConversation: mockGetConversation,
+      loadSpecificConversation: mockLoadSpecificConversation,
       getUnreadCount: vi.fn().mockReturnValue(0),
       loadConversations: vi.fn().mockResolvedValue(undefined),
       // Chat.tsx:170 auto-marca a conversa selecionada como lida (silencioso) ao
@@ -86,6 +100,8 @@ vi.mock('@/contexts/chat/ChatContext', () => ({
     messages: {
       loadMessages: vi.fn(),
       loadMoreMessages: vi.fn(),
+      prefetchMessages: mockPrefetchMessages,
+      setActiveConversationId: mockSetActiveConversationId,
       state: { messages: [], messagesLoading: false },
     },
     selectedConversation: mockSelectedConversation.value,
@@ -158,12 +174,17 @@ vi.mock('@/services/contacts/labelsService', () => ({
 vi.mock('@/components/chat/chat-sidebar/ChatSidebar', () => ({
   default: (props: any) => {
     capturedProps.onMarkAsResolved = props.onMarkAsResolved;
-    return <div data-testid="chat-sidebar" />;
+    capturedSidebarProps.mobileView = props.mobileView;
+    capturedSidebarProps.onConversationSelect = props.onConversationSelect;
+    capturedSidebarProps.onPrefetchIntent = props.onPrefetchIntent;
+    capturedSidebarProps.onCancelPrefetchIntent = props.onCancelPrefetchIntent;
+    return <div data-testid="chat-sidebar" data-mobile-view={props.mobileView} />;
   },
 }));
 
 vi.mock('@/components/chat/chat-header/ChatHeader', () => ({
   default: (props: any) => {
+    capturedHeaderProps.onBackClick = props.onBackClick;
     capturedHeaderProps.onMarkAsResolved = props.onMarkAsResolved;
     capturedHeaderProps.conversation = props.conversation;
     capturedHeaderProps.onAssignAgent = props.onAssignAgent;
@@ -245,6 +266,8 @@ const conversationToAssign: Conversation = {
 describe('Chat — handleMarkAsResolved navigation behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRoute.conversationId = undefined;
+    mockGetConversation.mockReturnValue(null);
     capturedProps.onMarkAsResolved = null;
     capturedHeaderProps.onMarkAsResolved = null;
     capturedHeaderProps.conversation = null;
@@ -273,6 +296,9 @@ describe('Chat — handleMarkAsResolved navigation behavior', () => {
     mockState.selectedConversationId = 'uuid-selected';
 
     const { unmount } = render(<Chat />);
+    // The route sync may clear the stale test selection on /conversations.
+    // Isolate the calls made by the resolve action itself.
+    mockSelectConversation.mockClear();
 
     await act(async () => {
       await capturedProps.onMarkAsResolved!(otherConv);
@@ -299,15 +325,18 @@ describe('Chat — handleMarkAsResolved navigation behavior', () => {
   });
 
   it('clears URL and selection when resolving via ChatHeader (primary resolve path)', async () => {
-    mockState.selectedConversationId = 'uuid-selected';
-    mockSelectedConversation.value = selectedConv;
+    const routedConversation = { ...selectedConv, id: ROUTE_A, uuid: ROUTE_A };
+    mockRoute.conversationId = ROUTE_A;
+    mockGetConversation.mockReturnValue(routedConversation);
+    mockState.selectedConversationId = ROUTE_A;
+    mockSelectedConversation.value = routedConversation;
 
     const { unmount } = render(<Chat />);
 
-    expect(capturedHeaderProps.conversation).toEqual(selectedConv);
+    expect(capturedHeaderProps.conversation).toEqual(routedConversation);
 
     await act(async () => {
-      await capturedHeaderProps.onMarkAsResolved!(selectedConv);
+      await capturedHeaderProps.onMarkAsResolved!(routedConversation);
     });
 
     expect(mockNavigate).toHaveBeenCalledWith('/conversations', { replace: true });
@@ -321,6 +350,7 @@ describe('Chat — handleMarkAsResolved navigation behavior', () => {
     mockHookResolve.fn.mockRejectedValueOnce(new Error('API error'));
 
     const { unmount } = render(<Chat />);
+    mockSelectConversation.mockClear();
 
     await act(async () => {
       await capturedProps.onMarkAsResolved!(selectedConv);
@@ -339,6 +369,7 @@ describe('Chat — ?segment= preset (EVO-1963)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRoute.conversationId = undefined;
     mockState.selectedConversationId = null;
     mockSelectedConversation.value = null;
     mockSearch.params = new URLSearchParams();
@@ -393,12 +424,14 @@ describe('Chat — ?segment= preset (EVO-1963)', () => {
 describe('Chat — assignment modal subtitle names the contact (CRM-388)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRoute.conversationId = ROUTE_A;
+    mockGetConversation.mockReturnValue({ ...conversationToAssign, id: ROUTE_A, uuid: ROUTE_A });
     capturedAssignmentProps.description = null;
     capturedHeaderProps.onAssignAgent = null;
     capturedHeaderProps.onAssignTeam = null;
     capturedHeaderProps.onAssignTag = null;
-    mockState.selectedConversationId = 'uuid-selected';
-    mockSelectedConversation.value = conversationToAssign;
+    mockState.selectedConversationId = ROUTE_A;
+    mockSelectedConversation.value = { ...conversationToAssign, id: ROUTE_A, uuid: ROUTE_A };
   });
 
   const cases = [
@@ -423,7 +456,12 @@ describe('Chat — assignment modal subtitle names the contact (CRM-388)', () =>
   });
 
   it('falls back to the contact placeholder when the contact has no name', async () => {
-    mockSelectedConversation.value = { ...conversationToAssign, contact: {} } as any;
+    mockSelectedConversation.value = {
+      ...conversationToAssign,
+      id: ROUTE_A,
+      uuid: ROUTE_A,
+      contact: {},
+    } as any;
 
     const { unmount } = render(<Chat />);
 
@@ -436,6 +474,423 @@ describe('Chat — assignment modal subtitle names the contact (CRM-388)', () =>
       'assignment.label.description|assignment.label.contactFallback',
     );
 
+    unmount();
+  });
+});
+
+const ROUTE_A = '11111111-1111-4111-8111-111111111111';
+const ROUTE_B = '22222222-2222-4222-8222-222222222222';
+const ROUTE_C = '33333333-3333-4333-8333-333333333333';
+
+describe('Chat — adjacent conversation prefetch', () => {
+  const list = [ROUTE_A, ROUTE_B, ROUTE_C].map(id => ({ id, uuid: id } as Conversation));
+  const connectionDescriptor = Object.getOwnPropertyDescriptor(navigator, 'connection');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    mockConversationList.value = [...list];
+    mockRoute.conversationId = ROUTE_A;
+    mockState.selectedConversationId = ROUTE_A;
+    mockSelectedConversation.value = list[0];
+    mockGetConversation.mockImplementation((id: string) => list.find(conv => conv.uuid === id) || null);
+    Object.defineProperty(navigator, 'connection', { configurable: true, value: undefined });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    if (connectionDescriptor) {
+      Object.defineProperty(navigator, 'connection', connectionDescriptor);
+    } else {
+      Reflect.deleteProperty(navigator, 'connection');
+    }
+  });
+
+  it('keeps the same timer and request when a list or message context rerenders', () => {
+    const { rerender, unmount } = render(<Chat />);
+    act(() => { vi.advanceTimersByTime(300); });
+
+    mockConversationList.value = [...list];
+    rerender(<Chat />);
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+
+    rerender(<Chat />);
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('cancels the old neighbor and waits for the new one', () => {
+    const { rerender, unmount } = render(<Chat />);
+    act(() => { vi.advanceTimersByTime(300); });
+
+    mockConversationList.value = [list[0], list[2], list[1]];
+    rerender(<Chat />);
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(mockPrefetchMessages).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_C);
+    unmount();
+  });
+
+  it('recognizes a selected database ID when the URL uses its UUID', () => {
+    const first = { id: 'database-a', uuid: ROUTE_A } as Conversation;
+    mockConversationList.value = [first, list[1]];
+    mockState.selectedConversationId = 'database-a';
+    mockSelectedConversation.value = first;
+    const { unmount } = render(<Chat />);
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+    unmount();
+  });
+
+  it('does not request the same neighbor twice during the cache freshness window', async () => {
+    const { rerender, unmount } = render(<Chat />);
+    await act(async () => { vi.advanceTimersByTime(600); await Promise.resolve(); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+
+    act(() => {
+      mockRoute.conversationId = ROUTE_B;
+      mockState.selectedConversationId = ROUTE_B;
+      rerender(<Chat />);
+    });
+    await act(async () => { vi.advanceTimersByTime(600); await Promise.resolve(); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_C);
+
+    act(() => {
+      mockRoute.conversationId = ROUTE_A;
+      mockState.selectedConversationId = ROUTE_A;
+      rerender(<Chat />);
+    });
+    await act(async () => { vi.advanceTimersByTime(600); await Promise.resolve(); });
+    expect(mockPrefetchMessages.mock.calls.filter(([id]) => id === ROUTE_B)).toHaveLength(1);
+    unmount();
+  });
+
+  it.each([{ saveData: true }, { effectiveType: '2g' }, { effectiveType: 'slow-2g' }])(
+    'skips prefetch on a constrained connection %o', connection => {
+      Object.defineProperty(navigator, 'connection', { configurable: true, value: connection });
+      const { unmount } = render(<Chat />);
+      act(() => { vi.advanceTimersByTime(600); });
+      expect(mockPrefetchMessages).not.toHaveBeenCalled();
+      unmount();
+    },
+  );
+
+  it('uses the delayed fallback when Network Information is unavailable', () => {
+    const { unmount } = render(<Chat />);
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+    unmount();
+  });
+
+  it('debounces hover intent and cancels it when the pointer leaves before the delay', () => {
+    const { unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(80);
+      capturedSidebarProps.onCancelPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(200);
+    });
+    expect(mockPrefetchMessages).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('respects constrained network and deduplicates repeated hover intent', () => {
+    Object.defineProperty(navigator, 'connection', {
+      configurable: true, value: { saveData: true },
+    });
+    const { unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(200);
+    });
+    expect(mockPrefetchMessages).not.toHaveBeenCalled();
+
+    Object.defineProperty(navigator, 'connection', { configurable: true, value: undefined });
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(200);
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(200);
+    });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+    unmount();
+  });
+
+  it('drops rapid prefetch requests for different cards while one request is in flight', () => {
+    let rejectFirst!: (error: Error) => void;
+    mockPrefetchMessages.mockImplementationOnce(() => new Promise((_, reject) => { rejectFirst = reject; }));
+    const { unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(140);
+    });
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_C);
+      vi.advanceTimersByTime(140);
+    });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchMessages).toHaveBeenCalledWith(ROUTE_B);
+    act(() => rejectFirst(new Error('prefetch failed')));
+    act(() => { vi.advanceTimersByTime(0); });
+    unmount();
+  });
+
+  it('releases the global prefetch slot after a failed request', async () => {
+    let rejectFirst!: (error: Error) => void;
+    mockPrefetchMessages
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectFirst = reject; }))
+      .mockResolvedValueOnce(undefined);
+    const { unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_B);
+      vi.advanceTimersByTime(140);
+    });
+    await act(async () => {
+      rejectFirst(new Error('prefetch failed'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    act(() => {
+      vi.advanceTimersByTime(500);
+      capturedSidebarProps.onPrefetchIntent?.(ROUTE_C);
+      vi.advanceTimersByTime(140);
+    });
+    expect(mockPrefetchMessages).toHaveBeenCalledTimes(2);
+    expect(mockPrefetchMessages).toHaveBeenLastCalledWith(ROUTE_C);
+    unmount();
+  });
+});
+
+function deferredConversation() {
+  let resolve!: (conversation: Conversation | null) => void;
+  const promise = new Promise<Conversation | null>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+function deferredVoid() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+describe('Chat — mobile deep links and navigation races', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRoute.conversationId = undefined;
+    mockState.selectedConversationId = null;
+    mockSelectedConversation.value = null;
+    mockSearch.params = new URLSearchParams();
+    mockGetConversation.mockReturnValue(null);
+    mockLoadSpecificConversation.mockResolvedValue(null);
+    mockSelectConversation.mockResolvedValue(undefined);
+  });
+
+  it('opens the chat pane immediately for a cold valid deep link', async () => {
+    const pending = deferredConversation();
+    mockRoute.conversationId = ROUTE_A;
+    mockLoadSpecificConversation.mockReturnValue(pending.promise);
+
+    const { getByTestId, unmount } = render(<Chat />);
+
+    expect(getByTestId('chat-sidebar').getAttribute('data-mobile-view')).toBe('chat');
+    expect(mockLoadSpecificConversation).toHaveBeenCalledWith(ROUTE_A);
+    expect(mockSelectConversation).not.toHaveBeenCalledWith(ROUTE_A);
+
+    await act(async () => {
+      pending.resolve({ id: ROUTE_A, uuid: ROUTE_A } as Conversation);
+      await pending.promise;
+    });
+    expect(mockSelectConversation).toHaveBeenCalledWith(ROUTE_A);
+    unmount();
+  });
+
+  it('ignores A when /A changes to /B and the older request finishes last', async () => {
+    const pendingA = deferredConversation();
+    const pendingB = deferredConversation();
+    mockRoute.conversationId = ROUTE_A;
+    mockLoadSpecificConversation.mockImplementation((id: string) =>
+      id === ROUTE_A ? pendingA.promise : pendingB.promise,
+    );
+
+    const { rerender, unmount } = render(<Chat />);
+    await act(async () => {
+      mockRoute.conversationId = ROUTE_B;
+      rerender(<Chat />);
+    });
+
+    await act(async () => {
+      pendingB.resolve({ id: ROUTE_B, uuid: ROUTE_B } as Conversation);
+      await pendingB.promise;
+    });
+    await act(async () => {
+      pendingA.resolve({ id: ROUTE_A, uuid: ROUTE_A } as Conversation);
+      await pendingA.promise;
+    });
+
+    expect(mockSelectConversation).toHaveBeenCalledTimes(1);
+    expect(mockSelectConversation).toHaveBeenCalledWith(ROUTE_B);
+    unmount();
+  });
+
+  it('does not show A under the /B URL while B loads', async () => {
+    const pendingB = deferredConversation();
+    mockRoute.conversationId = ROUTE_A;
+    mockState.selectedConversationId = ROUTE_A;
+    mockSelectedConversation.value = { id: ROUTE_A, uuid: ROUTE_A } as Conversation;
+    mockGetConversation.mockImplementation((id: string) =>
+      id === ROUTE_A ? mockSelectedConversation.value : null,
+    );
+    mockLoadSpecificConversation.mockReturnValue(pendingB.promise);
+
+    const { queryByTestId, rerender, unmount } = render(<Chat />);
+    expect(queryByTestId('chat-header')).not.toBeNull();
+
+    await act(async () => {
+      mockRoute.conversationId = ROUTE_B;
+      rerender(<Chat />);
+    });
+    expect(queryByTestId('chat-header')).toBeNull();
+
+    await act(async () => {
+      pendingB.resolve({ id: ROUTE_B, uuid: ROUTE_B } as Conversation);
+      await pendingB.promise;
+    });
+    unmount();
+  });
+
+  it('does not let a pending deep link override a manual selection', async () => {
+    const pendingA = deferredConversation();
+    mockRoute.conversationId = ROUTE_A;
+    mockLoadSpecificConversation.mockReturnValue(pendingA.promise);
+
+    const { unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onConversationSelect!({ id: ROUTE_B, uuid: ROUTE_B } as Conversation);
+    });
+    expect(mockNavigate).toHaveBeenCalledWith(`/conversations/${ROUTE_B}`, { replace: true });
+
+    await act(async () => {
+      pendingA.resolve({ id: ROUTE_A, uuid: ROUTE_A } as Conversation);
+      await pendingA.promise;
+    });
+    expect(mockSelectConversation).toHaveBeenCalledTimes(1);
+    expect(mockSelectConversation).toHaveBeenCalledWith(ROUTE_B);
+    unmount();
+  });
+
+  it('honors external /C immediately after manually selecting B', async () => {
+    mockRoute.conversationId = ROUTE_A;
+    mockState.selectedConversationId = ROUTE_A;
+    mockSelectedConversation.value = { id: ROUTE_A, uuid: ROUTE_A } as Conversation;
+    mockGetConversation.mockImplementation((id: string) =>
+      id === ROUTE_A ? mockSelectedConversation.value : null,
+    );
+    mockLoadSpecificConversation.mockResolvedValue({ id: ROUTE_C, uuid: ROUTE_C });
+
+    const { rerender, unmount } = render(<Chat />);
+    act(() => {
+      capturedSidebarProps.onConversationSelect!({ id: ROUTE_B, uuid: ROUTE_B } as Conversation);
+    });
+
+    // The router first commits our own B navigation, then browser history or
+    // another external control navigates to C before any 100 ms timer elapsed.
+    await act(async () => {
+      mockState.selectedConversationId = ROUTE_B;
+      mockSelectedConversation.value = { id: ROUTE_B, uuid: ROUTE_B } as Conversation;
+      mockRoute.conversationId = ROUTE_B;
+      rerender(<Chat />);
+    });
+    await act(async () => {
+      mockRoute.conversationId = ROUTE_C;
+      rerender(<Chat />);
+    });
+
+    expect(mockLoadSpecificConversation).toHaveBeenCalledWith(ROUTE_C);
+    expect(mockSelectConversation).toHaveBeenCalledWith(ROUTE_C);
+    unmount();
+  });
+
+  it('completes back-to-list after selection clears before navigation commits', async () => {
+    const pendingClear = deferredVoid();
+    mockRoute.conversationId = ROUTE_A;
+    mockState.selectedConversationId = ROUTE_A;
+    mockSelectedConversation.value = { id: ROUTE_A, uuid: ROUTE_A } as Conversation;
+    mockGetConversation.mockReturnValue(mockSelectedConversation.value);
+    mockSelectConversation.mockImplementation((id: string | null) =>
+      id === null ? pendingClear.promise : Promise.resolve(),
+    );
+
+    const { rerender, unmount } = render(<Chat />);
+    let backPromise!: Promise<void>;
+    act(() => {
+      backPromise = capturedHeaderProps.onBackClick!();
+    });
+
+    await act(async () => {
+      mockState.selectedConversationId = null;
+      rerender(<Chat />);
+    });
+    await act(async () => {
+      pendingClear.resolve();
+      await backPromise;
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith('/conversations', { replace: true });
+    unmount();
+  });
+
+  it('uses the list for /conversations and redirects malformed IDs', () => {
+    const list = render(<Chat />);
+    expect(list.getByTestId('chat-sidebar').getAttribute('data-mobile-view')).toBe('list');
+    list.unmount();
+
+    mockRoute.conversationId = 'not-a-uuid';
+    const malformed = render(<Chat />);
+    expect(malformed.getByTestId('chat-sidebar').getAttribute('data-mobile-view')).toBe('list');
+    expect(mockNavigate).toHaveBeenCalledWith('/conversations', { replace: true });
+    malformed.unmount();
+  });
+
+  it('hides a stale selected conversation on the list and malformed URL', () => {
+    mockState.selectedConversationId = ROUTE_A;
+    mockSelectedConversation.value = { id: ROUTE_A, uuid: ROUTE_A } as Conversation;
+
+    const { queryByTestId, rerender, unmount } = render(<Chat />);
+    expect(queryByTestId('chat-header')).toBeNull();
+
+    act(() => {
+      mockRoute.conversationId = 'invalid-uuid';
+      rerender(<Chat />);
+    });
+    expect(queryByTestId('chat-header')).toBeNull();
+    unmount();
+  });
+
+  it('shows the selected conversation for an uppercase UUID deep link', () => {
+    mockRoute.conversationId = ROUTE_A.toUpperCase();
+    mockState.selectedConversationId = ROUTE_A;
+    mockSelectedConversation.value = { id: ROUTE_A, uuid: ROUTE_A } as Conversation;
+    mockGetConversation.mockReturnValue(mockSelectedConversation.value);
+
+    const { queryByTestId, unmount } = render(<Chat />);
+    expect(queryByTestId('chat-header')).not.toBeNull();
+    unmount();
+  });
+
+  it('returns to the list when a valid UUID does not exist', async () => {
+    mockRoute.conversationId = ROUTE_A;
+    mockLoadSpecificConversation.mockResolvedValue(null);
+
+    const { getByTestId, unmount } = render(<Chat />);
+    await act(async () => {});
+
+    expect(getByTestId('chat-sidebar').getAttribute('data-mobile-view')).toBe('list');
+    expect(mockNavigate).toHaveBeenCalledWith('/conversations', { replace: true });
     unmount();
   });
 });

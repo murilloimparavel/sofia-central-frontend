@@ -35,6 +35,8 @@ vi.mock('@/contexts/chat/ChatContext', () => ({
       getTypingUsers: vi.fn().mockReturnValue([]),
     },
   }),
+  useChatMessages: () => mockMessagesContext,
+  useChatWebSocket: () => ({ getTypingUsers: vi.fn().mockReturnValue([]) }),
 }));
 
 vi.mock('@/hooks/useConversationModerations', () => ({

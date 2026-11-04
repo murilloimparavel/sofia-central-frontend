@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { Bell } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
@@ -8,9 +8,11 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@evoapi/design-system';
-import NotificationPanel from './NotificationPanel';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { cn } from '@/lib/utils';
+import ChunkLoadErrorBoundary from '@/components/ChunkLoadErrorBoundary';
+
+const NotificationPanel = lazy(() => import('./NotificationPanel'));
 
 export default function NotificationBell() {
   const { t } = useLanguage('layout');
@@ -83,9 +85,13 @@ export default function NotificationBell() {
         align="end"
         sideOffset={8}
       >
-        <NotificationPanel
-          onClose={() => setIsOpen(false)}
-        />
+        {isOpen && (
+          <ChunkLoadErrorBoundary>
+            <Suspense fallback={<div className="h-[90vh] max-h-[600px]" aria-busy="true" />}>
+              <NotificationPanel onClose={() => setIsOpen(false)} />
+            </Suspense>
+          </ChunkLoadErrorBoundary>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -28,6 +28,8 @@ export interface ConversationCardProps {
   selectionMode: boolean;
   unreadCount: number;
   onSelect: (conversation: Conversation) => void;
+  onPrefetchIntent?: (conversationId: string) => void;
+  onCancelPrefetchIntent?: (conversationId: string) => void;
   onToggleSelect: (displayId: string) => void;
   onStartSelection: (displayId: string) => void;
   onPin: (conversation: Conversation) => void;
@@ -35,7 +37,7 @@ export interface ConversationCardProps {
   onArchive: (conversation: Conversation) => void;
   onUnarchive: (conversation: Conversation) => void;
   onDelete: (conversation: Conversation) => void;
-  t: (key: string, options?: any) => string;
+  t: (key: string, options?: Record<string, unknown>) => string;
 }
 
 const stripHtml = (html: string): string => {
@@ -69,6 +71,8 @@ const ConversationCardComponent: React.FC<ConversationCardProps> = ({
   selectionMode,
   unreadCount,
   onSelect,
+  onPrefetchIntent,
+  onCancelPrefetchIntent,
   onToggleSelect,
   onStartSelection,
   onPin,
@@ -98,6 +102,10 @@ const ConversationCardComponent: React.FC<ConversationCardProps> = ({
       key={conversation.id}
       data-conversation-card="true"
       data-conversation-id={String(conversation.id)}
+      onMouseEnter={() => !selectionMode && onPrefetchIntent?.(String(conversation.uuid || conversation.id))}
+      onMouseLeave={() => onCancelPrefetchIntent?.(String(conversation.uuid || conversation.id))}
+      onFocus={() => !selectionMode && onPrefetchIntent?.(String(conversation.uuid || conversation.id))}
+      onBlur={() => onCancelPrefetchIntent?.(String(conversation.uuid || conversation.id))}
       className={`p-4 mx-0.5 mb-2.5 rounded-[14px] border cursor-pointer transition-colors ${
         isBulkSelected
           ? 'bg-primary/5 border-primary/20'
@@ -267,20 +275,6 @@ const ConversationCardComponent: React.FC<ConversationCardProps> = ({
   );
 };
 
-export const ConversationCard = React.memo(ConversationCardComponent, (prev, next) => {
-  return (
-    prev.isSelected === next.isSelected &&
-    prev.isBulkSelected === next.isBulkSelected &&
-    prev.selectionMode === next.selectionMode &&
-    prev.unreadCount === next.unreadCount &&
-    prev.conversation.updated_at === next.conversation.updated_at &&
-    prev.conversation.last_activity_at === next.conversation.last_activity_at &&
-    prev.conversation.status === next.conversation.status &&
-    prev.conversation.assignee_id === next.conversation.assignee_id &&
-    prev.conversation.contact?.name === next.conversation.contact?.name &&
-    prev.conversation.contact?.phone_number === next.conversation.contact?.phone_number &&
-    prev.conversation.custom_attributes?.pinned === next.conversation.custom_attributes?.pinned &&
-    prev.conversation.custom_attributes?.archived === next.conversation.custom_attributes?.archived &&
-    prev.conversation.last_non_activity_message?.id === next.conversation.last_non_activity_message?.id
-  );
-});
+// O reducer preserva a referência das conversas não alteradas. A comparação
+// superficial também atualiza o cartão quando preview, avatar ou handlers mudam.
+export const ConversationCard = React.memo(ConversationCardComponent);

@@ -1,10 +1,18 @@
-import React, { createContext, useContext, useReducer, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useMemo, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { chatService } from '@/services/chat/chatService';
 import { extractConversationsData } from '@/utils/chat/responseHelpers';
 import { ConversationFilter, QuickFilterTab, Conversation, ConversationsQuery } from '@/types/chat/api';
 import { PaginationMeta } from '@/types/core';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useAuthStore } from '@/store/authStore';
+import { useAppDataStore } from '@/store/appDataStore';
+import {
+  getConversationQueryCache,
+  getConversationQueryCacheRevision,
+  replayConversationQueryEvents,
+  setConversationQueryCache,
+} from '@/utils/chat/conversationQueryCache';
 import {
   convertFiltersToApiFormat,
   convertFiltersToUrlParams,
@@ -102,7 +110,103 @@ const FiltersContext = createContext<FiltersContextValue | undefined>(undefined)
 
 export function FiltersProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage('chat');
+  const userId = useAuthStore(store => store.currentUser?.id);
+  const accountId = useAppDataStore(store => store.account?.id);
   const [state, dispatch] = useReducer(filtersReducer, initialState);
+  const latestRequestRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      latestRequestRef.current += 1;
+    };
+  }, []);
+
+  // Um cache fresco substitui a lista uma única vez e não dispara REST. Quando
+  // expira, a lista atual permanece visível até a resposta chegar, evitando o
+  // ciclo cache→rede que causava flash e mudança brusca do scroll.
+  const resolveQuery = useCallback(async (
+    query: ConversationsQuery,
+    requestId: number,
+    onSuccess: (conversations: Conversation[], pagination: PaginationMeta, query: ConversationsQuery) => void,
+  ): Promise<boolean> => {
+    if (useAuthStore.getState().currentUser?.id !== userId) return false;
+    // Na abertura, a conta pode chegar enquanto a lista já carrega. Adoção é
+    // permitida apenas de conta ausente para definida; troca de conta/sessão
+    // descarta a resposta antiga.
+    let requestAccountId = accountId;
+    const initialAccountId = useAppDataStore.getState().account?.id;
+    if (requestAccountId !== initialAccountId) {
+      if (requestAccountId == null && initialAccountId != null) requestAccountId = initialAccountId;
+      else return false;
+    }
+    const cached = getConversationQueryCache(userId, requestAccountId, query);
+    if (cached) {
+      if (requestId !== latestRequestRef.current) return false;
+      onSuccess(cached.conversations, cached.pagination, query);
+      return true;
+    }
+
+    dispatch({ type: 'SET_APPLYING_FILTERS', payload: true });
+    const canContinue = () => {
+      const liveAccountId = useAppDataStore.getState().account?.id;
+      return mountedRef.current && requestId === latestRequestRef.current &&
+        useAuthStore.getState().currentUser?.id === userId &&
+        (liveAccountId === requestAccountId ||
+          (requestAccountId == null && liveAccountId != null));
+    };
+    const fetchQuery = () => query.kind === 'filter'
+      ? chatService.filterConversations(query.request)
+      : chatService.getConversations(query.params);
+    // Uma consulta em voo recebe um journal limitado dos eventos posteriores.
+    // If a response cannot be reconciled safely, wait for realtime activity
+    // to settle and retry within a bounded window. Never apply or cache stale data.
+    const retryDeadline = Date.now() + 8_000;
+    let attempt = 0;
+    while (canContinue() && Date.now() < retryDeadline) {
+      attempt += 1;
+      const liveAccountId = useAppDataStore.getState().account?.id;
+      if (requestAccountId == null && liveAccountId != null) requestAccountId = liveAccountId;
+      const cacheRevision = getConversationQueryCacheRevision();
+      const response = await fetchQuery();
+      if (!canContinue()) return false;
+      const sameAccount = useAppDataStore.getState().account?.id === requestAccountId;
+      const extracted = extractConversationsData(response);
+      if (sameAccount) {
+        const entry = { ...extracted, query };
+        const safeEntry = cacheRevision === getConversationQueryCacheRevision()
+          ? entry
+          : replayConversationQueryEvents(userId, requestAccountId, cacheRevision, entry);
+        if (safeEntry) {
+          onSuccess(safeEntry.conversations, safeEntry.pagination, query);
+          setConversationQueryCache(userId, requestAccountId, safeEntry);
+          return true;
+        }
+      }
+      // Back off between requests and restart the quiet window when realtime
+      // writes continue. Polling is bounded by the overall deadline.
+      let observedRevision = getConversationQueryCacheRevision();
+      let quietSince = Date.now();
+      const quietDuration = Math.min(250 * attempt, 1_500);
+      while (canContinue() && Date.now() < retryDeadline) {
+        await new Promise(resolve => setTimeout(resolve, Math.min(50, retryDeadline - Date.now())));
+        if (!canContinue()) return false;
+        const currentRevision = getConversationQueryCacheRevision();
+        if (currentRevision !== observedRevision) {
+          observedRevision = currentRevision;
+          quietSince = Date.now();
+        } else if (Date.now() - quietSince >= quietDuration) {
+          break;
+        }
+      }
+    }
+    if (!canContinue()) return false;
+    // Realtime remained too active to establish a safe snapshot. Preserve the
+    // current list and report that the user can explicitly retry the query.
+    throw new Error('A lista está recebendo atualizações. Clique na aba novamente para tentar carregar uma versão atual.');
+  }, [userId, accountId]);
 
   // Filter actions
   const setFilters = useCallback((filters: ConversationFilter[]) => {
@@ -115,31 +219,19 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
       onSuccess: (conversations: Conversation[], pagination: PaginationMeta, query?: ConversationsQuery) => void,
       onError: (error: string) => void,
     ) => {
-      dispatch({ type: 'SET_APPLYING_FILTERS', payload: true });
+      const requestId = ++latestRequestRef.current;
 
       try {
-        if (filters.length === 0) {
-          // Se não há filtros, carregar conversas normais
-          const response = await chatService.getConversations();
-          const { conversations, pagination } = extractConversationsData(response);
-          onSuccess(conversations, pagination, { kind: 'list', params: {} });
-          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
-        } else if (shouldUseAdvancedFilters(filters)) {
-          // Usar filtros avançados (POST /filter)
-          const filterRequest = convertFiltersToApiFormat(filters);
-          const response = await chatService.filterConversations(filterRequest);
-          const { conversations, pagination } = extractConversationsData(response);
-          onSuccess(conversations, pagination, { kind: 'filter', request: filterRequest });
-          dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
-        } else {
-          // Usar filtros simples (GET /conversations)
-          const params = convertFiltersToUrlParams(filters);
-          const response = await chatService.getConversations(params);
-          const { conversations, pagination } = extractConversationsData(response);
-          onSuccess(conversations, pagination, { kind: 'list', params });
+        const query: ConversationsQuery = filters.length === 0
+          ? { kind: 'list', params: {} }
+          : shouldUseAdvancedFilters(filters)
+            ? { kind: 'filter', request: convertFiltersToApiFormat(filters) }
+            : { kind: 'list', params: convertFiltersToUrlParams(filters) };
+        if (await resolveQuery(query, requestId, onSuccess)) {
           dispatch({ type: 'SET_ACTIVE_FILTERS', payload: filters });
         }
       } catch (error) {
+        if (requestId !== latestRequestRef.current) return;
         const errorMessage =
           error instanceof Error ? error.message : t('contexts.filters.errors.applyFilters');
         onError(errorMessage);
@@ -147,10 +239,12 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           description: errorMessage,
         });
       } finally {
-        dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+        if (requestId === latestRequestRef.current) {
+          dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+        }
       }
     },
-    [t],
+    [t, resolveQuery],
   );
 
   const applySearch = useCallback(
@@ -159,6 +253,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
       onSuccess: (conversations: Conversation[], pagination: PaginationMeta, query?: ConversationsQuery) => void,
       onError: (error: string) => void,
     ) => {
+      const requestId = ++latestRequestRef.current;
       dispatch({ type: 'SET_SEARCH_TERM', payload: searchTerm });
 
       if (!searchTerm.trim()) {
@@ -168,25 +263,26 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
         } else {
           // Carregar conversas normais
           try {
-            const response = await chatService.getConversations();
-            const { conversations, pagination } = extractConversationsData(response);
-            onSuccess(conversations, pagination, { kind: 'list', params: {} });
+            await resolveQuery({ kind: 'list', params: {} }, requestId, onSuccess);
           } catch (error) {
+            if (requestId !== latestRequestRef.current) return;
             const errorMessage =
               error instanceof Error
                 ? error.message
                 : t('contexts.filters.errors.loadConversations');
             onError(errorMessage);
+          } finally {
+            if (requestId === latestRequestRef.current) {
+              dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+            }
           }
         }
         return;
       }
 
-      dispatch({ type: 'SET_APPLYING_FILTERS', payload: true });
-
       try {
         const searchParams = createSearchFilter(searchTerm);
-        let finalParams = searchParams;
+        let query: ConversationsQuery;
 
         // Combinar busca com filtros ativos se houver
         if (state.activeFilters.length > 0) {
@@ -196,20 +292,18 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
               ...convertFiltersToApiFormat(state.activeFilters),
               q: searchTerm,
             };
-            const response = await chatService.filterConversations(filterRequest);
-            const { conversations, pagination } = extractConversationsData(response);
-            onSuccess(conversations, pagination, { kind: 'filter', request: filterRequest });
-            return;
+            query = { kind: 'filter', request: filterRequest };
           } else {
             const filterParams = convertFiltersToUrlParams(state.activeFilters);
-            finalParams = combineSearchWithFilters(searchParams, filterParams);
+            query = { kind: 'list', params: combineSearchWithFilters(searchParams, filterParams) };
           }
+        } else {
+          query = { kind: 'list', params: searchParams };
         }
 
-        const response = await chatService.getConversations(finalParams);
-        const { conversations, pagination } = extractConversationsData(response);
-        onSuccess(conversations, pagination, { kind: 'list', params: finalParams });
+        await resolveQuery(query, requestId, onSuccess);
       } catch (error) {
+        if (requestId !== latestRequestRef.current) return;
         const errorMessage =
           error instanceof Error ? error.message : t('contexts.filters.errors.search');
         onError(errorMessage);
@@ -217,10 +311,12 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
           description: errorMessage,
         });
       } finally {
-        dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+        if (requestId === latestRequestRef.current) {
+          dispatch({ type: 'SET_APPLYING_FILTERS', payload: false });
+        }
       }
     },
-    [state.activeFilters, applyFilters, t],
+    [state.activeFilters, applyFilters, t, resolveQuery],
   );
 
   const setQuickFilter = useCallback((tab: QuickFilterTab) => {

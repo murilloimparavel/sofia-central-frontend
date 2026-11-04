@@ -24,7 +24,7 @@ const TABS: Array<{ id: ConversationScopeId; icon: typeof MessageCircle; label: 
 
 export default function ConversationScopeTabs({ activeFilters, onSelectScope, disabled = false }: Props) {
   const { t } = useLanguage('chat');
-  const active = getActiveConversationScope(activeFilters) ?? 'all';
+  const active = getActiveConversationScope(activeFilters);
 
   return (
     <div className="flex gap-1 overflow-x-auto border-b bg-background px-1.5 py-2" role="tablist" aria-label="Escopo das conversas">

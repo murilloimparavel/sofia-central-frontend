@@ -101,7 +101,8 @@
     "agents": {
       "list": "Agentes",
       "customTools": "Herramientas Personalizadas",
-      "customMcps": "MCPs Personalizados"
+      "customMcps": "MCPs Personalizados",
+      "knowledge": "Base de conocimiento"
     },
     "settings": {
       "account": "Cuenta",

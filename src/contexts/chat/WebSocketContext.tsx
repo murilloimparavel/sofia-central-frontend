@@ -313,9 +313,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           };
           const messageType = messageTypeMap[data.message_type] || (data.message_type as MessageTypeValue);
 
-          // CORREÇÃO: Para canal API e mensagens privadas, corrigir status 'failed' para 'sent'
+          // Private notes are CRM-only; keep their local-success display. Public
+          // API inbox failures must retain `failed` so the Bridge result is visible.
           const correctedStatus =
-            (data.private || data.inbox_id === '2') && data.status === 'failed'
+            data.private && data.status === 'failed'
               ? 'sent'
               : data.status;
 

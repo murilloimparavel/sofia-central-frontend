@@ -69,6 +69,17 @@ describe('MessageText Component', () => {
     expect(screen.getByText('Mensagem recebida por e-mail')).toBeInTheDocument();
   });
 
+  it('switches between email HTML and plain text without changing hook order', () => {
+    const { container, rerender } = render(<MessageText content="Olá" />);
+    expect(container.querySelector('.rich-content')).toBeInTheDocument();
+
+    rerender(<MessageText content="<!DOCTYPE html><html><body>Email</body></html>" />);
+    expect(container.querySelector('.email-html-content-wrapper')).toBeInTheDocument();
+
+    rerender(<MessageText content="Voltei" />);
+    expect(screen.getByText('Voltei')).toBeInTheDocument();
+  });
+
   it('renders private note without color overrides', () => {
     const noteContent = '<p style="color: blue;">Nota privada</p>';
     const { container } = render(<MessageText content={noteContent} isPrivateNote={true} />);

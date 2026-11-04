@@ -99,4 +99,32 @@ describe('useConversationListScroll', () => {
     rerender({ listVersion: 3 });
     expect(container.scrollTop).toBe(350);
   });
+
+  it('keeps the captured position while the mobile list is hidden and restores it when shown', () => {
+    const container = document.createElement('div');
+    setScrollHeight(container, 4000);
+    const containerRef = { current: container };
+    const { result, rerender } = renderHook(
+      ({ isVisible }) => useConversationListScroll({
+        containerRef,
+        listVersion: 1,
+        resetKey: 'queue-active',
+        isVisible,
+      }),
+      { initialProps: { isVisible: true } },
+    );
+
+    container.scrollTop = 1200;
+    act(() => result.current.captureBeforeSelection());
+    rerender({ isVisible: false });
+
+    // Some browsers report zero after the list is display:none. That transient
+    // value must not replace the position captured before opening the chat.
+    container.scrollTop = 0;
+    act(() => result.current.rememberScrollPosition());
+    expect(sessionStorage.getItem('crm-conversation-list-scroll:queue-active')).toBe('1200');
+
+    rerender({ isVisible: true });
+    expect(container.scrollTop).toBe(1200);
+  });
 });

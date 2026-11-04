@@ -36,6 +36,12 @@ const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry, 
     trimmedError.length > MAX_FAILURE_REASON_CHARS
       ? `${trimmedError.slice(0, MAX_FAILURE_REASON_CHARS)}…`
       : trimmedError;
+  const deliveryUncertain = trimmedError.startsWith('STAYS_DELIVERY_UNCERTAIN:');
+  const staysBridgeFailure = trimmedError.startsWith('STAYS_');
+  const webhookFailure = trimmedError.startsWith('WEBHOOK_DELIVERY_FAILED:');
+  const visibleFailureReason = deliveryUncertain
+    ? failureReason.replace(/^STAYS_DELIVERY_UNCERTAIN:\s*/, '')
+    : failureReason;
 
   const getStatusIcon = () => {
     if (!isOwn) return null;
@@ -48,7 +54,7 @@ const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry, 
 
     if (message.status === 'failed' && !message.private) {
       // Resending is an explicit choice: clicking the indicator only explains the failure.
-      const retryAction = onRetry
+      const retryAction = onRetry && !staysBridgeFailure && !webhookFailure
         ? { label: t('messages.messageStatus.tryAgain'), onClick: () => onRetry() }
         : undefined;
 
@@ -61,9 +67,16 @@ const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry, 
             e.preventDefault();
             e.stopPropagation();
 
-            if (failureReason) {
+            if (deliveryUncertain) {
+              toast.warning(t('messages.messageStatus.deliveryPendingTitle'), {
+                description: visibleFailureReason,
+              });
+              return;
+            }
+
+            if (visibleFailureReason) {
               toast.error(t('messages.messageStatus.messageNotSent'), {
-                description: failureReason,
+                description: visibleFailureReason,
                 action: retryAction,
               });
               return;
@@ -78,16 +91,20 @@ const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry, 
             });
           }}
           title={
-            failureReason
-              ? t('messages.messageStatus.sendFailed')
-              : t('messages.messageStatus.deliveryStatusUnavailable')
+            deliveryUncertain
+              ? t('messages.messageStatus.deliveryPendingTitle')
+              : visibleFailureReason
+                ? t('messages.messageStatus.sendFailed')
+                : t('messages.messageStatus.deliveryStatusUnavailable')
           }
         >
           <AlertCircle className="h-3 w-3" />
           <span className="ml-1 text-xs">
-            {failureReason
-              ? t('messages.messageStatus.sendFailedText')
-              : t('messages.messageStatus.statusUnavailableText')}
+            {deliveryUncertain
+              ? t('messages.messageStatus.deliveryPendingText')
+              : visibleFailureReason
+                ? t('messages.messageStatus.sendFailedText')
+                : t('messages.messageStatus.statusUnavailableText')}
           </span>
         </Button>
       );

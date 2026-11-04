@@ -102,6 +102,22 @@
 }
 
 :root {
+  /* Inbox notes: preserve the existing composer and pinned banner palettes. */
+  --inbox-note-composer-accent: #f97316;
+  --inbox-note-composer-surface: #fff7ed;
+  --inbox-note-composer-text: #9a3412;
+  --inbox-note-composer-control: #c2410c;
+  --inbox-note-composer-input-border: #fdba74;
+  --inbox-note-composer-input-text: #2b3240;
+  --inbox-note-banner-surface: #FDF9EF;
+  --inbox-note-banner-border: #f0e4c8;
+  --inbox-note-banner-accent: #f3c34a;
+  --inbox-note-banner-icon: #c99a1e;
+  --inbox-note-banner-heading: #a97e10;
+  --inbox-note-banner-author: #b39a55;
+  --inbox-note-banner-control: #bda75c;
+  --inbox-note-banner-text: #5c4f2e;
+
   /* SOFIA Central Brand - Blue Primary Theme (Light Mode) */
   --primary: oklch(54.61% 0.215 262.88);
   --primary-foreground: oklch(0.99 0 0);
