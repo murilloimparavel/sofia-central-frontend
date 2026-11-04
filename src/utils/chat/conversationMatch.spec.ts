@@ -134,6 +134,11 @@ describe('DEFAULT_CONVERSATION_FILTER (advanced modal seed)', () => {
 });
 
 describe('doesConversationMatchQuery', () => {
+  it('keeps only marked conversations in the urgent list query', () => {
+    const query = { kind: 'list' as const, params: { urgent_followup: true } };
+    expect(doesConversationMatchQuery(conv({ custom_attributes: { urgent_followup: true } }), query)).toBe(true);
+    expect(doesConversationMatchQuery(conv({ custom_attributes: {} }), query)).toBe(false);
+  });
   it('undefined query matches any conversation', () => {
     expect(doesConversationMatchQuery(conv(), undefined)).toBe(true);
   });
