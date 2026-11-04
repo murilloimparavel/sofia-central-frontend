@@ -80,6 +80,56 @@ class PipelinesService {
     return extractData<Pipeline>(response);
   }
 
+  async getClassificationCatalog(pipelineId: string): Promise<Record<string, unknown>> {
+    const response = await api.get(`/pipelines/${pipelineId}/classification_catalog`);
+    return extractData<Record<string, unknown>>(response);
+  }
+
+  async previewClassificationCatalog(pipelineId: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const response = await api.post(`/pipelines/${pipelineId}/classification_catalog/preview`, payload);
+    return extractData<Record<string, unknown>>(response);
+  }
+
+  async saveClassificationCatalog(pipelineId: string, payload: Record<string, unknown>, expectedHash: string): Promise<Record<string, unknown>> {
+    const response = await api.put(`/pipelines/${pipelineId}/classification_catalog`, { ...payload, expected_hash: expectedHash });
+    return extractData<Record<string, unknown>>(response);
+  }
+
+  async publishClassificationCatalog(pipelineId: string, expectedHash: string): Promise<Record<string, unknown>> {
+    const response = await api.post(`/pipelines/${pipelineId}/classification_catalog/publish`, { expected_hash: expectedHash });
+    return extractData<Record<string, unknown>>(response);
+  }
+
+  async getClassificationResults(pipelineId: string, limit = 50, beforeId?: string): Promise<Array<Record<string, unknown>>> {
+    const response = await api.get(`/pipelines/${pipelineId}/classification_catalog/results`, { params: { limit, before_id: beforeId } });
+    return extractData<Array<Record<string, unknown>>>(response);
+  }
+
+  async backfillClassificationBatch(pipelineId: string, limit = 50, afterId?: string): Promise<Record<string, unknown>> {
+    const response = await api.post(`/pipelines/${pipelineId}/classification_catalog/backfill`, { limit, after_id: afterId });
+    return extractData<Record<string, unknown>>(response);
+  }
+
+  async getPipelineClassificationRuntime(pipelineId: string): Promise<Record<string, unknown>> {
+    const response = await api.get(`/pipelines/${pipelineId}/classification_catalog/runtime`);
+    return extractData<Record<string, unknown>>(response);
+  }
+
+  async setAutomaticPipelineMoves(pipelineId: string, enabled: boolean): Promise<Record<string, unknown>> {
+    const response = await api.patch(`/pipelines/${pipelineId}/classification_catalog/runtime`, { automatic_moves_enabled: enabled });
+    return extractData<Record<string, unknown>>(response);
+  }
+
+  async updatePipelineClassificationRuntime(pipelineId: string, settings: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const response = await api.patch(`/pipelines/${pipelineId}/classification_catalog/runtime`, settings);
+    return extractData<Record<string, unknown>>(response);
+  }
+
+  async resetPipelineClassificationProvider(pipelineId: string): Promise<Record<string, unknown>> {
+    const response = await api.post(`/pipelines/${pipelineId}/classification_catalog/runtime/reset_provider`);
+    return extractData<Record<string, unknown>>(response);
+  }
+
   // Get all pipelines filtered by contact (optimized - single request)
   async getPipelinesByContact(contactId: string): Promise<Pipeline[]> {
     const response = await api.get(`/pipelines/by_contact/${contactId}`);
