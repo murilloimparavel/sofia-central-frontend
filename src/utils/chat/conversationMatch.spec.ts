@@ -79,6 +79,11 @@ describe('doesConversationMatchFilters', () => {
   });
 
   describe('chip-nav axes', () => {
+    it('urgent_followup enters and leaves the urgent queue as the server marker changes', () => {
+      const urgent = filter('urgent_followup', ['true']);
+      expect(doesConversationMatchFilters(conv({ custom_attributes: { urgent_followup: true } }), [urgent])).toBe(true);
+      expect(doesConversationMatchFilters(conv({ custom_attributes: {} }), [urgent])).toBe(false);
+    });
     it('unread', () => {
       expect(doesConversationMatchFilters(conv({ unread_count: 2 }), [filter('unread', ['true'])])).toBe(true);
       expect(doesConversationMatchFilters(conv({ unread_count: 0 }), [filter('unread', ['true'])])).toBe(false);
@@ -129,6 +134,11 @@ describe('DEFAULT_CONVERSATION_FILTER (advanced modal seed)', () => {
 });
 
 describe('doesConversationMatchQuery', () => {
+  it('keeps only marked conversations in the urgent list query', () => {
+    const query = { kind: 'list' as const, params: { urgent_followup: true } };
+    expect(doesConversationMatchQuery(conv({ custom_attributes: { urgent_followup: true } }), query)).toBe(true);
+    expect(doesConversationMatchQuery(conv({ custom_attributes: {} }), query)).toBe(false);
+  });
   it('undefined query matches any conversation', () => {
     expect(doesConversationMatchQuery(conv(), undefined)).toBe(true);
   });

@@ -350,6 +350,7 @@
     "scopeTabs": {
       "mine": "Chats",
       "unassigned": "Fila",
+      "urgent": "Urgente",
       "bot": "Robô",
       "all": "Todas"
     },

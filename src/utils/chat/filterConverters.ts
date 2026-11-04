@@ -163,6 +163,12 @@ export const convertFiltersToUrlParams = (
         }
         break;
 
+      case 'urgent_followup':
+        if (values.length === 1) {
+          params.urgent_followup = String(values[0]) === 'true';
+        }
+        break;
+
       case 'is_group':
         if (values.length === 1) {
           params.is_group = String(values[0]) === 'true';
@@ -196,6 +202,7 @@ const GET_SUPPORTED_ATTRIBUTES = new Set([
   'labels',
   'unread',
   'unanswered',
+  'urgent_followup',
   'is_group',
 ]);
 

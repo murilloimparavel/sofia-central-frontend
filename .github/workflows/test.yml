@@ -138,6 +138,10 @@ jobs:
       - name: Vitest
         run: |
           npx vitest run --reporter=basic \
+            src/components/chat/chat-sidebar/ChatSidebar.spec.tsx \
+            src/components/chat/chat-sidebar/ConversationScopeTabs.spec.tsx \
+            src/components/chat/chat-sidebar/conversationSegmentsHelpers.spec.ts \
+            src/utils/chat/conversationMatch.spec.ts \
             src/contexts/PermissionsContext.spec.tsx \
             src/services/permissions.spec.ts \
             src/guards/RouterGuard.spec.tsx \
