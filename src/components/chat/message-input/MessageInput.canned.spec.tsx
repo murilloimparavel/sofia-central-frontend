@@ -108,12 +108,13 @@ describe('CannedResponsesList Component', () => {
   });
 
   it('matches accented triggers like /pré and /orçamento in trigger regex', () => {
-    const regex = /(?:^|\s)\/([a-zA-Z0-9_\u00C0-\u017F-]*)$/;
+    const regex = /(?:^|\s)\/([\p{L}\p{N}_-]*)$/u;
     expect('/pré'.match(regex)?.[1]).toBe('pré');
     expect('/orçamento'.match(regex)?.[1]).toBe('orçamento');
     expect('/endereço'.match(regex)?.[1]).toBe('endereço');
     expect('olá /política'.match(regex)?.[1]).toBe('política');
     expect('/chave_pix'.match(regex)?.[1]).toBe('chave_pix');
+    expect('/depois_do_voucher'.match(regex)?.[1]).toBe('depois_do_voucher');
   });
 
   it('highlights literal regex characters safely in short codes and preview', () => {
