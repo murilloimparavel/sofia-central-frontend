@@ -1,7 +1,6 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import MessageInput from './MessageInput';
+import { render } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import CannedResponsesList from '../canned-responses/CannedResponsesList';
 import type { CannedResponse } from '@/types/knowledge';
 
@@ -92,9 +91,9 @@ describe('CannedResponsesList Component', () => {
 
   it('handles null or undefined fields gracefully', () => {
     const onSelect = vi.fn();
-    const brokenResponses: any = [
+    const brokenResponses = [
       { id: '99', short_code: undefined, content: null, created_at: '2026-01-01' },
-    ];
+    ] as unknown as CannedResponse[];
     expect(() => {
       render(
         <CannedResponsesList
