@@ -1,7 +1,6 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import MessageInput from './MessageInput';
+import { render } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import CannedResponsesList from '../canned-responses/CannedResponsesList';
 import type { CannedResponse } from '@/types/knowledge';
 
@@ -92,9 +91,9 @@ describe('CannedResponsesList Component', () => {
 
   it('handles null or undefined fields gracefully', () => {
     const onSelect = vi.fn();
-    const brokenResponses: any = [
+    const brokenResponses = [
       { id: '99', short_code: undefined, content: null, created_at: '2026-01-01' },
-    ];
+    ] as unknown as CannedResponse[];
     expect(() => {
       render(
         <CannedResponsesList
@@ -108,12 +107,13 @@ describe('CannedResponsesList Component', () => {
   });
 
   it('matches accented triggers like /pré and /orçamento in trigger regex', () => {
-    const regex = /(?:^|\s)\/([a-zA-Z0-9_\u00C0-\u017F-]*)$/;
+    const regex = /(?:^|\s)\/([\p{L}\p{N}_-]*)$/u;
     expect('/pré'.match(regex)?.[1]).toBe('pré');
     expect('/orçamento'.match(regex)?.[1]).toBe('orçamento');
     expect('/endereço'.match(regex)?.[1]).toBe('endereço');
     expect('olá /política'.match(regex)?.[1]).toBe('política');
     expect('/chave_pix'.match(regex)?.[1]).toBe('chave_pix');
+    expect('/depois_do_voucher'.match(regex)?.[1]).toBe('depois_do_voucher');
   });
 
   it('highlights literal regex characters safely in short codes and preview', () => {
