@@ -88,6 +88,7 @@ function canPrefetchOnCurrentNetwork(): boolean {
 // evitam extremos inúteis: muito estreito corta nome/prévia, muito largo
 // esmaga a área de chat em telas médias.
 import { useSidebarResize } from './hooks/useSidebarResize';
+import { useEdgeSwipeBack } from './hooks/useEdgeSwipeBack';
 
 const Chat = () => {
   const { t } = useLanguage('chat');
@@ -954,6 +955,11 @@ const Chat = () => {
     Boolean(conversationId && UUID_V4_REGEX.test(conversationId) && selectedConversation) &&
     String(selectedConversation?.uuid || selectedConversation?.id).toLowerCase() === conversationId?.toLowerCase();
 
+  const edgeSwipeBackHandlers = useEdgeSwipeBack(
+    handleCloseConversation,
+    mobileView === 'chat' && selectedConversationMatchesRoute,
+  );
+
   return (
     <ErrorBoundary>
       <ChatTour />
@@ -1010,6 +1016,7 @@ const Chat = () => {
         {/* Chat Area */}
         <div
           data-tour="chat-main-area"
+          {...edgeSwipeBackHandlers}
           className={`
           ${mobileView === 'chat' ? 'flex' : 'hidden'} md:flex
           flex-1 min-w-0 flex-col h-full min-h-0 max-h-full overflow-hidden
