@@ -117,7 +117,8 @@ async function performSync(): Promise<boolean> {
     await save(subscription, userId);
     return true;
   } catch (error) {
-    clearLocalState();
+    // Preserve ownership so a transient API failure can be retried safely.
+    localStorage.removeItem(ACTIVE_KEY);
     throw error;
   }
 }

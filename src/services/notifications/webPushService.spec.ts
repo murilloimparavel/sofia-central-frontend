@@ -62,6 +62,15 @@ describe('web push subscription lifecycle', () => {
     expect(api.post).toHaveBeenCalledOnce();
   });
 
+  it('retains subscription ownership after a temporary server failure', async () => {
+    manager.getSubscription.mockResolvedValue(subscription);
+    api.get.mockRejectedValueOnce(new Error('offline'));
+    await expect(syncWebPush()).rejects.toThrow('offline');
+    expect(localStorage.getItem('sofia-web-push-owner')).toBe('user-1');
+    expect(await syncWebPush()).toBe(true);
+    expect(subscription.unsubscribe).not.toHaveBeenCalled();
+  });
+
   it('disconnects an old user subscription rather than transferring it on account change', async () => {
     localStorage.setItem('sofia-web-push-owner', 'other-user');
     manager.getSubscription.mockResolvedValue(subscription);
