@@ -13,6 +13,7 @@
     "lint": "eslint . --pass-on-unpruned-suppressions",
     "lint:fix": "eslint . --fix --prune-suppressions",
     "preview": "vite preview",
+    "test:webpush-browser": "node scripts/webpush-worker-smoke.cjs",
     "test": "vitest run"
   },
   "dependencies": {

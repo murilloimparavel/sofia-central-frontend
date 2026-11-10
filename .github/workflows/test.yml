@@ -212,6 +212,11 @@ jobs:
             src/pages/Customer/Automation/registries/conditionAttributeRegistry.spec.ts \
             src/utils/chunkLoadRecovery.spec.ts
 
+      - name: Exercise Web Push worker in Chromium
+        run: |
+          export CHROMIUM_EXECUTABLE_PATH="$(command -v google-chrome)"
+          npm run test:webpush-browser
+
   # Lint gate scoped to the files the PR touched.
   eslint:
     name: ESLint (diff)
