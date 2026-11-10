@@ -45,17 +45,27 @@ export async function enableWebPush(): Promise<void> {
   if (!key) throw new Error('missing-key');
   const expectedKey = applicationServerKey(key);
   let existing = await worker.pushManager.getSubscription();
-  const currentKey = existing?.options.applicationServerKey;
+  const currentKey = existing?.options?.applicationServerKey;
   if (existing && currentKey && !sameKey(currentKey, expectedKey)) {
-    await disableWebPush();
+    await removeWebPush();
     existing = null;
   }
   const subscription = existing || await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: expectedKey });
   await save(subscription);
 }
 
-export async function syncWebPush(): Promise<boolean> {
-  if (!supportsWebPush() || Notification.permission !== 'granted') return false;
+let pendingSync: Promise<boolean> | undefined;
+
+export function syncWebPush(): Promise<boolean> {
+  if (!pendingSync) pendingSync = performSync().finally(() => { pendingSync = undefined; });
+  return pendingSync;
+}
+
+async function performSync(): Promise<boolean> {
+  if (!supportsWebPush() || Notification.permission !== 'granted') {
+    localStorage.removeItem(ACTIVE_KEY);
+    return false;
+  }
   const worker = await navigator.serviceWorker.getRegistration('/');
   let subscription = await worker?.pushManager.getSubscription();
   if (!worker || !subscription) {
@@ -67,9 +77,9 @@ export async function syncWebPush(): Promise<boolean> {
     const key = response.data.vapid_public_key;
     if (!key) throw new Error('missing-key');
     const expectedKey = applicationServerKey(key);
-    const currentKey = subscription.options.applicationServerKey;
+    const currentKey = subscription.options?.applicationServerKey;
     if (currentKey && !sameKey(currentKey, expectedKey)) {
-      await disableWebPush();
+      await removeWebPush();
       subscription = await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: expectedKey });
     }
     await save(subscription);
@@ -81,6 +91,7 @@ export async function syncWebPush(): Promise<boolean> {
 }
 
 export async function disconnectLocalWebPush(): Promise<void> {
+  await pendingSync?.catch(() => {});
   localStorage.removeItem(ACTIVE_KEY);
   if (!('serviceWorker' in navigator)) return;
   const worker = await navigator.serviceWorker.getRegistration('/');
@@ -89,6 +100,11 @@ export async function disconnectLocalWebPush(): Promise<void> {
 }
 
 export async function disableWebPush(): Promise<void> {
+  await pendingSync?.catch(() => {});
+  await removeWebPush();
+}
+
+async function removeWebPush(): Promise<void> {
   if (!('serviceWorker' in navigator)) return;
   const worker = await navigator.serviceWorker.getRegistration('/');
   const subscription = await worker?.pushManager.getSubscription();

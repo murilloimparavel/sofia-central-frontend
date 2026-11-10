@@ -146,6 +146,8 @@ jobs:
       - name: Vitest
         run: |
           npx vitest run --reporter=basic \
+            src/services/notifications/webPushService.spec.ts \
+            src/services/notifications/pushWorker.spec.ts \
             src/pages/Customer/Chat/hooks/useEdgeSwipeBack.spec.tsx \
             src/components/chat/chat-sidebar/ChatSidebar.spec.tsx \
             src/components/chat/chat-sidebar/ConversationScopeTabs.spec.tsx \

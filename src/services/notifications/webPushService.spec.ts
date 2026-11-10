@@ -54,6 +54,12 @@ describe('web push subscription lifecycle', () => {
     expect(api.post).toHaveBeenCalledOnce();
   });
 
+  it('deduplicates concurrent synchronizations for the same device', async () => {
+    manager.getSubscription.mockResolvedValue(subscription);
+    await Promise.all([syncWebPush(), syncWebPush()]);
+    expect(api.post).toHaveBeenCalledOnce();
+  });
+
   it('replaces a subscription when the server VAPID key changes', async () => {
     const stale = { ...subscription, options: { applicationServerKey: new Uint8Array([0, 1]).buffer } };
     manager.getSubscription.mockResolvedValue(stale);
