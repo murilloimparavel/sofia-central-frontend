@@ -11,6 +11,25 @@ interface PointerStart {
   horizontalIntent: boolean;
 }
 
+function startsInsideHorizontalScroller(target: EventTarget | null, boundary: HTMLElement): boolean {
+  let element = target instanceof Element ? target : null;
+
+  while (element) {
+    const overflowX = window.getComputedStyle(element).overflowX;
+    if (
+      (overflowX === 'auto' || overflowX === 'scroll') &&
+      element.scrollWidth > element.clientWidth
+    ) {
+      return true;
+    }
+
+    if (element === boundary) break;
+    element = element.parentElement;
+  }
+
+  return false;
+}
+
 /** Detects a deliberate left-edge swipe without taking over native scrolling. */
 export function useEdgeSwipeBack(onBack: () => void, enabled: boolean) {
   const pointerStart = useRef<PointerStart | null>(null);
@@ -30,7 +49,9 @@ export function useEdgeSwipeBack(onBack: () => void, enabled: boolean) {
 
       if (
         event.target instanceof Element &&
-        event.target.closest('button, a, input, textarea, select, [contenteditable="true"], [role="button"]')
+        (event.target.closest(
+          'button, a, input, textarea, select, [contenteditable="true"], [role="button"]',
+        ) || startsInsideHorizontalScroller(event.target, event.currentTarget))
       ) {
         return;
       }

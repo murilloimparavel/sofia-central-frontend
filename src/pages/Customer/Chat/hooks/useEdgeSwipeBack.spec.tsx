@@ -11,6 +11,15 @@ function GestureTarget({ onBack, enabled = true }: { onBack: () => void; enabled
   );
 }
 
+function HorizontalScrollTarget({ onBack }: { onBack: () => void }) {
+  const handlers = useEdgeSwipeBack(onBack, true);
+  return (
+    <div data-testid="gesture-target" {...handlers}>
+      <div data-testid="horizontal-scroller" style={{ overflowX: 'auto' }} />
+    </div>
+  );
+}
+
 const setPointerCapture = vi.fn();
 
 const pointer = (
@@ -111,6 +120,23 @@ describe('useEdgeSwipeBack', () => {
     pointer('pointerdown', 12, 10, {}, backButton);
     pointer('pointermove', 50, 10, {}, backButton);
     pointer('pointerup', 110, 10, {}, backButton);
+
+    expect(setPointerCapture).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('leaves a horizontally scrollable region in control of its gesture', () => {
+    const onBack = vi.fn();
+    render(<HorizontalScrollTarget onBack={onBack} />);
+    const scroller = screen.getByTestId('horizontal-scroller');
+    Object.defineProperties(scroller, {
+      scrollWidth: { configurable: true, value: 240 },
+      clientWidth: { configurable: true, value: 120 },
+    });
+
+    pointer('pointerdown', 12, 10, {}, scroller);
+    pointer('pointermove', 50, 10, {}, scroller);
+    pointer('pointerup', 110, 10, {}, scroller);
 
     expect(setPointerCapture).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
