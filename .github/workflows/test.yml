@@ -132,6 +132,9 @@ jobs:
       #     keeps rendering a value the list no longer offers. None of the three
       #     was gated before — the shape guard shipped with CRM-442 and never ran
       #     here. The bedrock lifecycle spec stays out: it reaches the network.
+      #   - useEdgeSwipeBack: a back gesture must start at the left edge, move
+      #     horizontally far enough, and ignore vertical scrolling, mouse input,
+      #     and cancelled pointers.
       # The whole list runs in ~40s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
@@ -143,6 +146,7 @@ jobs:
       - name: Vitest
         run: |
           npx vitest run --reporter=basic \
+            src/pages/Customer/Chat/hooks/useEdgeSwipeBack.spec.tsx \
             src/components/chat/chat-sidebar/ChatSidebar.spec.tsx \
             src/components/chat/chat-sidebar/ConversationScopeTabs.spec.tsx \
             src/components/chat/chat-sidebar/conversationSegmentsHelpers.spec.ts \
