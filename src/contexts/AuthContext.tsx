@@ -8,7 +8,7 @@ import { verifyMfa, logout as authServiceLogout } from '@/services/auth/authServ
 import { profileService } from '@/services/profile/profileService';
 import { permissionsService } from '@/services/permissions';
 import { markBootstrapPhaseEnd, markBootstrapPhaseStart } from '@/utils/requestMonitor';
-import { disableWebPush, syncWebPush } from '@/services/notifications/webPushService';
+import { disableWebPush, disconnectLocalWebPush, syncWebPush } from '@/services/notifications/webPushService';
 
 interface MfaState {
   required: boolean;
@@ -89,6 +89,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const disconnect = () => { void disconnectLocalWebPush().catch(() => {}); };
+    window.addEventListener('evolution:auth-lost', disconnect);
+    return () => window.removeEventListener('evolution:auth-lost', disconnect);
+  }, []);
+
+  const previousUserId = React.useRef<string | number | null>(null);
+  useEffect(() => {
+    if (previousUserId.current && !user) void disconnectLocalWebPush().catch(() => {});
+    previousUserId.current = user?.id ?? null;
+  }, [user?.id]);
 
   // Periodic token validation (every 5 minutes)
   useEffect(() => {

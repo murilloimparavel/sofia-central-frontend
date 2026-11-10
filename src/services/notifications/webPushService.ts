@@ -12,6 +12,11 @@ function applicationServerKey(value: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(decoded, character => character.charCodeAt(0));
 }
 
+function sameKey(current: ArrayBuffer, expected: Uint8Array): boolean {
+  const actual = new Uint8Array(current);
+  return actual.length === expected.length && actual.every((byte, index) => byte === expected[index]);
+}
+
 async function registration(): Promise<ServiceWorkerRegistration> {
   await navigator.serviceWorker.register('/push-worker.js', { scope: '/' });
   return navigator.serviceWorker.ready;
@@ -38,26 +43,49 @@ export async function enableWebPush(): Promise<void> {
   const response = await api.get<{ vapid_public_key: string }>('/notification_subscriptions');
   const key = response.data.vapid_public_key;
   if (!key) throw new Error('missing-key');
-  const existing = await worker.pushManager.getSubscription();
-  const subscription = existing || await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(key) });
+  const expectedKey = applicationServerKey(key);
+  let existing = await worker.pushManager.getSubscription();
+  const currentKey = existing?.options.applicationServerKey;
+  if (existing && currentKey && !sameKey(currentKey, expectedKey)) {
+    await disableWebPush();
+    existing = null;
+  }
+  const subscription = existing || await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: expectedKey });
   await save(subscription);
 }
 
 export async function syncWebPush(): Promise<boolean> {
   if (!supportsWebPush() || Notification.permission !== 'granted') return false;
   const worker = await navigator.serviceWorker.getRegistration('/');
-  const subscription = await worker?.pushManager.getSubscription();
-  if (!subscription) {
+  let subscription = await worker?.pushManager.getSubscription();
+  if (!worker || !subscription) {
     localStorage.removeItem(ACTIVE_KEY);
     return false;
   }
   try {
+    const response = await api.get<{ vapid_public_key: string }>('/notification_subscriptions');
+    const key = response.data.vapid_public_key;
+    if (!key) throw new Error('missing-key');
+    const expectedKey = applicationServerKey(key);
+    const currentKey = subscription.options.applicationServerKey;
+    if (currentKey && !sameKey(currentKey, expectedKey)) {
+      await disableWebPush();
+      subscription = await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: expectedKey });
+    }
     await save(subscription);
     return true;
   } catch (error) {
     localStorage.removeItem(ACTIVE_KEY);
     throw error;
   }
+}
+
+export async function disconnectLocalWebPush(): Promise<void> {
+  localStorage.removeItem(ACTIVE_KEY);
+  if (!('serviceWorker' in navigator)) return;
+  const worker = await navigator.serviceWorker.getRegistration('/');
+  const subscription = await worker?.pushManager.getSubscription();
+  if (subscription) await subscription.unsubscribe();
 }
 
 export async function disableWebPush(): Promise<void> {

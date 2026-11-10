@@ -1,7 +1,10 @@
 /* This worker handles push only: it does not cache application or API responses. */
 self.addEventListener('push', event => {
   let payload = {};
-  try { payload = event.data ? event.data.json() : {}; } catch { /* show a generic alert */ }
+  try {
+    const parsed = event.data ? event.data.json() : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) payload = parsed;
+  } catch { /* show a generic alert */ }
   const title = typeof payload.title === 'string' && payload.title ? payload.title : 'Nova notificação';
   const body = typeof payload.body === 'string' ? payload.body : '';
   const tag = typeof payload.tag === 'string' ? payload.tag : undefined;
@@ -23,8 +26,13 @@ self.addEventListener('notificationclick', event => {
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const client = clients.find(item => new URL(item.url).origin === self.location.origin);
     if (client) {
-      await client.navigate(target.href);
-      await client.focus();
+      try {
+        const navigated = await client.navigate(target.href);
+        if (navigated) await navigated.focus();
+        else await self.clients.openWindow(target.href);
+      } catch {
+        await self.clients.openWindow(target.href);
+      }
     } else {
       await self.clients.openWindow(target.href);
     }

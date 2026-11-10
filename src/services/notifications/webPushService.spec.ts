@@ -7,6 +7,7 @@ import { disableWebPush, enableWebPush, syncWebPush } from './webPushService';
 describe('web push subscription lifecycle', () => {
   const subscription = {
     endpoint: 'https://fcm.googleapis.com/fcm/send/test',
+    options: { applicationServerKey: null },
     toJSON: () => ({ endpoint: 'https://fcm.googleapis.com/fcm/send/test', keys: { p256dh: 'public-key', auth: 'auth-key' } }),
     unsubscribe: vi.fn().mockResolvedValue(true),
   };
@@ -51,6 +52,15 @@ describe('web push subscription lifecycle', () => {
     manager.getSubscription.mockResolvedValue(subscription);
     expect(await syncWebPush()).toBe(true);
     expect(api.post).toHaveBeenCalledOnce();
+  });
+
+  it('replaces a subscription when the server VAPID key changes', async () => {
+    const stale = { ...subscription, options: { applicationServerKey: new Uint8Array([0, 1]).buffer } };
+    manager.getSubscription.mockResolvedValue(stale);
+    expect(await syncWebPush()).toBe(true);
+    expect(api.delete).toHaveBeenCalledOnce();
+    expect(stale.unsubscribe).toHaveBeenCalledOnce();
+    expect(manager.subscribe).toHaveBeenCalledOnce();
   });
 
   it('removes the local subscription even if the server is unavailable', async () => {
