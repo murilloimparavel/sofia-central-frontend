@@ -757,7 +757,7 @@ const Profile = () => {
       else await disableWebPush();
       setNotificationSettings(prev => ({ ...prev, browser_push_enabled: enabled }));
       toast.success(t(enabled ? 'notifications.browserPermission.granted' : 'notifications.browserPermission.disabled'));
-    } catch (error) {
+    } catch {
       setNotificationSettings(prev => ({ ...prev, browser_push_enabled: false }));
       const key = !supportsWebPush() ? 'notSupported' : Notification.permission === 'denied' ? 'denied' : 'error';
       toast.error(t(`notifications.browserPermission.${key}`));

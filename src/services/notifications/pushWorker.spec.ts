@@ -3,11 +3,11 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 
 function worker() {
-  const handlers: Record<string, (event: any) => void> = {};
+  const handlers: Record<string, (event: Record<string, unknown>) => void> = {};
   const showNotification = vi.fn().mockResolvedValue(undefined);
   const openWindow = vi.fn().mockResolvedValue(undefined);
   const self = {
-    addEventListener: (type: string, handler: (event: any) => void) => { handlers[type] = handler; },
+    addEventListener: (type: string, handler: (event: Record<string, unknown>) => void) => { handlers[type] = handler; },
     location: { origin: 'https://crm.example' },
     registration: { showNotification },
     clients: { matchAll: vi.fn().mockResolvedValue([]), openWindow },

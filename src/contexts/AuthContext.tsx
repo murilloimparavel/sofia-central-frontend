@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- this module also exports the established auth hook. */
 import React, { createContext, useContext, useEffect, ReactNode } from 'react';
 import { UserResponse } from '@/types/auth';
 import { useAuthStore } from '@/store/authStore';
@@ -96,11 +97,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => window.removeEventListener('evolution:auth-lost', disconnect);
   }, []);
 
+  const userId = user?.id ?? null;
   const previousUserId = React.useRef<string | number | null>(null);
   useEffect(() => {
-    if (previousUserId.current && !user) void disconnectLocalWebPush().catch(() => {});
-    previousUserId.current = user?.id ?? null;
-  }, [user?.id]);
+    if (previousUserId.current && !userId) void disconnectLocalWebPush().catch(() => {});
+    previousUserId.current = userId;
+  }, [userId]);
 
   // Periodic token validation (every 5 minutes)
   useEffect(() => {
@@ -115,11 +117,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, validityCheck]);
 
   useEffect(() => {
-    if (isAuthenticated && user) void syncWebPush().catch(() => {});
-  }, [isAuthenticated, user?.id]);
+    if (isAuthenticated && userId) void syncWebPush().catch(() => {});
+  }, [isAuthenticated, userId]);
 
   const login = async (userData: UserResponse, _loginData: { access_token?: string }) => {
     try {
