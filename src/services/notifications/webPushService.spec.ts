@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), delete: vi.fn() }));
 vi.mock('@/services/core/api', () => ({ default: api }));
+vi.mock('@/store/authStore', () => ({ useAuthStore: { getState: () => ({ currentUser: { id: 'user-1' } }) } }));
 import { disableWebPush, enableWebPush, syncWebPush } from './webPushService';
 
 describe('web push subscription lifecycle', () => {
@@ -18,6 +19,7 @@ describe('web push subscription lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    localStorage.setItem('sofia-web-push-owner', 'user-1');
     Object.defineProperty(window, 'isSecureContext', { configurable: true, value: true });
     Object.defineProperty(window, 'PushManager', { configurable: true, value: function PushManager() {} });
     Object.defineProperty(window, 'Notification', { configurable: true, value: { permission: 'granted', requestPermission } });
@@ -58,6 +60,14 @@ describe('web push subscription lifecycle', () => {
     manager.getSubscription.mockResolvedValue(subscription);
     await Promise.all([syncWebPush(), syncWebPush()]);
     expect(api.post).toHaveBeenCalledOnce();
+  });
+
+  it('disconnects an old user subscription rather than transferring it on account change', async () => {
+    localStorage.setItem('sofia-web-push-owner', 'other-user');
+    manager.getSubscription.mockResolvedValue(subscription);
+    expect(await syncWebPush()).toBe(false);
+    expect(subscription.unsubscribe).toHaveBeenCalledOnce();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('replaces a subscription when the server VAPID key changes', async () => {

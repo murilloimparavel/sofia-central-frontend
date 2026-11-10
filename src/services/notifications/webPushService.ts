@@ -1,6 +1,17 @@
 import api from '@/services/core/api';
+import { useAuthStore } from '@/store/authStore';
 
 const ACTIVE_KEY = 'sofia-web-push-active';
+const OWNER_KEY = 'sofia-web-push-owner';
+
+function currentUserId(): string {
+  return String(useAuthStore.getState().currentUser?.id ?? '');
+}
+
+function clearLocalState(): void {
+  localStorage.removeItem(ACTIVE_KEY);
+  localStorage.removeItem(OWNER_KEY);
+}
 
 export function supportsWebPush(): boolean {
   return window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -22,7 +33,8 @@ async function registration(): Promise<ServiceWorkerRegistration> {
   return navigator.serviceWorker.ready;
 }
 
-async function save(subscription: PushSubscription): Promise<void> {
+async function save(subscription: PushSubscription, userId: string): Promise<void> {
+  if (!userId || currentUserId() !== userId) throw new Error('session-changed');
   const value = subscription.toJSON();
   if (!value.endpoint || !value.keys?.p256dh || !value.keys?.auth) throw new Error('Invalid push subscription');
   await api.post('/notification_subscriptions', {
@@ -31,11 +43,19 @@ async function save(subscription: PushSubscription): Promise<void> {
       subscription_attributes: { endpoint: value.endpoint, p256dh: value.keys.p256dh, auth: value.keys.auth },
     },
   });
+  if (currentUserId() !== userId) {
+    await subscription.unsubscribe();
+    clearLocalState();
+    throw new Error('session-changed');
+  }
+  localStorage.setItem(OWNER_KEY, userId);
   localStorage.setItem(ACTIVE_KEY, '1');
 }
 
 export async function enableWebPush(): Promise<void> {
   if (!supportsWebPush()) throw new Error('unsupported');
+  const userId = currentUserId();
+  if (!userId) throw new Error('session-changed');
   // This call must occur directly in the click handler, especially on iOS.
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') throw new Error('permission');
@@ -45,13 +65,18 @@ export async function enableWebPush(): Promise<void> {
   if (!key) throw new Error('missing-key');
   const expectedKey = applicationServerKey(key);
   let existing = await worker.pushManager.getSubscription();
+  if (existing && localStorage.getItem(OWNER_KEY) !== userId) {
+    await existing.unsubscribe();
+    clearLocalState();
+    existing = null;
+  }
   const currentKey = existing?.options?.applicationServerKey;
   if (existing && currentKey && !sameKey(currentKey, expectedKey)) {
     await removeWebPush();
     existing = null;
   }
   const subscription = existing || await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: expectedKey });
-  await save(subscription);
+  await save(subscription, userId);
 }
 
 let pendingSync: Promise<boolean> | undefined;
@@ -62,14 +87,21 @@ export function syncWebPush(): Promise<boolean> {
 }
 
 async function performSync(): Promise<boolean> {
+  const userId = currentUserId();
+  if (!userId) return false;
   if (!supportsWebPush() || Notification.permission !== 'granted') {
-    localStorage.removeItem(ACTIVE_KEY);
+    clearLocalState();
     return false;
   }
   const worker = await navigator.serviceWorker.getRegistration('/');
   let subscription = await worker?.pushManager.getSubscription();
   if (!worker || !subscription) {
-    localStorage.removeItem(ACTIVE_KEY);
+    clearLocalState();
+    return false;
+  }
+  if (localStorage.getItem(OWNER_KEY) !== userId) {
+    await subscription.unsubscribe();
+    clearLocalState();
     return false;
   }
   try {
@@ -82,17 +114,17 @@ async function performSync(): Promise<boolean> {
       await removeWebPush();
       subscription = await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: expectedKey });
     }
-    await save(subscription);
+    await save(subscription, userId);
     return true;
   } catch (error) {
-    localStorage.removeItem(ACTIVE_KEY);
+    clearLocalState();
     throw error;
   }
 }
 
 export async function disconnectLocalWebPush(): Promise<void> {
   await pendingSync?.catch(() => {});
-  localStorage.removeItem(ACTIVE_KEY);
+  clearLocalState();
   if (!('serviceWorker' in navigator)) return;
   const worker = await navigator.serviceWorker.getRegistration('/');
   const subscription = await worker?.pushManager.getSubscription();
@@ -109,7 +141,7 @@ async function removeWebPush(): Promise<void> {
   const worker = await navigator.serviceWorker.getRegistration('/');
   const subscription = await worker?.pushManager.getSubscription();
   if (!subscription) {
-    localStorage.removeItem(ACTIVE_KEY);
+    clearLocalState();
     return;
   }
   // Remove the local capability even when the network request fails.
@@ -120,7 +152,7 @@ async function removeWebPush(): Promise<void> {
     failed = true;
   }
   const unsubscribed = await subscription.unsubscribe();
-  if (unsubscribed) localStorage.removeItem(ACTIVE_KEY);
+  if (unsubscribed) clearLocalState();
   if (failed || !unsubscribed) throw new Error('unsubscribe-failed');
 }
 
