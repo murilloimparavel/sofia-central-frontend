@@ -1,3 +1,4 @@
+import { hasActiveWebPush } from '@/services/notifications/webPushService';
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo, useRef } from 'react';
 import { unixTimestampToIso } from '@/utils/chat/contactTimestamp';
 import type { AxiosError } from 'axios';
@@ -509,7 +510,8 @@ const NotificationsProviderInner: React.FC<NotificationsProviderProps> = ({ chil
         typeof window !== 'undefined' &&
         'Notification' in window &&
         Notification.permission === 'granted' &&
-        document.hidden
+        document.hidden &&
+        !hasActiveWebPush()
       ) {
         try {
           const title = notification.push_message_title || i18n.t('layout:notifications.push.fallbackTitle');

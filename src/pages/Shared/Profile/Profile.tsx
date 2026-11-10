@@ -41,6 +41,7 @@ import {
 } from '@/services/profile/profileService';
 import { extractError } from '@/utils/apiHelpers';
 import notificationSettingsService from '@/services/notifications/NotificationSettingsService';
+import { disableWebPush, enableWebPush, supportsWebPush, syncWebPush } from '@/services/notifications/webPushService';
 import { getAudioSettings, playNotificationSoundPreview } from '@/utils/audioNotificationUtils';
 import { getModifierKey } from '@/utils/platform';
 import { normalizeAvatarUrl } from '@/utils/avatarUrl';
@@ -88,6 +89,7 @@ const Profile = () => {
     navigate(`/profile/${TAB_TO_SECTION[tab]}`, { replace: true });
   }, [navigate]);
   const [isLoading, setIsLoading] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -274,14 +276,6 @@ const Profile = () => {
 
     fetchNotificationSettings();
 
-    // Check browser notification permission status on mount
-    if ('Notification' in window) {
-      const permission = Notification.permission;
-      setNotificationSettings(prev => ({
-        ...prev,
-        browser_push_enabled: permission === 'granted',
-      }));
-    }
   }, [flagsToSettings]);
 
   // Limpar email de confirmação quando dialog fechar
@@ -683,19 +677,6 @@ const Profile = () => {
       return;
     }
 
-    // Auto-request browser permission on first push enable.
-    // If the user denies the prompt, abort: saving push=true while permission is
-    // 'denied' would silently store an unreachable subscription on the backend.
-    if (type === 'push' && value && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        await requestNotificationPermission();
-      }
-      if (Notification.permission !== 'granted') {
-        toast.error(t('notifications.browserPermission.denied'));
-        return;
-      }
-    }
-
     // Atualizar estado local primeiro (otimistic update)
     const notificationType = `${type}_notifications` as keyof typeof notificationSettings;
     const currentNotifications = notificationSettings[notificationType] as Record<string, boolean> | undefined;
@@ -769,44 +750,31 @@ const Profile = () => {
     }
   };
 
-  const requestNotificationPermission = async () => {
-    if (!('Notification' in window)) {
-      toast.error(t('notifications.browserPermission.notSupported'));
-      return;
-    }
-
-    // Check current permission status
-    let permission = Notification.permission;
-
-    // If permission is default, request it
-    if (permission === 'default') {
-      permission = await Notification.requestPermission();
-    }
-
-    // Update state based on permission
-    const isGranted = permission === 'granted';
-    setNotificationSettings(prev => ({
-      ...prev,
-      browser_push_enabled: isGranted,
-    }));
-
-    if (isGranted) {
-      toast.success(t('notifications.browserPermission.granted'));
-    } else if (permission === 'denied') {
-      toast.error(t('notifications.browserPermission.denied'));
+  const setWebPushEnabled = async (enabled: boolean) => {
+    setPushBusy(true);
+    try {
+      if (enabled) await enableWebPush();
+      else await disableWebPush();
+      setNotificationSettings(prev => ({ ...prev, browser_push_enabled: enabled }));
+      toast.success(t(enabled ? 'notifications.browserPermission.granted' : 'notifications.browserPermission.disabled'));
+    } catch (error) {
+      setNotificationSettings(prev => ({ ...prev, browser_push_enabled: false }));
+      const key = !supportsWebPush() ? 'notSupported' : Notification.permission === 'denied' ? 'denied' : 'error';
+      toast.error(t(`notifications.browserPermission.${key}`));
+    } finally {
+      setPushBusy(false);
     }
   };
 
-  // Check browser notification permission on mount
   useEffect(() => {
-    if ('Notification' in window) {
-      const permission = Notification.permission;
-      setNotificationSettings(prev => ({
-        ...prev,
-        browser_push_enabled: permission === 'granted',
-      }));
-    }
-  }, []);
+    let cancelled = false;
+    void syncWebPush().then(active => {
+      if (!cancelled) setNotificationSettings(prev => ({ ...prev, browser_push_enabled: active }));
+    }).catch(() => {
+      if (!cancelled) setNotificationSettings(prev => ({ ...prev, browser_push_enabled: false }));
+    });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const renderInterfaceSettings = () => (
     <div className="space-y-6">
@@ -965,12 +933,15 @@ const Profile = () => {
               <p className="font-medium">{t('notifications.browserPermission.title')}</p>
               <p className="text-sm text-muted-foreground">
                 {t('notifications.browserPermission.description')}
+                <span className="block mt-1">{t('notifications.browserPermission.iosHelp')}</span>
               </p>
             </div>
           </div>
           <Switch
             checked={notificationSettings.browser_push_enabled}
-            onCheckedChange={requestNotificationPermission}
+            onCheckedChange={setWebPushEnabled}
+            disabled={pushBusy}
+            aria-label={t('notifications.browserPermission.title')}
           />
         </div>
 

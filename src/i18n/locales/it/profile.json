@@ -102,11 +102,14 @@
       "title": "Preferenze di notifica",
       "description": "Configura come desideri ricevere le notifiche",
       "browserPermission": {
-        "title": "Autorizzazione browser",
-        "description": "Consenti notifiche push dal browser",
-        "granted": "Autorizzazioni di notifica concesse",
+        "title": "Notifications on this device",
+        "description": "Receive notifications even when the app is closed. Enable the desired notification types below.",
+        "granted": "Notifications enabled on this device",
         "denied": "Autorizzazioni di notifica negate",
-        "notSupported": "Le notifiche del browser non sono supportate"
+        "notSupported": "Web Push is not supported on this device or browser.",
+        "disabled": "Notifications disabled on this device",
+        "iosHelp": "On iPhone or iPad, add Sofia to your Home Screen and open it from there before enabling notifications.",
+        "error": "Could not set up notifications on this device. Please try again."
       },
       "email": {
         "title": "Notifiche via email",

@@ -8,6 +8,7 @@ import { verifyMfa, logout as authServiceLogout } from '@/services/auth/authServ
 import { profileService } from '@/services/profile/profileService';
 import { permissionsService } from '@/services/permissions';
 import { markBootstrapPhaseEnd, markBootstrapPhaseStart } from '@/utils/requestMonitor';
+import { disableWebPush, syncWebPush } from '@/services/notifications/webPushService';
 
 interface MfaState {
   required: boolean;
@@ -104,6 +105,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => clearInterval(interval);
   }, [isAuthenticated, user]);
 
+  useEffect(() => {
+    if (isAuthenticated && user) void syncWebPush().catch(() => {});
+  }, [isAuthenticated, user?.id]);
+
   const login = async (userData: UserResponse, _loginData: { access_token?: string }) => {
     try {
       setUser(userData);
@@ -114,6 +119,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async () => {
+    try {
+      await disableWebPush();
+    } catch {
+      // The local subscription is removed even when the server is unreachable.
+    }
     try {
       await authServiceLogout();
     } catch (error) {
