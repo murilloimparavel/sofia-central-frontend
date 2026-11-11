@@ -146,6 +146,8 @@ jobs:
       - name: Vitest
         run: |
           npx vitest run --reporter=basic \
+            src/services/notifications/webPushService.spec.ts \
+            src/services/notifications/pushWorker.spec.ts \
             src/pages/Customer/Chat/hooks/useEdgeSwipeBack.spec.tsx \
             src/components/chat/chat-sidebar/ChatSidebar.spec.tsx \
             src/components/chat/chat-sidebar/ConversationScopeTabs.spec.tsx \
@@ -209,6 +211,11 @@ jobs:
             src/components/ai_agents/__tests__/ModelSelector.retiredValue.spec.tsx \
             src/pages/Customer/Automation/registries/conditionAttributeRegistry.spec.ts \
             src/utils/chunkLoadRecovery.spec.ts
+
+      - name: Exercise Web Push worker in Chromium
+        run: |
+          export CHROMIUM_EXECUTABLE_PATH="$(command -v google-chrome)"
+          npm run test:webpush-browser
 
   # Lint gate scoped to the files the PR touched.
   eslint:

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- this module also exports the established auth hook. */
 import React, { createContext, useContext, useEffect, ReactNode } from 'react';
 import { UserResponse } from '@/types/auth';
 import { useAuthStore } from '@/store/authStore';
@@ -8,6 +9,7 @@ import { verifyMfa, logout as authServiceLogout } from '@/services/auth/authServ
 import { profileService } from '@/services/profile/profileService';
 import { permissionsService } from '@/services/permissions';
 import { markBootstrapPhaseEnd, markBootstrapPhaseStart } from '@/utils/requestMonitor';
+import { disableWebPush, disconnectLocalWebPush, syncWebPush } from '@/services/notifications/webPushService';
 
 interface MfaState {
   required: boolean;
@@ -89,6 +91,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const disconnect = () => { void disconnectLocalWebPush().catch(() => {}); };
+    window.addEventListener('evolution:auth-lost', disconnect);
+    return () => window.removeEventListener('evolution:auth-lost', disconnect);
+  }, []);
+
+  const userId = user?.id ?? null;
+  const previousUserId = React.useRef<string | number | null>(null);
+  useEffect(() => {
+    if (previousUserId.current && !userId) void disconnectLocalWebPush().catch(() => {});
+    previousUserId.current = userId;
+  }, [userId]);
+
   // Periodic token validation (every 5 minutes)
   useEffect(() => {
     const isWidgetPublicRoute =
@@ -102,7 +117,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, validityCheck]);
+
+  useEffect(() => {
+    if (isAuthenticated && userId) void syncWebPush().catch(() => {});
+  }, [isAuthenticated, userId]);
 
   const login = async (userData: UserResponse, _loginData: { access_token?: string }) => {
     try {
@@ -114,6 +133,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async () => {
+    try {
+      await disableWebPush();
+    } catch {
+      // The local subscription is removed even when the server is unreachable.
+    }
     try {
       await authServiceLogout();
     } catch (error) {

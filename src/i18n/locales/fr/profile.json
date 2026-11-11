@@ -102,11 +102,18 @@
       "title": "Préférences de Notification",
       "description": "Configurez comment vous souhaitez recevoir les notifications",
       "browserPermission": {
-        "title": "Permission du Navigateur",
-        "description": "Autoriser les notifications push du navigateur",
-        "granted": "Permissions de notification accordées",
+        "title": "Notifications sur cet appareil",
+        "description": "Recevez des notifications même lorsque l’application est fermée. Activez aussi les types souhaités ci-dessous.",
+        "granted": "Notifications activées sur cet appareil",
         "denied": "Permissions de notification refusées",
-        "notSupported": "Les notifications du navigateur ne sont pas prises en charge"
+        "notSupported": "Cet appareil ou navigateur ne prend pas en charge Web Push.",
+        "disabled": "Notifications désactivées sur cet appareil",
+        "iosHelp": "Sur iPhone ou iPad, ajoutez Sofia à l’écran d’accueil et ouvrez-le depuis celui-ci avant l’activation.",
+        "error": "Impossible de configurer les notifications. Réessayez.",
+        "testButton": "Tester la notification",
+        "testHint": "Activez les notifications sur cet appareil, puis envoyez un test. Cela peut prendre quelques secondes.",
+        "testSent": "Test programmé. Attendez quelques secondes et vérifiez les notifications de l’appareil.",
+        "testError": "Impossible d’envoyer le test. Réessayez."
       },
       "email": {
         "title": "Notifications par Email",

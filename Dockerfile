@@ -40,6 +40,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN nginx -t
 
 # Copy runtime entrypoint
 COPY docker-entrypoint.sh /docker-entrypoint.sh
