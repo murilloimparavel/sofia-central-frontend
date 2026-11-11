@@ -33,6 +33,12 @@ describe('push worker', () => {
     expect(showNotification).toHaveBeenLastCalledWith('Nova notificação', expect.objectContaining({ data: { target: '/conversations' } }));
   });
 
+  it('keeps the notification settings destination for a device test', () => {
+    const { handlers, showNotification } = worker();
+    handlers.push({ data: { json: () => ({ url: '/profile/notifications' }) }, waitUntil: () => {} });
+    expect(showNotification).toHaveBeenCalledWith('Nova notificação', expect.objectContaining({ data: { target: '/profile/notifications' } }));
+  });
+
   it('opens the requested conversation when no app window exists', async () => {
     const { handlers, openWindow } = worker();
     let pending: Promise<unknown> | undefined;

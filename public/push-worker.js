@@ -11,7 +11,8 @@ self.addEventListener('push', event => {
   let target = '/conversations';
   try {
     const url = new URL(payload.url, self.location.origin);
-    if (url.origin === self.location.origin && /^\/conversations\/[^/]+\/?$/.test(url.pathname)) target = url.pathname;
+    const allowedPath = /^\/conversations\/[^/]+\/?$/.test(url.pathname) || url.pathname === '/profile/notifications';
+    if (url.origin === self.location.origin && allowedPath) target = url.pathname;
   } catch { /* retain safe fallback */ }
   event.waitUntil(self.registration.showNotification(title, {
     body, tag, icon: '/favicon-192.png', badge: '/favicon-192.png', data: { target },
