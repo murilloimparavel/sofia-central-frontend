@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), delete: vi.fn() }));
 vi.mock('@/services/core/api', () => ({ default: api }));
 vi.mock('@/store/authStore', () => ({ useAuthStore: { getState: () => ({ currentUser: { id: 'user-1' } }) } }));
-import { disableWebPush, enableWebPush, syncWebPush } from './webPushService';
+import { disableWebPush, enableWebPush, syncWebPush, testWebPush } from './webPushService';
 
 describe('web push subscription lifecycle', () => {
   const subscription = {
@@ -93,5 +93,15 @@ describe('web push subscription lifecycle', () => {
     api.delete.mockRejectedValue(new Error('offline'));
     await expect(disableWebPush()).rejects.toThrow('unsubscribe-failed');
     expect(subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('sends a real test only for the active subscription owned by this user', async () => {
+    manager.getSubscription.mockResolvedValue(subscription);
+    localStorage.setItem('sofia-web-push-active', '1');
+    await testWebPush();
+    expect(api.post).toHaveBeenCalledWith('/notification_subscriptions/test', { endpoint: subscription.endpoint });
+    localStorage.setItem('sofia-web-push-owner', 'other-user');
+    await expect(testWebPush()).rejects.toThrow('inactive');
+    expect(api.post).toHaveBeenCalledOnce();
   });
 });

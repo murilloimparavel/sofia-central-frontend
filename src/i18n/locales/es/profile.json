@@ -109,7 +109,11 @@
         "notSupported": "Este dispositivo o navegador no admite Web Push.",
         "disabled": "Notificaciones desactivadas en este dispositivo",
         "iosHelp": "En iPhone o iPad, añade Sofia a la pantalla de inicio y ábrelo desde allí antes de activar.",
-        "error": "No se pudieron configurar las notificaciones. Inténtalo de nuevo."
+        "error": "No se pudieron configurar las notificaciones. Inténtalo de nuevo.",
+        "testButton": "Probar notificación",
+        "testHint": "Activa las notificaciones en este dispositivo y envía una prueba. Puede tardar unos segundos.",
+        "testSent": "Prueba programada. Espera unos segundos y revisa las notificaciones del dispositivo.",
+        "testError": "No se pudo enviar la prueba. Inténtalo de nuevo."
       },
       "email": {
         "title": "Notificaciones por Email",

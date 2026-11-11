@@ -41,7 +41,7 @@ import {
 } from '@/services/profile/profileService';
 import { extractError } from '@/utils/apiHelpers';
 import notificationSettingsService from '@/services/notifications/NotificationSettingsService';
-import { disableWebPush, enableWebPush, supportsWebPush, syncWebPush } from '@/services/notifications/webPushService';
+import { disableWebPush, enableWebPush, supportsWebPush, syncWebPush, testWebPush } from '@/services/notifications/webPushService';
 import { getAudioSettings, playNotificationSoundPreview } from '@/utils/audioNotificationUtils';
 import { getModifierKey } from '@/utils/platform';
 import { normalizeAvatarUrl } from '@/utils/avatarUrl';
@@ -766,6 +766,19 @@ const Profile = () => {
     }
   };
 
+  const sendPushTest = async () => {
+    setPushBusy(true);
+    try {
+      await testWebPush();
+      toast.success(t('notifications.browserPermission.testSent'));
+    } catch (error) {
+      const message = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+      toast.error(typeof message === 'string' ? message : t('notifications.browserPermission.testError'));
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     void syncWebPush().then(active => {
@@ -926,8 +939,9 @@ const Profile = () => {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Permissão do navegador */}
-        <div className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="flex items-center gap-3">
+        <div className="p-4 border rounded-lg space-y-4">
+          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
             <div>
               <p className="font-medium">{t('notifications.browserPermission.title')}</p>
@@ -943,6 +957,13 @@ const Profile = () => {
             disabled={pushBusy}
             aria-label={t('notifications.browserPermission.title')}
           />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 sm:pl-8">
+            <Button type="button" variant="outline" size="sm" onClick={sendPushTest} disabled={pushBusy || !notificationSettings.browser_push_enabled}>
+              {t('notifications.browserPermission.testButton')}
+            </Button>
+            <span className="text-sm text-muted-foreground">{t('notifications.browserPermission.testHint')}</span>
+          </div>
         </div>
 
         {/* Notificações por email */}

@@ -137,6 +137,14 @@ export async function disableWebPush(): Promise<void> {
   await removeWebPush();
 }
 
+export async function testWebPush(): Promise<void> {
+  if (!supportsWebPush() || Notification.permission !== 'granted' || !hasActiveWebPush()) throw new Error('inactive');
+  const worker = await navigator.serviceWorker.getRegistration('/');
+  const subscription = await worker?.pushManager.getSubscription();
+  if (!subscription || localStorage.getItem(OWNER_KEY) !== currentUserId()) throw new Error('inactive');
+  await api.post('/notification_subscriptions/test', { endpoint: subscription.endpoint });
+}
+
 async function removeWebPush(): Promise<void> {
   if (!('serviceWorker' in navigator)) return;
   const worker = await navigator.serviceWorker.getRegistration('/');
