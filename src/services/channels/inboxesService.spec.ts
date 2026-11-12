@@ -4,14 +4,39 @@ import api from '@/services/core/api';
 
 vi.mock('@/services/core/api', () => ({
   default: {
+    get: vi.fn(),
     patch: vi.fn(),
   },
 }));
 
 vi.mock('@/utils/apiHelpers', () => ({
   extractData: vi.fn((response: { data: unknown }) => response.data),
-  extractResponse: vi.fn(),
+  extractResponse: vi.fn((response: { data: unknown }) => response.data),
 }));
+
+describe('InboxesService.listAll', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('loads every page, including WhatsApp inboxes after the first page', async () => {
+    const get = vi.mocked(api.get);
+    get.mockResolvedValueOnce({ data: { data: [{ id: 'api', channel_type: 'Channel::Api' }], meta: { pagination: { total_pages: 2 } } } } as never);
+    get.mockResolvedValueOnce({ data: { data: [{ id: 'wa', channel_type: 'Channel::Whatsapp' }], meta: { pagination: { total_pages: 2 } } } } as never);
+
+    expect(await InboxesService.listAll()).toEqual([
+      { id: 'api', channel_type: 'Channel::Api' },
+      { id: 'wa', channel_type: 'Channel::Whatsapp' },
+    ]);
+    expect(get).toHaveBeenNthCalledWith(1, '/inboxes', { params: { page: 1 } });
+    expect(get).toHaveBeenNthCalledWith(2, '/inboxes', { params: { page: 2 } });
+  });
+
+  it('propagates a later page failure instead of returning an incomplete list', async () => {
+    const get = vi.mocked(api.get);
+    get.mockResolvedValueOnce({ data: { data: [], meta: { pagination: { total_pages: 2 } } } } as never);
+    get.mockRejectedValueOnce(new Error('request failed'));
+    await expect(InboxesService.listAll()).rejects.toThrow('request failed');
+  });
+});
 
 describe('InboxesService.updateWithAvatar', () => {
   beforeEach(() => {
