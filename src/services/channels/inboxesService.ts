@@ -39,6 +39,22 @@ const InboxesService = {
     return extractResponse<Inbox>(response) as InboxesResponse;
   },
 
+  async listAll(): Promise<Inbox[]> {
+    const inboxes: Inbox[] = [];
+    let page = 1;
+    let totalPages = 1;
+
+    do {
+      const response = await api.get('/inboxes', { params: { page } });
+      const result = extractResponse<Inbox>(response) as InboxesResponse;
+      inboxes.push(...result.data);
+      totalPages = result.meta?.pagination?.total_pages ?? 1;
+      page += 1;
+    } while (page <= totalPages);
+
+    return inboxes;
+  },
+
   async getById(inboxId: string): Promise<InboxResponse> {
     const response = await api.get(`/inboxes/${inboxId}`);
     // getById returns StandardResponse<Inbox> (single object), not PaginatedResponse

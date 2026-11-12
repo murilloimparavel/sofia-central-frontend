@@ -146,9 +146,9 @@ export const useAppDataStore = create<AppDataState>((set, get) => ({
 
     set({ isLoadingInboxes: true });
     try {
-      const inboxes = await InboxesService.list();
+      const inboxes = await InboxesService.listAll();
       set({
-        inboxes: inboxes.data,
+        inboxes,
         isLoadingInboxes: false,
         lastFetchTimestamps: { ...state.lastFetchTimestamps, inboxes: now }
       });
