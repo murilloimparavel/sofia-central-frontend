@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:22-alpine3.24@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS builder
 
 WORKDIR /app
 
@@ -33,7 +33,10 @@ ENV APP_VERSION=$APP_VERSION
 RUN npm run build
 
 # Production stage
-FROM nginx:alpine
+FROM nginx:1.31.8-alpine3.24@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
+
+# Alpine v3.24 fixed the Trivy findings in libxslt at 1.1.43-r4.
+RUN apk add --no-cache --upgrade 'libxslt=1.1.43-r4'
 
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
