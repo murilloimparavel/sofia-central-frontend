@@ -10,6 +10,16 @@ interface PersistedChatState {
 
 const STORAGE_KEY = 'crm-chat-state';
 
+export const restoreChatFilters = (active: ConversationFilter[]): ConversationFilter[] => {
+  const remaining = active.filter(filter => filter.attribute_key !== 'urgent_followup');
+  if (remaining.length || remaining.length === active.length) return remaining;
+  return [
+    { attribute_key: 'assignee_type', filter_operator: 'equal_to', values: ['all'], query_operator: 'and' },
+    { attribute_key: 'status', filter_operator: 'equal_to', values: ['all'], query_operator: 'and' },
+  ];
+};
+
+
 export const usePersistence = () => {
   const saveState = useCallback((state: Partial<PersistedChatState>) => {
     try {

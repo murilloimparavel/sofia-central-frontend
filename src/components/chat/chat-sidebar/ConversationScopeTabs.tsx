@@ -1,4 +1,4 @@
-import { Bot, Inbox, MessageCircle, Siren, Users } from 'lucide-react';
+import { Bot, Inbox, MessageCircle, Users } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { BaseFilter } from '@/types/core/filters';
 import type { ConversationFilter } from '@/types/chat/api';
@@ -17,7 +17,6 @@ interface Props {
 const TABS: Array<{ id: ConversationScopeId; icon: typeof MessageCircle; label: string }> = [
   { id: 'mine', icon: MessageCircle, label: 'Chats' },
   { id: 'unassigned', icon: Inbox, label: 'Fila' },
-  { id: 'urgent', icon: Siren, label: 'Urgente' },
   { id: 'bot', icon: Bot, label: 'Robô' },
   { id: 'all', icon: Users, label: 'Todas' },
 ];
