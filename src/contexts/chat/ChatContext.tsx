@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
-import { usePersistence } from '@/hooks/chat/usePersistence';
+import { usePersistence, restoreChatFilters } from '@/hooks/chat/usePersistence';
 import { useContactUpdatedReconciler } from '@/hooks/chat/useContactUpdatedReconciler';
 import { MessagesProvider, useMessages as useMessagesOriginal } from '@/contexts/chat/MessagesContext';
 import { ConversationsProvider } from '@/contexts/chat/ConversationsContext';
@@ -855,7 +855,7 @@ function useChatIntegration() {
   useEffect(() => {
     const savedState = loadState();
     if (savedState.activeFilters) {
-      filters.setFilters(savedState.activeFilters);
+      filters.setFilters(restoreChatFilters(savedState.activeFilters));
     }
     if (savedState.quickFilterTab) {
       filters.setQuickFilter(savedState.quickFilterTab);

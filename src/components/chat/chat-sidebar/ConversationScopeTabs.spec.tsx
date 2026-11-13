@@ -21,17 +21,16 @@ const cf = (key: string, value: string): ConversationFilter =>
   ({ attribute_key: key, filter_operator: 'equal_to', values: [value] } as unknown as ConversationFilter);
 
 describe('ConversationScopeTabs', () => {
-  it('renders all five scope tabs in the exact order', () => {
+  it('renders all four scope tabs in the exact order', () => {
     const onSelectScope = vi.fn();
     render(<ConversationScopeTabs activeFilters={[]} onSelectScope={onSelectScope} />);
 
     const tabs = screen.getAllByRole('tab');
-    expect(tabs).toHaveLength(5);
+    expect(tabs).toHaveLength(4);
     expect(tabs[0]).toHaveTextContent('Chats');
     expect(tabs[1]).toHaveTextContent('Fila');
-    expect(tabs[2]).toHaveTextContent('Urgente');
-    expect(tabs[3]).toHaveTextContent('Robô');
-    expect(tabs[4]).toHaveTextContent('Todas');
+    expect(tabs[2]).toHaveTextContent('Robô');
+    expect(tabs[3]).toHaveTextContent('Todas');
   });
 
   it('marks Robô as selected when status is pending', () => {
@@ -41,21 +40,15 @@ describe('ConversationScopeTabs', () => {
     render(<ConversationScopeTabs activeFilters={activeFilters} onSelectScope={onSelectScope} />);
 
     const tabs = screen.getAllByRole('tab');
-    expect(tabs[3]).toHaveAttribute('aria-selected', 'true');
+    expect(tabs[2]).toHaveAttribute('aria-selected', 'true');
     expect(tabs[0]).toHaveAttribute('aria-selected', 'false');
     expect(tabs[1]).toHaveAttribute('aria-selected', 'false');
-    expect(tabs[2]).toHaveAttribute('aria-selected', 'false');
-    expect(tabs[4]).toHaveAttribute('aria-selected', 'false');
+    expect(tabs[3]).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('opens the urgent queue with its dedicated filter', () => {
-    const onSelectScope = vi.fn();
-    render(<ConversationScopeTabs activeFilters={[cf('urgent_followup', 'true')]} onSelectScope={onSelectScope} />);
-
-    const urgentTab = screen.getByRole('tab', { name: /Urgente/i });
-    expect(urgentTab).toHaveAttribute('aria-selected', 'true');
-    fireEvent.click(urgentTab);
-    expect(onSelectScope).toHaveBeenCalledWith(CONVERSATION_SCOPE_PRESETS.urgent);
+  it('does not show the retired urgent queue', () => {
+    render(<ConversationScopeTabs activeFilters={[]} onSelectScope={vi.fn()} />);
+    expect(screen.queryByRole('tab', { name: /Urgente/i })).not.toBeInTheDocument();
   });
 
   it('leaves all scope tabs unselected for custom filters', () => {
