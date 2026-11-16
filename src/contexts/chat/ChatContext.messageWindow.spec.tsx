@@ -37,8 +37,9 @@ const expiredConversation = {
 
 function Probe() {
   const { conversations } = useChatContext();
+  const setConversations = conversations.setConversations;
   const conversation = conversations.state.conversations[0];
-  React.useEffect(() => conversations.setConversations([expiredConversation]), [conversations.setConversations]);
+  React.useEffect(() => setConversations([expiredConversation]), [setConversations]);
   return (
     <>
       <span data-testid="can-reply">{String(conversation?.can_reply)}</span>
