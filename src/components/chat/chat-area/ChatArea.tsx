@@ -195,7 +195,21 @@ const ChatArea = ({
 
   // 🎯 MESSAGING WINDOW RESTRICTIONS: Verificar se pode responder (WhatsApp, Instagram, Messenger)
   // Usar can_reply do backend que já calcula se está dentro da janela de 24 horas
-  const canReply = selectedConversation?.can_reply ?? true;
+  const [windowClock, setWindowClock] = useState(() => Date.now());
+  const replyWindowExpiresAt = selectedConversation?.reply_window_expires_at;
+  const replyWindowExpiresAtMs = replyWindowExpiresAt ? Date.parse(replyWindowExpiresAt) : NaN;
+  const canReply = (selectedConversation?.can_reply ?? true) &&
+    (!Number.isFinite(replyWindowExpiresAtMs) || windowClock < replyWindowExpiresAtMs);
+
+  // `can_reply` is a point-in-time backend value. The expiry itself does not
+  // publish a websocket event, so refresh this component's derived state at the
+  // authoritative deadline without requiring the agent to reload the chat.
+  useEffect(() => {
+    if (!Number.isFinite(replyWindowExpiresAtMs)) return;
+    const delay = Math.max(0, replyWindowExpiresAtMs - Date.now() + 25);
+    const timer = window.setTimeout(() => setWindowClock(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [selectedConversationId, replyWindowExpiresAtMs]);
   const channelType = selectedConversation?.inbox?.channel_type || '';
 
   // Detectar tipos de canal
@@ -448,6 +462,11 @@ const ChatArea = ({
               : t('messageInput.defaultPlaceholder')
           }
           isDisabled={shouldShowRestrictionBanner}
+          isWindowClosed={
+            !canReply &&
+            isWhatsAppChannel &&
+            ['whatsapp_cloud', 'default', ''].includes(channelProvider.toLowerCase())
+          }
           isPendingConversation={isPendingConversation}
           onTypingStart={handleTypingStart}
           onTypingStop={handleTypingStop}

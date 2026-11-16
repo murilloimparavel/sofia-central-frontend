@@ -273,6 +273,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             external_source_ids: {},
             attachments: mapAttachments(data.attachments),
             echo_id: data.echo_id,
+            conversation_window: {
+              can_reply: data.conversation?.can_reply,
+              reply_window_expires_at: data.conversation?.reply_window_expires_at,
+            },
           };
 
           if (handlersRef.current.onMessageCreated) {
@@ -448,7 +452,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               // Campos obrigatórios adicionais da interface Conversation
               contact_last_seen_at: null,
               agent_last_seen_at: null,
-              can_reply: true,
+              can_reply: data.can_reply ?? true,
+              reply_window_expires_at: data.reply_window_expires_at ?? null,
               channel: data.meta.channel || 'web',
               contact_inbox_id: '', // Será atualizado quando necessário
               first_reply_created_at: null,

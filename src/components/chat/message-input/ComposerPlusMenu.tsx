@@ -13,6 +13,8 @@ import { useLanguage } from '@/hooks/useLanguage';
 
 interface ComposerPlusMenuProps {
   disabled?: boolean;
+  /** Keep only internal notes and approved templates available while the reply window is closed. */
+  restrictedMode?: boolean;
   onOpenQuickReplies: () => void;
   onPickDocuments: () => void;
   onPickMedia: () => void;
@@ -35,6 +37,7 @@ const ITEM_ICON_BOX =
  */
 const ComposerPlusMenu: React.FC<ComposerPlusMenuProps> = ({
   disabled = false,
+  restrictedMode = false,
   onOpenQuickReplies,
   onPickDocuments,
   onPickMedia,
@@ -80,18 +83,21 @@ const ComposerPlusMenu: React.FC<ComposerPlusMenuProps> = ({
       label: t('messageInput.composerMenu.quickReplies'),
       icon: <MessageSquareText className="h-4 w-4" />,
       onClick: onOpenQuickReplies,
+      disabled: restrictedMode,
     },
     {
       key: 'docs',
       label: t('messageInput.composerMenu.documents'),
       icon: <FileText className="h-4 w-4" />,
       onClick: onPickDocuments,
+      disabled: restrictedMode,
     },
     {
       key: 'midia',
       label: t('messageInput.composerMenu.media'),
       icon: <Image className="h-4 w-4" />,
       onClick: onPickMedia,
+      disabled: restrictedMode,
     },
     {
       key: 'notas',
@@ -104,8 +110,10 @@ const ComposerPlusMenu: React.FC<ComposerPlusMenuProps> = ({
       label: t('messageInput.composerMenu.schedule'),
       icon: <CalendarClock className="h-4 w-4" />,
       onClick: onSchedule,
-      disabled: scheduleDisabled,
-      disabledTitle: t('messageInput.composerMenu.scheduleDisabledHint'),
+      disabled: scheduleDisabled || restrictedMode,
+      disabledTitle: restrictedMode
+        ? t('messageInput.restrictedPlaceholder')
+        : t('messageInput.composerMenu.scheduleDisabledHint'),
     },
     ...(onOpenTemplates
       ? [
@@ -123,8 +131,8 @@ const ComposerPlusMenu: React.FC<ComposerPlusMenuProps> = ({
     <div ref={rootRef} className="relative flex-shrink-0" style={{ position: 'relative' }}>
       <button
         type="button"
-        disabled={disabled}
-        onClick={() => !disabled && setOpen(prev => !prev)}
+        disabled={disabled && !restrictedMode}
+        onClick={() => (!disabled || restrictedMode) && setOpen(prev => !prev)}
         title={t('messageInput.composerMenu.tooltip')}
         className="h-9 w-9 flex items-center justify-center rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
       >
