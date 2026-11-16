@@ -56,6 +56,8 @@ export interface MessageCreatedEvent {
   conversation: {
     id: string;
     last_activity_at: string;
+    can_reply?: boolean;
+    reply_window_expires_at?: string | null;
   };
   sender?: {
     id: string;
@@ -188,6 +190,8 @@ export interface ConversationCreatedEvent {
   labels: string[]; // Evolution usa string[] para labels
   labels_data?: ConversationEventLabel[];
   unread_count: number;
+  can_reply?: boolean;
+  reply_window_expires_at?: string | null;
   is_group?: boolean;
   additional_attributes?: Record<string, unknown>;
   custom_attributes?: Record<string, unknown>;
@@ -241,6 +245,7 @@ export interface ConversationUpdatedEvent {
   custom_attributes?: Record<string, unknown>;
   priority?: string | null;
   can_reply?: boolean;
+  reply_window_expires_at?: string | null;
   channel?: string;
   snoozed_until?: string | null;
   first_reply_created_at?: string | null;

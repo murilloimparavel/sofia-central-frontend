@@ -37,6 +37,8 @@ export interface Conversation {
   agent_last_seen_at: string | null;
   additional_attributes: Record<string, unknown>;
   can_reply: boolean;
+  /** UTC instant when the current provider messaging window expires; null when closed or unrestricted. */
+  reply_window_expires_at?: string | null;
   channel: string;
   contact_inbox_id: string;
   created_at: string;
@@ -233,6 +235,11 @@ export interface Message {
   status: 'sent' | 'delivered' | 'read' | 'failed' | 'progress';
   attachments: Attachment[];
   echo_id?: string;
+  /** Authoritative reply-window snapshot carried by message.created events. */
+  conversation_window?: {
+    can_reply?: boolean;
+    reply_window_expires_at?: string | null;
+  };
 }
 
 export interface MessageSender {

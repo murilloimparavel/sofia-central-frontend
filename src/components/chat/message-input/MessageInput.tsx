@@ -70,6 +70,7 @@ interface SendMessageOptions {
 interface MessageInputProps {
   onSendMessage: (options: SendMessageOptions) => Promise<void>;
   isDisabled?: boolean;
+  isWindowClosed?: boolean;
   isPendingConversation?: boolean;
   placeholder?: string;
   onTypingStart?: () => void;
@@ -85,6 +86,7 @@ interface MessageInputProps {
 const MessageInput: React.FC<MessageInputProps> = ({
   onSendMessage,
   isDisabled = false,
+  isWindowClosed = false,
   isPendingConversation = false,
   onTypingStart,
   onTypingStop,
@@ -733,6 +735,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             {/* + menu */}
             <ComposerPlusMenu
               disabled={isDisabled || isSending || isPendingConversation}
+              restrictedMode={isWindowClosed && isWhatsAppCloud && !isPendingConversation}
               onOpenQuickReplies={handleCannedResponsesClick}
               onPickDocuments={() =>
                 document.getElementById('composer-file-input-document')?.click()

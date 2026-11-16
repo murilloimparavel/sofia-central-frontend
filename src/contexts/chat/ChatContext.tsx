@@ -385,6 +385,10 @@ function useChatIntegration() {
 
           const updatedConversation: Conversation = {
             ...conversation,
+            ...(isIncomingMessage && message.conversation_window?.can_reply !== undefined && {
+              can_reply: message.conversation_window.can_reply,
+              reply_window_expires_at: message.conversation_window.reply_window_expires_at ?? null,
+            }),
             timestamp: validTimestamp,
             last_activity_at: new Date(validTimestamp * 1000).toISOString(),
             unread_count: currentUnreadCount ?? conversation.unread_count ?? 0,
