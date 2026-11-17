@@ -600,6 +600,12 @@ export default function MessageTemplates() {
         mode={editing ? 'edit' : 'create'}
         template={editing || undefined}
         channelType={formChannelType}
+        bodyTextMaxLength={
+          scope.kind === 'cloud' ||
+          (scope.kind === 'inbox' && scope.inbox.provider === 'whatsapp_cloud')
+            ? 1024
+            : undefined
+        }
         defaultLanguage={scope.kind !== 'inbox' ? 'pt_BR' : 'en_US'}
         channelOptions={scope.kind === 'global' ? globalChannelOptions : undefined}
         channelSelectLabel={t('form.provider')}

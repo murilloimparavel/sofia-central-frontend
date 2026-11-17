@@ -84,6 +84,50 @@ describe('TemplateFormModal', () => {
     expect(screen.queryByText('settings.messageTemplates.form.categories.authentication')).not.toBeInTheDocument();
   });
 
+  it('shows the WhatsApp Cloud body limit and disables save when it is exceeded', () => {
+    render(
+      <TemplateFormModal
+        isOpen
+        mode="create"
+        channelType="Channel::WhatsappCloud"
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByPlaceholderText('settings.messageTemplates.form.namePlaceholder'), {
+      target: { value: 'template_example' },
+    });
+    const body = screen.getByPlaceholderText('settings.messageTemplates.form.bodyTextPlaceholder');
+    fireEvent.change(body, { target: { value: 'x'.repeat(1025) } });
+
+    expect(screen.getByText('settings.messageTemplates.form.bodyCharacterLimit')).toBeInTheDocument();
+    expect(screen.getByText('1025/1024')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'settings.messageTemplates.form.create' })).toBeDisabled();
+  });
+
+  it('applies the Cloud limit to an inbox WhatsApp form when its provider is Cloud', () => {
+    render(
+      <TemplateFormModal
+        isOpen
+        mode="create"
+        channelType="Channel::Whatsapp"
+        bodyTextMaxLength={1024}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByPlaceholderText('settings.messageTemplates.form.namePlaceholder'), {
+      target: { value: 'template_example' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('settings.messageTemplates.form.bodyTextPlaceholder'), {
+      target: { value: `${'a'.repeat(1023)}😀` },
+    });
+
+    expect(screen.getByText('1024/1024')).toBeInTheDocument();
+    expect(screen.queryByText('settings.messageTemplates.form.bodyCharacterLimit')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'settings.messageTemplates.form.create' })).toBeEnabled();
+  });
+
   it('renders the structured body editor for a WhatsApp channel and saves form data', () => {
     const onSave = vi.fn();
     render(

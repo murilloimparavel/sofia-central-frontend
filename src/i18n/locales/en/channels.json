@@ -688,6 +688,8 @@
         "headerTextPlaceholder": "Enter header text",
         "bodyText": "Body Text",
         "bodyTextPlaceholder": "Enter message body text",
+        "bodyCharacterCount": "{{current}} of {{max}} characters",
+        "bodyCharacterLimit": "WhatsApp Cloud limit: the template body can contain up to 1,024 characters. Remove or shorten some text to continue.",
         "footerText": "Footer Text",
         "footerTextPlaceholder": "Enter footer text (optional)",
         "variablesHelp": "Use {{variable}} syntax for dynamic values",
