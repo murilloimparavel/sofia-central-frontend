@@ -687,6 +687,8 @@
         "headerTextPlaceholder": "Digite o texto do cabeçalho",
         "bodyText": "Texto do Corpo",
         "bodyTextPlaceholder": "Digite o texto do corpo da mensagem",
+        "bodyCharacterCount": "{{current}} de {{max}} caracteres",
+        "bodyCharacterLimit": "Limite do WhatsApp Cloud: o corpo do modelo pode ter até 1.024 caracteres. Remova ou encurte parte do texto para continuar.",
         "footerText": "Texto do Rodapé",
         "footerTextPlaceholder": "Digite o texto do rodapé (opcional)",
         "variablesHelp": "Use a sintaxe {{variavel}} para valores dinâmicos",

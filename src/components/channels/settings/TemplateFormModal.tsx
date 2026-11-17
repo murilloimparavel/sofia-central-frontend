@@ -47,6 +47,9 @@ const MessageTextarea: React.FC<{
   variableLabel?: string;
   variableHelpText?: string;
   variableSampleName?: string;
+  bodyTextMaxLength?: number;
+  characterCountLabel?: string;
+  characterLimitMessage?: string;
 }> = ({
   value,
   onChange,
@@ -56,9 +59,13 @@ const MessageTextarea: React.FC<{
   variableLabel,
   variableHelpText,
   variableSampleName,
+  bodyTextMaxLength,
+  characterCountLabel,
+  characterLimitMessage,
 }) => {
   const ref = useRef<HTMLTextAreaElement>(null);
   const isDark = useIsDarkClass();
+  const characterCount = Array.from(value).length;
 
   // Insert `snippet` at the caret. If `selFrom`/`selTo` are given, select that
   // sub-range of the inserted text (used to preselect a variable name so the user
@@ -96,6 +103,7 @@ const MessageTextarea: React.FC<{
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
+        aria-describedby={bodyTextMaxLength ? 'template-body-character-help' : undefined}
         className="pr-20"
       />
       <div className="absolute top-2 right-2 flex items-center gap-1">
@@ -155,6 +163,30 @@ const MessageTextarea: React.FC<{
           </PopoverContent>
         </Popover>
       </div>
+      {bodyTextMaxLength && characterCountLabel && (
+        <div
+          id="template-body-character-help"
+          className="mt-1 flex items-start justify-between gap-3 text-xs"
+          aria-live="polite"
+        >
+          <span className={characterCount > bodyTextMaxLength ? 'font-medium text-destructive' : 'text-muted-foreground'}>
+            {characterCount > bodyTextMaxLength && characterLimitMessage
+              ? characterLimitMessage
+              : characterCountLabel
+                  .replace('{{current}}', String(characterCount))
+                  .replace('{{max}}', String(bodyTextMaxLength))}
+          </span>
+          <span
+            className={
+              characterCount > bodyTextMaxLength
+                ? 'shrink-0 font-medium text-destructive'
+                : 'shrink-0 text-muted-foreground'
+            }
+          >
+            {characterCount}/{bodyTextMaxLength}
+          </span>
+        </div>
+      )}
     </div>
   );
 };
@@ -199,6 +231,8 @@ interface TemplateFormModalProps {
   variableHelpText?: string;
   /** Placeholder name inserted by the variable helper (preselected for overtype). */
   variableSampleName?: string;
+  /** Provider-specific character limit for structured template BODY text. */
+  bodyTextMaxLength?: number;
 }
 
 /**
@@ -228,12 +262,14 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({
   insertVariableLabel,
   variableHelpText,
   variableSampleName,
+  bodyTextMaxLength: bodyTextMaxLengthProp,
 }) => {
   const { t } = useLanguage('channels');
   // Memoise on channelType so the category-revalidation effect below fires only
   // on an actual channel/provider change, not on every render.
   const channelConfig = useMemo(() => getChannelTemplateConfig(channelType), [channelType]);
   const isStructured = useMemo(() => usesStructuredComponents(channelType), [channelType]);
+  const bodyTextMaxLength = bodyTextMaxLengthProp ?? (channelType === 'Channel::WhatsappCloud' ? 1024 : undefined);
 
   const buildEmptyForm = useCallback(
     (): TemplateFormData => ({
@@ -359,7 +395,9 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({
   };
 
   const isFormValid = isStructured
-    ? formData.name.trim() && formData.bodyText?.trim()
+    ? formData.name.trim() &&
+      formData.bodyText?.trim() &&
+      !(bodyTextMaxLength && Array.from(formData.bodyText).length > bodyTextMaxLength)
     : formData.name.trim() && formData.content.trim();
 
   return (
@@ -563,6 +601,17 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({
                     variableLabel={insertVariableLabel}
                     variableHelpText={variableHelpText}
                     variableSampleName={variableSampleName}
+                    bodyTextMaxLength={bodyTextMaxLength}
+                    characterCountLabel={
+                      bodyTextMaxLength
+                        ? t('settings.messageTemplates.form.bodyCharacterCount')
+                        : undefined
+                    }
+                    characterLimitMessage={
+                      bodyTextMaxLength
+                        ? t('settings.messageTemplates.form.bodyCharacterLimit')
+                        : undefined
+                    }
                   />
                   <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                     {t('settings.messageTemplates.form.variablesHelp')}
