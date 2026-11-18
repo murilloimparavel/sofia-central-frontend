@@ -122,11 +122,13 @@ export function formatChatMessage(
 
       // 4. Restore URL tokens
       if (urlTokens.length > 0) {
+        // eslint-disable-next-line no-control-regex -- NULs delimit generated HTML tokens.
         text = text.replace(/\u0000URL_TOKEN_(\d+)\u0000/g, (_, idx) => urlTokens[Number(idx)] || '');
       }
 
       // 5. Restore Code tokens
       if (codeTokens.length > 0) {
+        // eslint-disable-next-line no-control-regex -- NULs delimit generated HTML tokens.
         text = text.replace(/\u0000(CODE_BLOCK|INLINE_CODE)_(\d+)\u0000/g, (_, __, idx) => codeTokens[Number(idx)] || '');
       }
 
