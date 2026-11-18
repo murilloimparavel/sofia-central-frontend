@@ -1051,6 +1051,8 @@
     },
     "parser": {
       "variablesLabel": "Variáveis",
+      "previewLabel": "Prévia da mensagem",
+      "previewTime": "Agora",
       "variablePlaceholder": "Insira o valor para {{variable}}",
       "goBackLabel": "Voltar",
       "sendMessageLabel": "Enviar Mensagem",
