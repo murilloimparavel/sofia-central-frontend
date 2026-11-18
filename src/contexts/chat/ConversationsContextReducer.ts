@@ -316,6 +316,21 @@ export function conversationsReducer(
       };
     }
 
+    case 'UPDATE_SELECTED_CONVERSATION': {
+      if (!action.payload?.id || !state.selectedConversationId ||
+        !matchesConversationId(action.payload, state.selectedConversationId)) {
+        return state;
+      }
+
+      return {
+        ...state,
+        selectedConversationData: {
+          ...state.selectedConversationData,
+          ...action.payload,
+        } as Conversation,
+      };
+    }
+
     case 'UPDATE_CONTACT_IN_CONVERSATIONS': {
       const updatedContact = action.payload;
 

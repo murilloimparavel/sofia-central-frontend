@@ -657,6 +657,11 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
   }, []);
 
+  const updateSelectedConversation = useCallback((conversation: Conversation) => {
+    if (!conversation || !conversation.id) return;
+    dispatch({ type: 'UPDATE_SELECTED_CONVERSATION', payload: conversation });
+  }, []);
+
   const addConversation = useCallback((conversation: Conversation) => {
     reconcileConversationQueryCache(conversation);
     dispatch({ type: 'ADD_CONVERSATION', payload: conversation });
@@ -1060,6 +1065,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
       archiveConversation,
       unarchiveConversation,
       updateConversation,
+      updateSelectedConversation,
       updateContactInConversations,
       addConversation,
       removeConversation,
@@ -1097,6 +1103,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
       archiveConversation,
       unarchiveConversation,
       updateConversation,
+      updateSelectedConversation,
       updateContactInConversations,
       addConversation,
       removeConversation,

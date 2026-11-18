@@ -27,6 +27,8 @@ import { normalizeToUnixSeconds } from '@/utils/time/timeHelpers';
 import { doesConversationMatchFilters } from '@/utils/chat/conversationMatch';
 import { evictFromScopeCache, addOrUpdateInScopeCache } from '@/utils/chat/conversationScopeCache';
 import { useUnansweredConversationsStore } from '@/store/unansweredConversationsStore';
+import { useReplyWindowRealtimeRefresh } from '@/hooks/chat/useReplyWindowRealtimeRefresh';
+import type { ReplyWindowSnapshot } from '@/hooks/chat/useReplyWindowRealtimeRefresh';
 const EMPTY_MESSAGES: Message[] = [];
 
 interface ChatContextValue {
@@ -89,6 +91,40 @@ function useChatIntegration() {
   useEffect(() => {
     activeFiltersRef.current = filters.state.activeFilters;
   }, [filters.state.activeFilters]);
+
+  const applyConfirmedReplyWindow = useCallback((
+    conversationId: string,
+    snapshot: ReplyWindowSnapshot,
+  ) => {
+    const selectedSnapshot = conversationsRef.current.state.selectedConversationData;
+    const selectedMatches = selectedSnapshot && (
+      String(selectedSnapshot.id) === conversationId ||
+      String(selectedSnapshot.uuid || '') === conversationId
+    );
+    const current = conversationsRef.current.getConversation(conversationId) ||
+      (selectedMatches ? selectedSnapshot : null);
+    if (!current) return;
+
+    const updated = { ...current, ...snapshot } as Conversation;
+    const isVisible = conversationsRef.current.state.conversations.some(item =>
+      String(item.id) === String(updated.id) || String(item.uuid || '') === conversationId,
+    );
+    const matchesActiveView = doesConversationMatchFilters(
+      updated,
+      activeFiltersRef.current,
+      currentUserRef.current?.id,
+    );
+
+    if (matchesActiveView) {
+      conversationsRef.current.updateConversation(updated);
+      return;
+    }
+
+    if (isVisible) conversationsRef.current.removeConversation(conversationId);
+    conversationsRef.current.addHiddenConversation(updated);
+    if (selectedMatches) conversationsRef.current.updateSelectedConversation(updated);
+  }, []);
+  const scheduleReplyWindowRefresh = useReplyWindowRealtimeRefresh(applyConfirmedReplyWindow);
 
   // Recuperar mensagens que chegaram durante uma queda do WebSocket sem
   // recarregar o histórico inteiro da conversa aberta.
@@ -231,17 +267,28 @@ function useChatIntegration() {
               conv =>
                 String(conv.id) === idStr ||
                 String(conv.uuid || '') === idStr,
-            ) || null
+            ) || (
+              conversationsRef.current.state.selectedConversationData &&
+              (String(conversationsRef.current.state.selectedConversationData.id) === idStr ||
+                String(conversationsRef.current.state.selectedConversationData.uuid || '') === idStr)
+                ? conversationsRef.current.state.selectedConversationData
+                : null
+            )
           );
         };
         const conversation = findConversationByAnyId(conversationId);
+        const targetConversationId = conversation ? String(conversation.id) : conversationId;
+        const isIncomingMessage = message.message_type === MESSAGE_TYPE.INCOMING;
 
         const selectedConversationId = String(
           conversationsRef.current.state.selectedConversationId || '',
         );
         const isSelectedConversation =
           selectedConversationId === conversationId ||
-          (conversation && selectedConversationId === String(conversation.id));
+          (conversation && (
+            selectedConversationId === String(conversation.id) ||
+            selectedConversationId === String(conversation.uuid || '')
+          ));
 
         // Nunca descartar um evento da conversa que o operador está vendo só
         // porque a lista atual está filtrada ou atrasada.
@@ -256,6 +303,13 @@ function useChatIntegration() {
         if (processedMessageIdsRef.current.size > MAX_PROCESSED_IDS) {
           processedMessageIdsRef.current.clear();
           processedMessageIdsRef.current.add(message.id);
+        }
+
+        if (isIncomingMessage && (conversation || isSelectedConversation)) {
+          const hasAuthoritativeWindow =
+            message.conversation_window?.can_reply === true &&
+            message.conversation_window.reply_window_expires_at !== undefined;
+          scheduleReplyWindowRefresh(targetConversationId, !hasAuthoritativeWindow);
         }
 
         if (message.content === null || message.content === undefined) {
@@ -273,7 +327,6 @@ function useChatIntegration() {
           external_url: att.external_url || undefined,
         }));
 
-        const targetConversationId = conversation ? String(conversation.id) : conversationId;
         const existingMessages = messagesRef.current.getMessages(targetConversationId);
         const messageExistsById = existingMessages.some(msg => msg.id === message.id);
 
@@ -333,7 +386,6 @@ function useChatIntegration() {
               : null);
           const messageConversationId = targetConversationId;
           const isConversationOpen = currentConversationId === messageConversationId;
-          const isIncomingMessage = message.message_type === MESSAGE_TYPE.INCOMING;
 
           // Se a conversa está aberta e é mensagem recebida, marcar como lida automaticamente
           if (isConversationOpen && isIncomingMessage) {
@@ -408,7 +460,27 @@ function useChatIntegration() {
             },
           };
 
-          conversationsRef.current.updateConversation(updatedConversation);
+          const isInVisibleList = conversationsRef.current.state.conversations.some(item =>
+            String(item.id) === String(updatedConversation.id) ||
+            String(item.uuid || '') === String(updatedConversation.id),
+          );
+          const matchesActiveView = doesConversationMatchFilters(
+            updatedConversation,
+            activeFiltersRef.current,
+            currentUserRef.current?.id,
+          );
+
+          if (matchesActiveView) {
+            conversationsRef.current.updateConversation(updatedConversation);
+          } else {
+            if (isInVisibleList) {
+              conversationsRef.current.removeConversation(targetConversationId);
+            }
+            conversationsRef.current.addHiddenConversation(updatedConversation);
+            if (isSelectedConversation) {
+              conversationsRef.current.updateSelectedConversation(updatedConversation);
+            }
+          }
 
           if (shouldReloadMessageForMissingImageData(message)) {
             const existingTimer = attachmentReloadTimersRef.current[targetConversationId];
@@ -800,6 +872,7 @@ function useChatIntegration() {
     });
   }, [
     registerWebSocketHandlers,
+    scheduleReplyWindowRefresh,
     shouldReloadMessageForMissingImageData,
   ]);
 

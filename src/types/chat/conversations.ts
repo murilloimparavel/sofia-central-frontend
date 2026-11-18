@@ -30,6 +30,7 @@ export type ConversationsAction =
   | { type: 'SELECT_CONVERSATION'; payload: string | null }
   | { type: 'SET_SELECTED_CONVERSATION_DATA'; payload: Conversation | null }
   | { type: 'UPDATE_CONVERSATION'; payload: Conversation }
+  | { type: 'UPDATE_SELECTED_CONVERSATION'; payload: Conversation }
   | { type: 'UPDATE_CONTACT_IN_CONVERSATIONS'; payload: Contact }
   | { type: 'ADD_CONVERSATION'; payload: Conversation }
   | { type: 'REMOVE_CONVERSATION'; payload: string }
@@ -97,6 +98,7 @@ export interface ConversationsContextValue {
 
   // Direct state manipulation (for WebSocket integration)
   updateConversation: (conversation: Conversation) => void;
+  updateSelectedConversation: (conversation: Conversation) => void;
   updateContactInConversations: (updatedContact: Contact) => void;
   addConversation: (conversation: Conversation) => void;
   removeConversation: (conversationId: string) => void;
