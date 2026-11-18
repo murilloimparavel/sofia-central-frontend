@@ -279,14 +279,22 @@
     "close": "Fermer"
   },
   "chatArea": {
+    "messageLink": {
+      "copy": "Copier le lien",
+      "copied": "Lien copié dans le presse-papiers",
+      "copyFailed": "Impossible de copier le lien"
+    },
     "selectConversation": {
       "title": "Sélectionnez une conversation",
       "description": "Choisissez une conversation dans la liste pour commencer à voir les messages"
     },
     "banner": {
-      "whatsappMessage": "Vous ne pouvez répondre à cette conversation qu'en utilisant un modèle de message en raison de",
-      "cannotReply": "Vous ne pouvez pas répondre car",
-      "linkText": "Restrictions de fenêtre de messagerie de 24 heures",
+      "whatsappTitle": "La fenêtre de réponse de 24 heures a expiré",
+      "whatsappMessage": "Plus de 24 heures se sont écoulées depuis le dernier message du client. Envoyez un modèle approuvé pour continuer.",
+      "cannotReplyTitle": "Délai de réponse expiré",
+      "cannotReply": "Ce canal n'autorise pas les nouveaux messages en dehors du délai de réponse.",
+      "linkText": "Voir la politique de messagerie",
+      "disconnectedTitle": "Canal déconnecté",
       "zapiDisconnected": "WhatsApp déconnecté. Connectez le numéro pour envoyer des messages."
     },
     "noteBanner": {
