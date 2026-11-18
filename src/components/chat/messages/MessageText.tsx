@@ -1,36 +1,65 @@
 import React, { useMemo } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink } from 'lucide-react';
+import { toast } from 'sonner';
+import { useLanguage } from '@/hooks/useLanguage';
 import { formatChatMessage, sanitizeChatMessageHTML } from './formatChatMessage';
 import '../rich-text-editor/RichTextEditor.css';
 
 function LinkPreview({ url }: { url: string }) {
+  const { t } = useLanguage('chat');
   let hostname = '';
-  let pathname = '';
+  let addressDetails = '';
   try {
     const parsed = new URL(url);
     hostname = parsed.hostname;
-    pathname = parsed.pathname === '/' ? '' : parsed.pathname;
+    addressDetails = `${parsed.pathname === '/' ? '' : parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
     return null;
   }
 
-  const displayPath = pathname.length > 40 ? pathname.slice(0, 40) + '…' : pathname;
+  const handleCopy = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard is unavailable');
+      await navigator.clipboard.writeText(url);
+      toast.success(t('chatArea.messageLink.copied'));
+    } catch {
+      toast.error(t('chatArea.messageLink.copyFailed'));
+    }
+  };
 
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 mt-1 mb-1 p-2 rounded-md border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors no-underline max-w-sm"
-    >
-      <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 overflow-hidden">
-        <p className="text-xs font-medium text-foreground truncate">{hostname}</p>
-        {displayPath && (
-          <p className="text-[11px] text-muted-foreground truncate">{displayPath}</p>
-        )}
-      </div>
-    </a>
+    <div className="my-1 flex w-full max-w-lg items-start gap-2 rounded-lg border border-current/20 bg-black/10 p-2.5 transition-colors hover:bg-black/15">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex min-w-0 flex-1 items-start gap-2 rounded-sm text-inherit no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-black/10 text-current">
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block break-all text-xs font-semibold leading-4">{hostname}</span>
+          {addressDetails && (
+            <span className="mt-1 block max-h-24 overflow-y-auto whitespace-pre-wrap break-all text-[11px] leading-4 text-current/80">
+              {addressDetails}
+            </span>
+          )}
+        </span>
+      </a>
+      <button
+        type="button"
+        onClick={handleCopy}
+        aria-label={t('chatArea.messageLink.copy')}
+        title={t('chatArea.messageLink.copy')}
+        className="inline-flex shrink-0 items-center gap-1 rounded-md border border-current/20 bg-black/10 px-2 py-1.5 text-xs font-medium text-current transition-colors hover:bg-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+      >
+        <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="hidden sm:inline">{t('chatArea.messageLink.copy')}</span>
+      </button>
+    </div>
   );
 }
 

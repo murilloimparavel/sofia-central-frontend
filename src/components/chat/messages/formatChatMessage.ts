@@ -109,7 +109,7 @@ export function formatChatMessage(
           }
           const token = `\u0000URL_TOKEN_${urlTokens.length}\u0000`;
           urlTokens.push(
-            `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-500 underline break-all hover:text-blue-400">${url}</a>`
+            `<a href="${url}" target="_blank" rel="noopener noreferrer" class="font-medium text-current underline decoration-current/70 underline-offset-2 break-all hover:opacity-80">${url}</a>`
           );
           return token;
         });

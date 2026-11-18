@@ -281,14 +281,22 @@
     "close": "Close"
   },
   "chatArea": {
+    "messageLink": {
+      "copy": "Copy link",
+      "copied": "Link copied to clipboard",
+      "copyFailed": "Could not copy link"
+    },
     "selectConversation": {
       "title": "Select a conversation",
       "description": "Choose a conversation from the list to start viewing messages"
     },
     "banner": {
-      "whatsappMessage": "You can only reply to this conversation using a message template due to",
-      "cannotReply": "You cannot reply because",
-      "linkText": "24-hour messaging window restrictions",
+      "whatsappTitle": "24-hour reply window expired",
+      "whatsappMessage": "More than 24 hours have passed since the customer's last message. Send an approved template to continue.",
+      "cannotReplyTitle": "Reply window unavailable",
+      "cannotReply": "This channel does not allow new messages outside its reply window.",
+      "linkText": "View messaging policy",
+      "disconnectedTitle": "Channel disconnected",
       "zapiDisconnected": "WhatsApp disconnected. Connect the number to send messages."
     },
     "noteBanner": {

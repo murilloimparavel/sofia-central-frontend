@@ -293,6 +293,16 @@ const ChatArea = ({
     (!canReply && hasMessagingWindowRestriction && !isWhatsAppFreeTextChannel) || isDisconnected;
 
   // Mensagem do banner quando não pode responder
+  const getBannerTitle = () => {
+    if (isDisconnected) {
+      return t('chatArea.banner.disconnectedTitle');
+    }
+    if (isWhatsAppChannel && !isWhatsAppFreeTextChannel) {
+      return t('chatArea.banner.whatsappTitle');
+    }
+    return t('chatArea.banner.cannotReplyTitle');
+  };
+
   const getBannerMessage = () => {
     if (isDisconnected) {
       const errorMessage = providerConnection?.error || '';
@@ -365,10 +375,11 @@ const ChatArea = ({
       {/* Posicionado no topo, logo após o header, para máxima visibilidade */}
       {shouldShowRestrictionBanner && (
         <Banner
+          title={getBannerTitle()}
           bannerMessage={getBannerMessage()}
           hrefLink={getBannerLink()}
           hrefLinkText={getBannerLinkText()}
-          colorScheme="alert"
+          colorScheme={isDisconnected ? 'alert' : 'warning'}
         />
       )}
 

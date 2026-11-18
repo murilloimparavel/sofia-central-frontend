@@ -279,14 +279,22 @@
     "close": "Fechar"
   },
   "chatArea": {
+    "messageLink": {
+      "copy": "Copiar ligação",
+      "copied": "Ligação copiada para a área de transferência",
+      "copyFailed": "Não foi possível copiar a ligação"
+    },
     "selectConversation": {
       "title": "Selecione uma conversa",
       "description": "Escolha uma conversa da lista para começar a visualizar as mensagens"
     },
     "banner": {
-      "whatsappMessage": "Você só pode responder a esta conversa usando um modelo de mensagem devido a",
-      "cannotReply": "Você não pode responder porque",
-      "linkText": "Restrições de janela de mensagem de 24 horas",
+      "whatsappTitle": "Janela de atendimento de 24 horas encerrada",
+      "whatsappMessage": "Já passaram 24 horas desde a última mensagem do cliente. Para continuar, envie um modelo aprovado.",
+      "cannotReplyTitle": "Prazo para responder encerrado",
+      "cannotReply": "Este canal não permite novas mensagens fora do prazo de resposta.",
+      "linkText": "Ver política de mensagens",
+      "disconnectedTitle": "Canal desligado",
       "zapiDisconnected": "WhatsApp desconectado. Conecte o número para enviar mensagens."
     },
     "noteBanner": {

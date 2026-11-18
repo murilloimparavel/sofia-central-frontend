@@ -279,14 +279,22 @@
     "close": "Chiudi"
   },
   "chatArea": {
+    "messageLink": {
+      "copy": "Copia link",
+      "copied": "Link copiato negli appunti",
+      "copyFailed": "Impossibile copiare il link"
+    },
     "selectConversation": {
       "title": "Seleziona una conversazione",
       "description": "Scegli una conversazione dall'elenco per iniziare a visualizzare i messaggi"
     },
     "banner": {
-      "whatsappMessage": "Puoi rispondere a questa conversazione solo usando un modello di messaggio a causa di",
-      "cannotReply": "Non puoi rispondere perché",
-      "linkText": "Restrizioni della finestra di messaggistica di 24 ore",
+      "whatsappTitle": "La finestra di risposta di 24 ore è scaduta",
+      "whatsappMessage": "Sono trascorse più di 24 ore dall'ultimo messaggio del cliente. Invia un modello approvato per continuare.",
+      "cannotReplyTitle": "Termine di risposta scaduto",
+      "cannotReply": "Questo canale non consente nuovi messaggi oltre il termine di risposta.",
+      "linkText": "Consulta le regole di messaggistica",
+      "disconnectedTitle": "Canale disconnesso",
       "zapiDisconnected": "WhatsApp disconnesso. Connetti il numero per inviare messaggi."
     },
     "noteBanner": {
