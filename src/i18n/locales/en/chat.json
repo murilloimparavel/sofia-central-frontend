@@ -1048,6 +1048,8 @@
     },
     "parser": {
       "variablesLabel": "Variables",
+      "previewLabel": "Message preview",
+      "previewTime": "Now",
       "variablePlaceholder": "Enter value for {{variable}}",
       "goBackLabel": "Go Back",
       "sendMessageLabel": "Send Message",

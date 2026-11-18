@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from '@evoapi/design-system/button';
 import { Input } from '@evoapi/design-system/input';
-import type { MessageTemplate } from '@/types/channels/inbox';
+import type { MessageTemplate, MessageTemplateComponent } from '@/types/channels/inbox';
 import { useLanguage } from '@/hooks/useLanguage';
 import {
   buildInitialVariableParams,
@@ -66,6 +66,32 @@ const TemplateParser: React.FC<TemplateParserProps> = ({ template, channelType, 
 
     return extractTemplateVariables(template);
   }, [template, isEmailTemplate, getEmailHtmlContent]);
+
+  const previewComponents = useMemo(() => {
+    const components = template.components
+      ? Array.isArray(template.components)
+        ? template.components
+        : Object.values(template.components)
+      : [];
+    const body = components.find(component => component.type === 'BODY')?.text || template.content || '';
+
+    return {
+      header: components.find(component => component.type === 'HEADER')?.text || '',
+      body,
+      footer: components.find(component => component.type === 'FOOTER')?.text || '',
+      buttons: components.find(component => component.type === 'BUTTONS')?.buttons || [],
+    };
+  }, [template]);
+
+  const renderPreviewText = (text: string) =>
+    text.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (placeholder, name: string) => {
+      const variable = variables.find(item => item.name === name);
+      if (Object.prototype.hasOwnProperty.call(params, name)) {
+        return params[name]?.trim() || placeholder;
+      }
+
+      return variable?.default_value || variable?.example || placeholder;
+    });
 
   // Inicializar params quando o template mudar
   useEffect(() => {
@@ -170,6 +196,40 @@ const TemplateParser: React.FC<TemplateParserProps> = ({ template, channelType, 
           )}
         </div>
       )}
+
+      <section className="mb-5" aria-label={t('messageTemplates.parser.previewLabel')}>
+        <p className="mb-2 text-sm font-semibold">{t('messageTemplates.parser.previewLabel')}</p>
+        <div className="rounded-xl border border-emerald-900/10 bg-[#e9f5ec] p-3 dark:border-emerald-100/10 dark:bg-emerald-950/30">
+          <div className="ml-auto max-w-[92%] rounded-xl rounded-tr-sm border border-black/5 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm dark:border-white/10 dark:bg-slate-800 dark:text-slate-100">
+            {previewComponents.header && (
+              <p className="mb-1.5 font-semibold">{renderPreviewText(previewComponents.header)}</p>
+            )}
+            <p className="whitespace-pre-wrap">{renderPreviewText(previewComponents.body)}</p>
+            {previewComponents.footer && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {renderPreviewText(previewComponents.footer)}
+              </p>
+            )}
+            {previewComponents.buttons.length > 0 && (
+              <div className="mt-3 space-y-1.5 border-t border-border pt-2">
+                {previewComponents.buttons.map(
+                  (button: NonNullable<MessageTemplateComponent['buttons']>[number], index: number) => (
+                    <div
+                      key={`${button.text}-${index}`}
+                      className="rounded-md border border-border px-2 py-1.5 text-center text-xs font-medium text-primary"
+                    >
+                      {button.text}
+                    </div>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
+          <p className="mt-2 text-right text-[11px] text-emerald-950/55 dark:text-emerald-100/55">
+            {t('messageTemplates.parser.previewTime')}
+          </p>
+        </div>
+      </section>
 
       {/* Botões de ação */}
       <footer className="flex justify-end gap-2">

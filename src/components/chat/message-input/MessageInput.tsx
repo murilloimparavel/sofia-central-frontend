@@ -15,6 +15,8 @@ import {
   Smile,
   X,
   PenLine,
+  LayoutTemplate,
+  LockKeyhole,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -370,6 +372,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
     setShowTemplatesModal(true);
   }, []);
 
+  const isTemplateOnlyMode = isWindowClosed && isWhatsAppCloud && !isPendingConversation;
+
   const handleSendTemplate = useCallback(
     async (payload: { message: string; templateParams?: any }) => {
       try {
@@ -716,6 +720,23 @@ const MessageInput: React.FC<MessageInputProps> = ({
               preferWhatsAppCloudFormat={isWhatsApp}
             />
           </Suspense>
+        ) : isTemplateOnlyMode ? (
+          <div className="flex flex-col gap-3 border-t border-border bg-muted/30 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+              <LockKeyhole className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              <span>{t('messageInput.restrictedPlaceholder')}</span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTemplateClick}
+              disabled={isSending}
+              className="flex-shrink-0 gap-2"
+            >
+              <LayoutTemplate className="h-4 w-4" aria-hidden="true" />
+              {t('messageTemplates.button.title')}
+            </Button>
+          </div>
         ) : (
           <div className="flex items-center gap-2 px-4 py-3 relative">
             {/* Overlay de bloqueio (status ≠ aberto) — cobre a barra inteira; SÓ

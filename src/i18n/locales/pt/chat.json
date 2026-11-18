@@ -1013,6 +1013,8 @@
     },
     "parser": {
       "variablesLabel": "Variáveis",
+      "previewLabel": "Pré-visualização da mensagem",
+      "previewTime": "Agora",
       "variablePlaceholder": "Insira o valor para {{variable}}",
       "goBackLabel": "Voltar",
       "sendMessageLabel": "Enviar Mensagem",
