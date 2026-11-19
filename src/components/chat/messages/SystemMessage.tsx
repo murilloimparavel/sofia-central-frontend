@@ -131,23 +131,36 @@ const getSystemMessageIcon = (content: string) => {
   return Activity;
 };
 
-const getActivityIcon = (action: string) => {
+const getActivityIcon = (action: string, changeTo?: unknown) => {
   if (action.startsWith('label')) return Tag;
   if (action.startsWith('team')) return Users;
   if (action.startsWith('assignee')) return User;
-  if (action.startsWith('status')) return Activity;
-  if (action.startsWith('priority')) return AlertCircle;
+  if (action.startsWith('status')) {
+    if (changeTo === 'resolved') return CheckCircle;
+    if (changeTo === 'pending' || changeTo === 'snoozed') return Clock;
+    if (changeTo === 'open') return MessageCircle;
+    return Activity;
+  }
+  if (action.startsWith('priority')) {
+    const priority = String(changeTo);
+    if (['2', '3', 'high', 'urgent'].includes(priority)) return ArrowUp;
+    if (['0', 'low'].includes(priority)) return ArrowDown;
+    return AlertCircle;
+  }
   return Activity;
 };
 
 const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) => {
   const activityEvent = message.content_attributes?.activity_event;
   const IconComponent = activityEvent?.action
-    ? getActivityIcon(activityEvent.action)
+    ? getActivityIcon(activityEvent.action, activityEvent.changes?.to)
     : getSystemMessageIcon(message.content);
+  const actorName = activityEvent?.actor?.name;
   const actorCaption = activityEvent?.actor?.type === 'automation'
-    ? `Regra: ${activityEvent.actor.name}`
-    : undefined;
+    ? `Regra: ${actorName}`
+    : actorName && !message.content.toLocaleLowerCase().includes(actorName.toLocaleLowerCase())
+      ? `Por: ${actorName}`
+      : undefined;
 
   // Formatação do timestamp - usando a mesma função das mensagens normais
   const timestamp = formatMessageTime(message.created_at);
@@ -186,6 +199,10 @@ const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) =
     mentionedLabelIds.forEach(id => {
       cleanContent = cleanContent.replace(id, '').replace(/\s+/g, ' ').trim();
     });
+    if (eventLabelNames.length > 0) {
+      cleanContent = cleanContent.replace(eventLabelNames.join(', '), '').replace(/\s+/g, ' ').trim();
+      cleanContent = cleanContent.replace(/\s+([,;:.!?])/g, '$1').replace(/[,;:]\s*$/, '').trim();
+    }
 
     return (
       <div className="text-center py-4">
@@ -218,13 +235,15 @@ const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) =
 
   return (
     <div className="text-center py-4">
-      <div className="inline-flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-        <IconComponent
-          className="w-3 h-3 text-muted-foreground/70 flex-shrink-0"
-          aria-hidden="true"
-        />
-        <span className="font-medium">{message.content}</span>
-        <span className="text-muted-foreground/60 text-xs ml-1 hidden sm:inline">{timestamp}</span>
+      <div className={`inline-flex ${actorCaption ? 'flex-col' : 'items-center'} gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full`}>
+        <div className="inline-flex items-center gap-2">
+          <IconComponent
+            className="w-3 h-3 text-muted-foreground/70 flex-shrink-0"
+            aria-hidden="true"
+          />
+          <span className="font-medium">{message.content}</span>
+          <span className="text-muted-foreground/60 text-xs ml-1 hidden sm:inline">{timestamp}</span>
+        </div>
         {actorCaption && <span className="text-muted-foreground/70 text-[11px]">{actorCaption}</span>}
       </div>
     </div>

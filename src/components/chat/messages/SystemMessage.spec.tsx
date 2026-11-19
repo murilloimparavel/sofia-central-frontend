@@ -20,7 +20,7 @@ const makeActivity = (contentAttributes: Message['content_attributes'] = {}): Me
 } as Message);
 
 describe('SystemMessage activity metadata', () => {
-  it('renders structured label names as badges and keeps the activity text', () => {
+  it('renders structured label names once as badges and keeps the action text', () => {
     const message = makeActivity({
       activity_event: {
         event_id: 'event-1',
@@ -32,7 +32,8 @@ describe('SystemMessage activity metadata', () => {
 
     render(<SystemMessage message={message} labels={[]} />);
 
-    expect(screen.getByText('Agent added labels: urgent')).toBeTruthy();
+    expect(screen.getByText('Agent added labels')).toBeTruthy();
+    expect(screen.queryByText('Agent added labels: urgent')).toBeNull();
     expect(screen.getByText('urgent')).toBeTruthy();
   });
 
@@ -58,6 +59,54 @@ describe('SystemMessage activity metadata', () => {
     render(<SystemMessage message={message} />);
 
     expect(screen.getByText('Regra: Resolve stale conversations')).toBeTruthy();
+  });
+
+  it('shows a human actor when the activity text is generic', () => {
+    const message = makeActivity({
+      activity_event: {
+        event_id: 'event-handoff',
+        action: 'human_handoff',
+        actor: { type: 'user', id: 'user-1', name: 'Agent Example' },
+        target: { type: 'conversation', id: 'conversation-1' },
+      },
+    });
+    message.content = 'O atendente devolveu a conversa ao bot';
+
+    render(<SystemMessage message={message} />);
+
+    expect(screen.getByText('Por: Agent Example')).toBeTruthy();
+  });
+
+  it('keeps the state specific status icon when metadata is present', () => {
+    const message = makeActivity({
+      activity_event: {
+        event_id: 'event-status',
+        action: 'status_changed',
+        actor: { type: 'user', id: 'user-1', name: 'Agent' },
+        target: { type: 'conversation', id: 'conversation-1' },
+        changes: { from: 'open', to: 'resolved' },
+      },
+    });
+
+    const { container } = render(<SystemMessage message={message} />);
+
+    expect(container.querySelector('svg.lucide-circle-check-big')).toBeTruthy();
+  });
+
+  it('keeps priority direction icons when metadata is present', () => {
+    const message = makeActivity({
+      activity_event: {
+        event_id: 'event-priority',
+        action: 'priority_changed',
+        actor: { type: 'user', id: 'user-1', name: 'Agent' },
+        target: { type: 'conversation', id: 'conversation-1' },
+        changes: { from: 1, to: 3 },
+      },
+    });
+
+    const { container } = render(<SystemMessage message={message} />);
+
+    expect(container.querySelector('svg.lucide-arrow-up')).toBeTruthy();
   });
 
   it('does not interpret numbers in a non-label activity as label identifiers', () => {
