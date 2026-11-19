@@ -205,6 +205,14 @@ export interface MessageContentAttributes extends Record<string, unknown> {
   deleted?: boolean;
   external_created_at?: number;
   external_error?: string;
+  activity_event?: {
+    event_id: string;
+    action: string;
+    actor: { type: string; id?: string | null; name: string; display_name?: string; source?: string };
+    target: { type: string; id?: string | null; name?: string | null; ids?: string[]; names?: string[] };
+    changes?: Record<string, unknown>;
+    caused_by?: { type: string; id?: string | null; name?: string };
+  };
 }
 
 // ===== MESSAGE =====

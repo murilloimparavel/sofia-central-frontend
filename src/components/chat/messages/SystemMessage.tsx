@@ -131,8 +131,36 @@ const getSystemMessageIcon = (content: string) => {
   return Activity;
 };
 
+const getActivityIcon = (action: string, changeTo?: unknown) => {
+  if (action.startsWith('label')) return Tag;
+  if (action.startsWith('team')) return Users;
+  if (action.startsWith('assignee')) return User;
+  if (action.startsWith('status')) {
+    if (changeTo === 'resolved') return CheckCircle;
+    if (changeTo === 'pending' || changeTo === 'snoozed') return Clock;
+    if (changeTo === 'open') return MessageCircle;
+    return Activity;
+  }
+  if (action.startsWith('priority')) {
+    const priority = String(changeTo);
+    if (['2', '3', 'high', 'urgent'].includes(priority)) return ArrowUp;
+    if (['0', 'low'].includes(priority)) return ArrowDown;
+    return AlertCircle;
+  }
+  return Activity;
+};
+
 const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) => {
-  const IconComponent = getSystemMessageIcon(message.content);
+  const activityEvent = message.content_attributes?.activity_event;
+  const IconComponent = activityEvent?.action
+    ? getActivityIcon(activityEvent.action, activityEvent.changes?.to)
+    : getSystemMessageIcon(message.content);
+  const actorName = activityEvent?.actor?.name;
+  const actorCaption = activityEvent?.actor?.type === 'automation'
+    ? `Regra: ${actorName}`
+    : actorName && !message.content.toLocaleLowerCase().includes(actorName.toLocaleLowerCase())
+      ? `Por: ${actorName}`
+      : undefined;
 
   // Formatação do timestamp - usando a mesma função das mensagens normais
   const timestamp = formatMessageTime(message.created_at);
@@ -150,11 +178,19 @@ const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) =
     return [...uuids, ...numbers];
   };
 
-  // Buscar labels mencionadas no conteúdo
-  const mentionedLabelIds = extractLabelIds(message.content);
-  const mentionedLabels = mentionedLabelIds
-    .map(id => labels.find(l => String(l.id) === id))
-    .filter((label): label is { id: string; title: string; color: string } => Boolean(label));
+  // Structured activity metadata is authoritative. Keep UUID parsing only for
+  // legacy activity messages that predate this metadata.
+  const eventLabelNames = activityEvent?.target?.type === 'labels' ? activityEvent.target.names || [] : [];
+  const isLegacyLabelActivity = /label|etiqueta|tag|marcador/i.test(message.content);
+  const mentionedLabelIds = eventLabelNames.length || !isLegacyLabelActivity ? [] : extractLabelIds(message.content);
+  const mentionedLabels = eventLabelNames.length
+    ? eventLabelNames.map((name, index) => {
+        const knownLabel = labels.find(label => label.title === name);
+        return knownLabel || { id: `${activityEvent?.event_id}-${index}`, title: name, color: '#64748b' };
+      })
+    : mentionedLabelIds
+        .map(id => labels.find(l => String(l.id) === id))
+        .filter((label): label is { id: string; title: string; color: string } => Boolean(label));
 
   // Se tem labels, renderizar com badges
   if (mentionedLabels.length > 0) {
@@ -163,6 +199,10 @@ const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) =
     mentionedLabelIds.forEach(id => {
       cleanContent = cleanContent.replace(id, '').replace(/\s+/g, ' ').trim();
     });
+    if (eventLabelNames.length > 0) {
+      cleanContent = cleanContent.replace(eventLabelNames.join(', '), '').replace(/\s+/g, ' ').trim();
+      cleanContent = cleanContent.replace(/\s+([,;:.!?])/g, '$1').replace(/[,;:]\s*$/, '').trim();
+    }
 
     return (
       <div className="text-center py-4">
@@ -175,6 +215,7 @@ const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) =
             <span className="font-medium">{cleanContent}</span>
             <span className="text-muted-foreground/60 text-xs ml-1 hidden sm:inline">{timestamp}</span>
           </div>
+          {actorCaption && <span className="text-muted-foreground/70 text-[11px]">{actorCaption}</span>}
           <div className="flex items-center gap-1.5 flex-wrap justify-center">
             {mentionedLabels.map(label => (
               <div
@@ -194,13 +235,16 @@ const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) =
 
   return (
     <div className="text-center py-4">
-      <div className="inline-flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-        <IconComponent
-          className="w-3 h-3 text-muted-foreground/70 flex-shrink-0"
-          aria-hidden="true"
-        />
-        <span className="font-medium">{message.content}</span>
-        <span className="text-muted-foreground/60 text-xs ml-1 hidden sm:inline">{timestamp}</span>
+      <div className={`inline-flex ${actorCaption ? 'flex-col' : 'items-center'} gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full`}>
+        <div className="inline-flex items-center gap-2">
+          <IconComponent
+            className="w-3 h-3 text-muted-foreground/70 flex-shrink-0"
+            aria-hidden="true"
+          />
+          <span className="font-medium">{message.content}</span>
+          <span className="text-muted-foreground/60 text-xs ml-1 hidden sm:inline">{timestamp}</span>
+        </div>
+        {actorCaption && <span className="text-muted-foreground/70 text-[11px]">{actorCaption}</span>}
       </div>
     </div>
   );
