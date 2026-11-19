@@ -131,8 +131,23 @@ const getSystemMessageIcon = (content: string) => {
   return Activity;
 };
 
+const getActivityIcon = (action: string) => {
+  if (action.startsWith('label')) return Tag;
+  if (action.startsWith('team')) return Users;
+  if (action.startsWith('assignee')) return User;
+  if (action.startsWith('status')) return Activity;
+  if (action.startsWith('priority')) return AlertCircle;
+  return Activity;
+};
+
 const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) => {
-  const IconComponent = getSystemMessageIcon(message.content);
+  const activityEvent = message.content_attributes?.activity_event;
+  const IconComponent = activityEvent?.action
+    ? getActivityIcon(activityEvent.action)
+    : getSystemMessageIcon(message.content);
+  const actorCaption = activityEvent?.actor?.type === 'automation'
+    ? `Regra: ${activityEvent.actor.name}`
+    : undefined;
 
   // Formatação do timestamp - usando a mesma função das mensagens normais
   const timestamp = formatMessageTime(message.created_at);
@@ -150,11 +165,19 @@ const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) =
     return [...uuids, ...numbers];
   };
 
-  // Buscar labels mencionadas no conteúdo
-  const mentionedLabelIds = extractLabelIds(message.content);
-  const mentionedLabels = mentionedLabelIds
-    .map(id => labels.find(l => String(l.id) === id))
-    .filter((label): label is { id: string; title: string; color: string } => Boolean(label));
+  // Structured activity metadata is authoritative. Keep UUID parsing only for
+  // legacy activity messages that predate this metadata.
+  const eventLabelNames = activityEvent?.target?.type === 'labels' ? activityEvent.target.names || [] : [];
+  const isLegacyLabelActivity = /label|etiqueta|tag|marcador/i.test(message.content);
+  const mentionedLabelIds = eventLabelNames.length || !isLegacyLabelActivity ? [] : extractLabelIds(message.content);
+  const mentionedLabels = eventLabelNames.length
+    ? eventLabelNames.map((name, index) => {
+        const knownLabel = labels.find(label => label.title === name);
+        return knownLabel || { id: `${activityEvent?.event_id}-${index}`, title: name, color: '#64748b' };
+      })
+    : mentionedLabelIds
+        .map(id => labels.find(l => String(l.id) === id))
+        .filter((label): label is { id: string; title: string; color: string } => Boolean(label));
 
   // Se tem labels, renderizar com badges
   if (mentionedLabels.length > 0) {
@@ -175,6 +198,7 @@ const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) =
             <span className="font-medium">{cleanContent}</span>
             <span className="text-muted-foreground/60 text-xs ml-1 hidden sm:inline">{timestamp}</span>
           </div>
+          {actorCaption && <span className="text-muted-foreground/70 text-[11px]">{actorCaption}</span>}
           <div className="flex items-center gap-1.5 flex-wrap justify-center">
             {mentionedLabels.map(label => (
               <div
@@ -201,6 +225,7 @@ const SystemMessage: React.FC<SystemMessageProps> = ({ message, labels = [] }) =
         />
         <span className="font-medium">{message.content}</span>
         <span className="text-muted-foreground/60 text-xs ml-1 hidden sm:inline">{timestamp}</span>
+        {actorCaption && <span className="text-muted-foreground/70 text-[11px]">{actorCaption}</span>}
       </div>
     </div>
   );
