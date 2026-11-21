@@ -3,6 +3,7 @@ import { useUnansweredConversationsStore } from '@/store/unansweredConversations
 import { Link } from 'react-router-dom';
 import {
   Menu,
+  Headset,
   PanelRightClose,
   PanelRightOpen,
   ChevronDown,
@@ -29,6 +30,7 @@ import { MenuItem as MenuItemType } from '../config/menuItems';
 import { ThemeToggle } from '../../ThemeToggle';
 import { AppLogo } from '../../AppLogo';
 import { PluginSlot } from '@/plugin-host';
+import { useCommercialAssistantContext } from '@/components/commercial-assistant/CommercialAssistantContext';
 
 // Utility function for className merging
 function cn(...classes: (string | undefined | null | false)[]) {
@@ -73,6 +75,7 @@ export default function Header({
   handleMenuClick,
 }: HeaderProps) {
   const { t } = useLanguage('layout');
+  const commercialAssistant = useCommercialAssistantContext();
   const [expandedMobileMenus, setExpandedMobileMenus] = useState<Set<string>>(new Set());
   const totalUnanswered = useUnansweredConversationsStore((state) => state.totalUnanswered);
 
@@ -89,9 +92,9 @@ export default function Header({
   return (
     <div className="flex-shrink-0 bg-sidebar border-b border-sidebar-border px-0 py-3 flex items-center shadow-sm">
       {/* Mobile Layout */}
-      <div className="md:hidden flex items-center w-full px-4">
+      <div className="md:hidden flex items-center w-full min-w-0 px-2 sm:px-4">
         {/* Left: Menu Button */}
-        <div className="flex-1 flex justify-start">
+        <div className="flex-none flex justify-start">
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="text-sidebar-foreground cursor-pointer">
@@ -209,16 +212,29 @@ export default function Header({
         </div>
 
         {/* Center: Logo */}
-        <div className="flex-1 flex justify-center">
-          <div className="flex items-center gap-2">
-            <AppLogo className="h-8 max-w-32" />
+        <div className="flex-1 min-w-0 flex justify-center px-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <AppLogo className="h-8 max-w-full" />
           </div>
         </div>
 
         {/* Right: Notifications and User Menu */}
-        <div className="flex-1 flex justify-end items-center gap-2">
+        <div className="flex-none flex justify-end items-center gap-0 sm:gap-2">
           <PluginSlot id="header.right" />
           <TourFab />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            ref={commercialAssistant?.mobileTriggerRef}
+            aria-label={commercialAssistant?.isOpen ? t('commercialAssistant.close') : t('commercialAssistant.open')}
+            aria-controls="commercial-assistant-dialog"
+            aria-expanded={commercialAssistant?.isOpen ?? false}
+            onClick={commercialAssistant?.toggle}
+            className="h-10 w-10 flex-shrink-0 text-sidebar-foreground cursor-pointer"
+          >
+            <Headset className="h-5 w-5" aria-hidden="true" />
+          </Button>
           <NotificationBell />
           <ProfileMenu
             user={user}
