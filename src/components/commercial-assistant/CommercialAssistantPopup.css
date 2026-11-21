@@ -196,7 +196,7 @@
   to { opacity: 1; transform: translateX(0); }
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .commercial-assistant-panel {
     right: 1.5rem;
     bottom: 6rem;
@@ -216,14 +216,15 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .commercial-assistant-panel {
-    right: 0.75rem;
-    left: 0.75rem;
-    bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+    top: calc(4.25rem + env(safe-area-inset-top, 0px));
+    right: 0.5rem;
+    bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    left: 0.5rem;
     width: auto;
-    height: min(60dvh, 34rem);
-    max-height: calc(100dvh - 10rem);
+    height: auto;
+    max-height: none;
     border-radius: 1rem;
     box-shadow: 0 16px 40px rgb(15 23 42 / 24%);
   }
@@ -245,32 +246,7 @@
   }
 
   .commercial-assistant-trigger {
-    right: max(0.875rem, env(safe-area-inset-right, 0px));
-    bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
-    width: 3rem;
-    height: 3rem;
-    padding: 0;
-    border-radius: 50%;
-    cursor: grab;
-    touch-action: none;
-  }
-
-  .commercial-assistant-trigger span {
     display: none;
-  }
-
-  .commercial-assistant-trigger.is-docked {
-    right: max(0px, env(safe-area-inset-right, 0px));
-    bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
-    width: 2.5rem;
-    height: 6rem;
-    padding: 0.625rem 0.2rem;
-    border-radius: 0.875rem 0 0 0.875rem;
-  }
-
-  .commercial-assistant-trigger.is-docked span {
-    display: inline;
-    font-size: 0.625rem;
   }
 }
 

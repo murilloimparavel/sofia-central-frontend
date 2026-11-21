@@ -26,6 +26,7 @@ import { injectDashboardAppsIntoMenu } from '@/utils/injectDashboardApps';
 import { WelcomeTourModal } from '@/components/WelcomeTourModal';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import CommercialAssistantPopup from '@/components/commercial-assistant/CommercialAssistantPopup';
+import { CommercialAssistantProvider } from '@/components/commercial-assistant/CommercialAssistantProvider';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -109,70 +110,72 @@ export default function MainLayout({ children }: MainLayoutProps) {
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-background transition-colors duration-150 ease-in-out">
+    <CommercialAssistantProvider>
+      <div className="flex flex-col h-dvh bg-background transition-colors duration-150 ease-in-out">
 
-      {/* Header */}
-      <Header
-        user={user}
-        isCollapsed={isCollapsed}
-        isMobileMenuOpen={isMobileMenuOpen}
-        menuItems={menuItems}
-        activeMenu={menuState.activeMenu}
-        pathname={pathname}
-        toggleSidebar={toggleSidebar}
-        setIsMobileMenuOpen={setIsMobileMenuOpen}
-        setLogoutDialogOpen={setLogoutDialogOpen}
-        isMenuItemActive={menuState.isMenuItemActive}
-        isMenuWithSubItemsActive={menuState.isMenuWithSubItemsActive}
-        handleMenuClick={menuState.handleMenuClick}
-      />
-
-      {/* Main Layout Container — `relative` is the positioning anchor for the collapsed sidebar flyout */}
-      <div className="flex flex-1 min-h-0 relative transition-colors duration-150 ease-in-out">
-        {/* Sidebar */}
-        <Sidebar
+        {/* Header */}
+        <Header
+          user={user}
           isCollapsed={isCollapsed}
+          isMobileMenuOpen={isMobileMenuOpen}
           menuItems={menuItems}
-          activeSubmenu={menuState.activeSubmenu}
           activeMenu={menuState.activeMenu}
+          pathname={pathname}
+          toggleSidebar={toggleSidebar}
+          setIsMobileMenuOpen={setIsMobileMenuOpen}
+          setLogoutDialogOpen={setLogoutDialogOpen}
+          isMenuItemActive={menuState.isMenuItemActive}
           isMenuWithSubItemsActive={menuState.isMenuWithSubItemsActive}
           handleMenuClick={menuState.handleMenuClick}
-          setActiveSubmenu={menuState.setActiveSubmenu}
         />
 
-        {/* Main Content */}
-        <main className="flex-1 min-h-0 overflow-auto bg-background transition-colors duration-150 ease-in-out">
-          {/* Keyed by path so a crashed page does not keep the fallback up after navigating away */}
-          <div className="h-full">
-            <ErrorBoundary key={pathname}>{children}</ErrorBoundary>
-          </div>
-        </main>
+        {/* Main Layout Container — `relative` is the positioning anchor for the collapsed sidebar flyout */}
+        <div className="flex flex-1 min-h-0 relative transition-colors duration-150 ease-in-out">
+          {/* Sidebar */}
+          <Sidebar
+            isCollapsed={isCollapsed}
+            menuItems={menuItems}
+            activeSubmenu={menuState.activeSubmenu}
+            activeMenu={menuState.activeMenu}
+            isMenuWithSubItemsActive={menuState.isMenuWithSubItemsActive}
+            handleMenuClick={menuState.handleMenuClick}
+            setActiveSubmenu={menuState.setActiveSubmenu}
+          />
 
+          {/* Main Content */}
+          <main className="flex-1 min-h-0 overflow-auto bg-background transition-colors duration-150 ease-in-out">
+            {/* Keyed by path so a crashed page does not keep the fallback up after navigating away */}
+            <div className="h-full">
+              <ErrorBoundary key={pathname}>{children}</ErrorBoundary>
+            </div>
+          </main>
+
+        </div>
+
+        {/* Tour */}
+        <WelcomeTourModal />
+
+        {/* Floating commercial assistant for authenticated CRM pages */}
+        <CommercialAssistantPopup />
+
+        {/* Logout Dialog */}
+        <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader className="text-left space-y-2">
+              <DialogTitle className="text-lg font-semibold">{t('logout.title')}</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                {t('logout.description')}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button variant="outline" onClick={() => setLogoutDialogOpen(false)}>
+                {t('logout.cancel')}
+              </Button>
+              <Button onClick={handleLogout}>{t('logout.confirm')}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-
-      {/* Tour */}
-      <WelcomeTourModal />
-
-      {/* Floating commercial assistant for authenticated CRM pages */}
-      <CommercialAssistantPopup />
-
-      {/* Logout Dialog */}
-      <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader className="text-left space-y-2">
-            <DialogTitle className="text-lg font-semibold">{t('logout.title')}</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              {t('logout.description')}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setLogoutDialogOpen(false)}>
-              {t('logout.cancel')}
-            </Button>
-            <Button onClick={handleLogout}>{t('logout.confirm')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </CommercialAssistantProvider>
   );
 }
