@@ -124,5 +124,9 @@
       "crmForms": "Formulaires de capture",
       "chatPages": "Pages de chat"
     }
+  },
+  "commercialAssistant": {
+    "open": "Ouvrir l’assistant commercial",
+    "close": "Fermer l’assistant commercial"
   }
 }

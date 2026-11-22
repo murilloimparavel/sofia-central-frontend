@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from 'react';
 import ChunkLoadErrorBoundary from '@/components/ChunkLoadErrorBoundary';
+import { useCommercialAssistantContext } from './CommercialAssistantContext';
 import './CommercialAssistantPopup.css';
 
 const CommercialAssistantPanel = lazy(() => import('./CommercialAssistantPanel'));
@@ -42,10 +43,21 @@ function CloseIcon() {
 
 interface CommercialAssistantPopupProps {
   initiallyOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function CommercialAssistantPopup({ initiallyOpen = false }: CommercialAssistantPopupProps) {
-  const [isOpen, setIsOpen] = useState(initiallyOpen);
+export default function CommercialAssistantPopup({ initiallyOpen = false, open, onOpenChange }: CommercialAssistantPopupProps) {
+  const [internalIsOpen, setInternalIsOpen] = useState(initiallyOpen);
+  const assistantContext = useCommercialAssistantContext();
+  const contextSetIsOpen = assistantContext?.setIsOpen;
+  const mobileTriggerRef = assistantContext?.mobileTriggerRef;
+  const isOpen = open ?? assistantContext?.isOpen ?? internalIsOpen;
+  const setIsOpen = useCallback((next: boolean) => {
+    if (open !== undefined) onOpenChange?.(next);
+    else if (contextSetIsOpen) contextSetIsOpen(next);
+    else setInternalIsOpen(next);
+  }, [open, onOpenChange, contextSetIsOpen]);
   const [isDesktop, setIsDesktop] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isDocked, setIsDocked] = useState(false);
@@ -69,9 +81,10 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
   }, []);
 
   useEffect(() => {
-    const media = window.matchMedia('(min-width: 641px)');
-    const updateViewport = () => setIsDesktop(media.matches);
+    const media = window.matchMedia?.('(min-width: 768px)');
+    const updateViewport = () => setIsDesktop(media?.matches ?? window.innerWidth >= 768);
     updateViewport();
+    if (!media) return;
     media.addEventListener('change', updateViewport);
     return () => media.removeEventListener('change', updateViewport);
   }, []);
@@ -198,8 +211,14 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
 
   const close = useCallback(() => {
     setIsOpen(false);
-    window.requestAnimationFrame(() => buttonRef.current?.focus());
-  }, []);
+    window.requestAnimationFrame(() => {
+      const mobile = window.matchMedia?.('(max-width: 767px)').matches ?? window.innerWidth < 768;
+      const focusTarget = mobile
+        ? mobileTriggerRef?.current ?? buttonRef.current
+        : buttonRef.current;
+      focusTarget?.focus();
+    });
+  }, [setIsOpen, mobileTriggerRef]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -281,7 +300,7 @@ export default function CommercialAssistantPopup({ initiallyOpen = false }: Comm
             setIsOpen(true);
             return;
           }
-          setIsOpen(current => !current);
+          setIsOpen(!isOpen);
         }}
         style={isDesktop || isDocked ? {
           right: isDocked ? (isDesktop ? 0 : 'max(0px, env(safe-area-inset-right, 0px))') : position.right,

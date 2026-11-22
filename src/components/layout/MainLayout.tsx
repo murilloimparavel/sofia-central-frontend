@@ -26,6 +26,7 @@ import { injectDashboardAppsIntoMenu } from '@/utils/injectDashboardApps';
 import { WelcomeTourModal } from '@/components/WelcomeTourModal';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import CommercialAssistantPopup from '@/components/commercial-assistant/CommercialAssistantPopup';
+import { CommercialAssistantProvider } from '@/components/commercial-assistant/CommercialAssistantProvider';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -112,7 +113,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-background transition-colors duration-150 ease-in-out">
+    <CommercialAssistantProvider>
+      <div className="flex flex-col h-dvh bg-background transition-colors duration-150 ease-in-out">
 
       {/* Header */}
       <Header
@@ -176,6 +178,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </CommercialAssistantProvider>
   );
 }

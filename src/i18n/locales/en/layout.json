@@ -124,5 +124,9 @@
       "crmForms": "Lead capture forms",
       "chatPages": "Chat pages"
     }
+  },
+  "commercialAssistant": {
+    "open": "Open commercial assistant",
+    "close": "Close commercial assistant"
   }
 }

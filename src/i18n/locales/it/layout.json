@@ -124,5 +124,9 @@
       "crmForms": "Moduli di acquisizione",
       "chatPages": "Pagine di chat"
     }
+  },
+  "commercialAssistant": {
+    "open": "Apri assistente commerciale",
+    "close": "Chiudi assistente commerciale"
   }
 }
