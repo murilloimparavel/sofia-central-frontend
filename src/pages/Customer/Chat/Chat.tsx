@@ -152,6 +152,9 @@ const Chat = () => {
     () => (conversationId && UUID_V4_REGEX.test(conversationId) ? 'chat' : 'list'),
   );
   const [isContactSidebarOpen, setIsContactSidebarOpen] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const openTemplateModal = useCallback(() => setIsTemplateModalOpen(true), []);
+  const closeTemplateModal = useCallback(() => setIsTemplateModalOpen(false), []);
 
   // Coluna de conversas redimensionável via hook atomizado
   const { sidebarWidth, isResizingSidebar, handleResizeMouseDown } = useSidebarResize();
@@ -184,6 +187,10 @@ const Chat = () => {
         : null,
     [conversations.state.selectedConversationId],
   );
+
+  useEffect(() => {
+    closeTemplateModal();
+  }, [closeTemplateModal, selectedConversationIdStr]);
 
   const prefetchTargetId = useMemo(() => {
     // Wait for route and selection to agree before spending bandwidth. This
@@ -1040,6 +1047,7 @@ const Chat = () => {
                 onAssignTeam={headerAssignTeam}
                 onAssignTag={headerAssignTag}
                 unreadCount={conversations.getUnreadCount(selectedConversation.id) || 0}
+                onOpenTemplateModal={activeTab === 'chat' ? openTemplateModal : undefined}
               />
 
               {/* Chat Tabs - Show tabs for conversation type dashboard apps */}
@@ -1064,6 +1072,9 @@ const Chat = () => {
                   onOpenConversation={() =>
                     selectedConversation && handleMarkAsOpen(selectedConversation)
                   }
+                  isTemplateModalOpen={isTemplateModalOpen}
+                  onOpenTemplateModal={openTemplateModal}
+                  onCloseTemplateModal={closeTemplateModal}
                 />
               ) : (
                 // Show Dashboard App iframe when an app tab is active

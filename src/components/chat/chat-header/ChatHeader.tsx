@@ -13,6 +13,7 @@ import {
   Tag,
   GitBranch,
   Check,
+  LayoutTemplate,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -57,6 +58,7 @@ interface ChatHeaderProps {
   onAssignTeam: (conversation: Conversation) => void;
   onAssignTag: (conversation: Conversation) => void;
   unreadCount: number;
+  onOpenTemplateModal?: () => void;
 }
 
 interface ConvPipelineData {
@@ -77,11 +79,15 @@ const ChatHeader = ({
   onAssignAgent,
   onAssignTeam,
   onAssignTag,
+  onOpenTemplateModal,
 }: ChatHeaderProps) => {
   const { t } = useLanguage('chat');
   const currentStatus = conversation.status;
 
   const inboxName = conversation.inbox?.name || '';
+  const provider = conversation.inbox?.provider?.toLowerCase() || '';
+  const isWhatsAppCloud = conversation.inbox?.channel_type === 'Channel::Whatsapp' &&
+    ['whatsapp_cloud', 'default', ''].includes(provider);
   const phoneDisplay = isPhoneBearingChannel(conversation.inbox?.channel_type)
     ? formatContactPhone(conversation.contact?.phone_number)
     : null;
@@ -468,6 +474,20 @@ const ChatHeader = ({
                   it a long inbox name overflows the header and runs under the action
                   buttons on mobile instead of truncating (EVO-2234). */}
               {inboxName && <span className="min-w-0 truncate">{inboxName}</span>}
+              {isWhatsAppCloud && onOpenTemplateModal && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onOpenTemplateModal}
+                  className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+                  aria-label={t('messageTemplates.button.title')}
+                  title={t('messageTemplates.button.title')}
+                >
+                  <LayoutTemplate className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="hidden sm:inline">{t('messageTemplates.button.title')}</span>
+                </Button>
+              )}
               {(() => {
                 const meta = STATUS_META_LIGHT[conversation.status] || STATUS_META_LIGHT.snoozed;
                 // Rótulo LONGO do protótipo ("Atendimento em Aberto" etc.), distinto do
