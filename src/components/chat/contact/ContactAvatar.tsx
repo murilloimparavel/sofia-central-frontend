@@ -38,6 +38,7 @@ interface ContactAvatarProps {
   showColoredFallback?: boolean;
   channelType?: string;
   channelProvider?: string;
+  channelAvatarUrl?: string | null;
   showRing?: boolean;
 }
 
@@ -48,10 +49,12 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({
   showColoredFallback = false,
   channelType,
   channelProvider,
+  channelAvatarUrl,
   showRing = false,
 }) => {
   const { t } = useLanguage('chat');
   const [imageError, setImageError] = useState(false);
+  const [failedChannelAvatarUrl, setFailedChannelAvatarUrl] = useState<string | null>(null);
 
   // Reset error state when contact changes
   useEffect(() => {
@@ -169,12 +172,21 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="cursor-help">
-                  <ChannelIcon
-                    channelType={channelType}
-                    provider={channelProvider}
-                    size="sm"
-                    className="w-5 h-5 border-2 border-background hover:scale-110 transition-transform duration-200"
-                  />
+                  {channelAvatarUrl && channelAvatarUrl !== failedChannelAvatarUrl ? (
+                    <img
+                      src={channelAvatarUrl}
+                      alt=""
+                      className="h-5 w-5 rounded-full border-2 border-background object-cover hover:scale-110 transition-transform duration-200"
+                      onError={() => setFailedChannelAvatarUrl(channelAvatarUrl)}
+                    />
+                  ) : (
+                    <ChannelIcon
+                      channelType={channelType}
+                      provider={channelProvider}
+                      size="sm"
+                      className="w-5 h-5 border-2 border-background hover:scale-110 transition-transform duration-200"
+                    />
+                  )}
                 </div>
               </TooltipTrigger>
               <TooltipContent
