@@ -76,6 +76,9 @@ interface ChatAreaProps {
   onRetryMessage: (messageId: string) => void;
   isPendingConversation?: boolean;
   onOpenConversation?: () => void;
+  isTemplateModalOpen?: boolean;
+  onOpenTemplateModal?: () => void;
+  onCloseTemplateModal?: () => void;
 }
 
 const ChatArea = ({
@@ -87,6 +90,9 @@ const ChatArea = ({
   onLoadMore,
   onRetryMessage,
   isPendingConversation = false,
+  isTemplateModalOpen,
+  onOpenTemplateModal,
+  onCloseTemplateModal,
 }: ChatAreaProps) => {
   const { t } = useLanguage('chat');
   const messages = useChatMessages();
@@ -487,6 +493,9 @@ const ChatArea = ({
           inboxId={selectedConversation?.inbox_id || ''}
           channelType={selectedConversation?.inbox?.channel_type || ''}
           channelProvider={channelProvider}
+          templateModalOpen={isTemplateModalOpen}
+          onOpenTemplateModal={onOpenTemplateModal}
+          onCloseTemplateModal={onCloseTemplateModal}
         />
       </div>
     </div>

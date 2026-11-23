@@ -83,6 +83,9 @@ interface MessageInputProps {
   inboxId: string;
   channelType?: string;
   channelProvider?: string;
+  templateModalOpen?: boolean;
+  onOpenTemplateModal?: () => void;
+  onCloseTemplateModal?: () => void;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({
@@ -98,6 +101,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
   inboxId,
   channelType,
   channelProvider,
+  templateModalOpen,
+  onOpenTemplateModal,
+  onCloseTemplateModal,
 }) => {
   const { t } = useLanguage('chat');
   const { user } = useAuth();
@@ -369,8 +375,22 @@ const MessageInput: React.FC<MessageInputProps> = ({
   );
 
   const handleTemplateClick = useCallback(() => {
-    setShowTemplatesModal(true);
-  }, []);
+    if (onOpenTemplateModal) {
+      onOpenTemplateModal();
+    } else {
+      setShowTemplatesModal(true);
+    }
+  }, [onOpenTemplateModal]);
+
+  const closeTemplatesModal = useCallback(() => {
+    if (onCloseTemplateModal) {
+      onCloseTemplateModal();
+    } else {
+      setShowTemplatesModal(false);
+    }
+  }, [onCloseTemplateModal]);
+
+  const isTemplatesModalOpen = templateModalOpen ?? showTemplatesModal;
 
   const isTemplateOnlyMode = isWindowClosed && isWhatsAppCloud && !isPendingConversation;
 
@@ -385,7 +405,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           templateParams: payload.templateParams,
           cannedResponseId: null,
         });
-        setShowTemplatesModal(false);
+        closeTemplatesModal();
         toast.success(t('messageTemplates.success.sent'));
       } catch (error) {
         console.error('Error sending WhatsApp template:', error);
@@ -394,7 +414,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         setIsSending(false);
       }
     },
-    [onSendMessage, t],
+    [closeTemplatesModal, onSendMessage, t],
   );
 
   // 🎯 CANNED RESPONSES: Abrir/fechar dropdown via botão
@@ -924,11 +944,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
       </div>
 
       {/* Message Templates Modal */}
-      {showTemplatesModal && (
+      {isTemplatesModalOpen && (
         <Suspense fallback={null}>
           <MessageTemplateModal
-            isOpen={showTemplatesModal}
-            onClose={() => setShowTemplatesModal(false)}
+            isOpen={isTemplatesModalOpen}
+            onClose={closeTemplatesModal}
             inboxId={inboxId}
             channelType={channelType}
             isWhatsAppCloud={isWhatsAppCloud}
