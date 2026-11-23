@@ -142,6 +142,7 @@ const ConversationCardComponent: React.FC<ConversationCardProps> = ({
             contact={conversation.contact}
             channelType={channelType}
             channelProvider={channelProvider}
+            channelAvatarUrl={conversation.inbox?.avatar_url}
             size="mdlg"
             showRing
           />
