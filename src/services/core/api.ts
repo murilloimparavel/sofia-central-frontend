@@ -69,7 +69,10 @@ api.interceptors.request.use(config => {
     config.headers.Authorization = authHeader.Authorization;
   }
 
-  if (config.data instanceof FormData && config.headers['Content-Type'] === undefined) {
+  // Let the browser/Axios set multipart/form-data with its boundary. The
+  // instance default is application/json, so checking whether the header is
+  // undefined leaves FormData requests serialized as JSON.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
     delete config.headers['Content-Type'];
     delete config.headers['content-type'];
   }
