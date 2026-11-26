@@ -45,6 +45,7 @@
       },
       "deletedPlaceholder": "This message was deleted",
       "revokedByContact": "Deleted by the contact",
+      "edited": "Edited",
       "revokeCrmOnly": "removed only in the CRM"
     },
     "moderation": {
