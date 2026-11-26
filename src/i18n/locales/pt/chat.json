@@ -43,6 +43,7 @@
       },
       "deletedPlaceholder": "Esta mensagem foi eliminada",
       "revokedByContact": "Apagada pelo contacto",
+      "edited": "Editado",
       "revokeCrmOnly": "removida só no CRM"
     },
     "moderation": {

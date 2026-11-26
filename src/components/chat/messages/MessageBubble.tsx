@@ -89,6 +89,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isPrivate = message.private;
   const isDeleted = message.content_attributes?.deleted === true;
   const isRevokedByContact = message.content_attributes?.revoked_by_contact === true;
+  const isEdited = message.content_attributes?.is_edited === true;
   const isRevokeCrmOnly = message.content_attributes?.revoke_propagated === false;
 
   // Moderation indicators
@@ -392,6 +393,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
               <div className={timestampVariant === 'tuck' ? 'overflow-hidden' : undefined}>
                 {renderMessageContent()}
+                {isEdited && (
+                  <div className="mt-1 text-xs italic text-muted-foreground opacity-80">
+                    {t('messages.messageBubble.edited', 'Editada')}
+                  </div>
+                )}
                 {(isDeleted || isRevokedByContact) && (
                   <div className="mt-1 text-xs italic text-muted-foreground opacity-80">
                     {isRevokedByContact
